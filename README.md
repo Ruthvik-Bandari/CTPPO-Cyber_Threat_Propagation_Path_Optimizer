@@ -6,7 +6,6 @@
 
 A hybrid machine learning framework for multi-objective vulnerability prioritization using Graph Neural Networks and Reinforcement Learning.
 
-![System Architecture](docs/images/architecture.png)
 
 ## Overview
 
