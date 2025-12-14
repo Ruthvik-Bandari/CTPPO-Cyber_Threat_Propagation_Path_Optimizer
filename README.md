@@ -171,11 +171,11 @@ python download_cve_data.py --start 2023-01 --end 2024-12
 If you use CTPPO in your research, please cite:
 
 ```bibtex
-@article{bandari2024ctppo,
+@article{bandari2025ctppo,
   title={CTPPO: A Hybrid Machine Learning Framework for Multi-Objective Vulnerability Prioritization Using Graph Neural Networks and Reinforcement Learning},
   author={Bandari, Ruthvik Nath},
   journal={arXiv preprint arXiv:2412.XXXXX},
-  year={2024}
+  year={2025}
 }
 ```
 
