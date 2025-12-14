@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-12-14T14:32:16.681821",
+  "level": "INFO",
+  "category": "SESSION_START",
+  "message": "Started logging session for CTPPO",
+  "data": {
+    "experiment_id": "exp_20251214_143216_8b3280",
+    "log_directory": "/Users/ruthvikbandari/Downloads/cyber_threat_optimizer/logs/exp_20251214_143216_8b3280",
+    "python_version": "Python 3.13.7",
+    "start_time": "2025-12-14T14:32:16.681680"
+  },
+  "duration_ms": null,
+  "memory_mb": 183.234375,
+  "context": {
+    "experiment_id": "exp_20251214_143216_8b3280",
+    "logger_name": "CTPPO"
+  }
+}

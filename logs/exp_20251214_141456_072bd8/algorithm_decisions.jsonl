@@ -1,0 +1,270 @@
+{
+  "timestamp": "2025-12-14T14:32:16.658380",
+  "level": "ALGORITHM",
+  "category": "NAMOA_START",
+  "message": "Starting NAMOA* search",
+  "data": {
+    "sources": [
+      "ccea6cf4-b59f-4fa2-8f79-4b58aa4526f6"
+    ],
+    "goals": [
+      "7fb3f026-f458-477f-9bf0-c73a2fa3bbaf",
+      "369d5a52-b611-49ac-8a2c-131cbb130182"
+    ],
+    "objectives": [
+      "TIME_TO_EXPLOIT",
+      "SUCCESS_PROBABILITY",
+      "BUSINESS_IMPACT"
+    ],
+    "use_heuristic": true
+  },
+  "duration_ms": null,
+  "memory_mb": 181.453125,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:32:16.682962",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_START",
+  "message": "Starting algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    }
+  },
+  "duration_ms": null,
+  "memory_mb": 183.359375,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:32:16.684105",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_END",
+  "message": "Completed algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    },
+    "duration_ms": 1.1231250100536272,
+    "total_iterations": 0,
+    "success": true,
+    "error": null
+  },
+  "duration_ms": null,
+  "memory_mb": 183.421875,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:32:16.684777",
+  "level": "ALGORITHM",
+  "category": "NAMOA_COMPLETE",
+  "message": "NAMOA* search completed with 0 Pareto-optimal paths",
+  "data": {
+    "num_pareto_paths": 0,
+    "num_labels_created": 24,
+    "num_labels_expanded": 24,
+    "num_labels_pruned": 0,
+    "execution_time_ms": 26.518041995586827,
+    "iterations": 24,
+    "hypervolume": null
+  },
+  "duration_ms": null,
+  "memory_mb": 183.421875,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:44:12.819031",
+  "level": "ALGORITHM",
+  "category": "NAMOA_START",
+  "message": "Starting NAMOA* search",
+  "data": {
+    "sources": [
+      "23476a65-a507-4e61-b52b-bf8c90be2f27"
+    ],
+    "goals": [
+      "c0d48583-34d3-4e06-a6de-ab562287d971",
+      "91c31532-a4eb-419f-9df9-85e42b66f877"
+    ],
+    "objectives": [
+      "TIME_TO_EXPLOIT",
+      "SUCCESS_PROBABILITY",
+      "BUSINESS_IMPACT"
+    ],
+    "use_heuristic": true
+  },
+  "duration_ms": null,
+  "memory_mb": 207.40625,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:44:12.820931",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_START",
+  "message": "Starting algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    }
+  },
+  "duration_ms": null,
+  "memory_mb": 207.4375,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:44:12.821770",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_END",
+  "message": "Completed algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    },
+    "duration_ms": 0.8572090009693056,
+    "total_iterations": 0,
+    "success": true,
+    "error": null
+  },
+  "duration_ms": null,
+  "memory_mb": 207.4375,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:44:12.823078",
+  "level": "ALGORITHM",
+  "category": "NAMOA_COMPLETE",
+  "message": "NAMOA* search completed with 0 Pareto-optimal paths",
+  "data": {
+    "num_pareto_paths": 0,
+    "num_labels_created": 2,
+    "num_labels_expanded": 2,
+    "num_labels_pruned": 0,
+    "execution_time_ms": 4.023250003228895,
+    "iterations": 2,
+    "hypervolume": null
+  },
+  "duration_ms": null,
+  "memory_mb": 207.4375,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:56:52.631621",
+  "level": "ALGORITHM",
+  "category": "NAMOA_START",
+  "message": "Starting NAMOA* search",
+  "data": {
+    "sources": [
+      "8bab76db-d68a-43f2-a664-f32e51432626"
+    ],
+    "goals": [
+      "0c518d12-d912-42ba-97f8-860c1a75f223",
+      "b544852d-cbe5-4af6-98db-b63c1dbe7519"
+    ],
+    "objectives": [
+      "TIME_TO_EXPLOIT",
+      "SUCCESS_PROBABILITY",
+      "BUSINESS_IMPACT"
+    ],
+    "use_heuristic": true
+  },
+  "duration_ms": null,
+  "memory_mb": 170.59375,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:56:52.633943",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_START",
+  "message": "Starting algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    }
+  },
+  "duration_ms": null,
+  "memory_mb": 171.40625,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:56:52.639102",
+  "level": "ALGORITHM",
+  "category": "ALGORITHM_END",
+  "message": "Completed algorithm: NAMOA*",
+  "data": {
+    "parameters": {
+      "sources": 1,
+      "goals": 2,
+      "n_objectives": 3
+    },
+    "duration_ms": 5.157167004654184,
+    "total_iterations": 0,
+    "success": true,
+    "error": null
+  },
+  "duration_ms": null,
+  "memory_mb": 172.03125,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
+{
+  "timestamp": "2025-12-14T14:56:52.640631",
+  "level": "ALGORITHM",
+  "category": "NAMOA_COMPLETE",
+  "message": "NAMOA* search completed with 2 Pareto-optimal paths",
+  "data": {
+    "num_pareto_paths": 2,
+    "num_labels_created": 22,
+    "num_labels_expanded": 22,
+    "num_labels_pruned": 0,
+    "execution_time_ms": 8.295583000290208,
+    "iterations": 22,
+    "hypervolume": 855790.7548999214
+  },
+  "duration_ms": null,
+  "memory_mb": 172.453125,
+  "context": {
+    "experiment_id": "exp_20251214_141456_072bd8",
+    "logger_name": "Dashboard"
+  }
+}
