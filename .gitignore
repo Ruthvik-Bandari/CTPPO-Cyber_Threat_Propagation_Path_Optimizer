@@ -1,0 +1,238 @@
+# ============================================
+# CTPPO .gitignore
+# ============================================
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Scrapy
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ============================================
+# Node.js / Frontend
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Bun
+bun.lockb
+.bun/
+
+# ============================================
+# IDE / Editor
+# ============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.lnk
+
+# ============================================
+# Environment & Secrets
+# ============================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+*.pem
+*.key
+secrets/
+.secrets
+
+# ============================================
+# ML / Data Files
+# ============================================
+# Large data files
+data/raw/
+data/processed/
+data/*.csv
+data/*.json
+data/*.parquet
+!data/.gitkeep
+
+# Model files (keep structure, ignore large files)
+models/**/*.pt
+models/**/*.pth
+models/**/*.h5
+models/**/*.pkl
+models/**/*.joblib
+models/**/*.onnx
+!models/**/.gitkeep
+!models/**/config.json
+
+# Checkpoints
+checkpoints/
+*.ckpt
+
+# ============================================
+# Logs & Temporary Files
+# ============================================
+logs/
+*.log
+tmp/
+temp/
+.tmp/
+*.tmp
+
+# ============================================
+# Docker
+# ============================================
+.docker/
+
+# ============================================
+# Testing
+# ============================================
+.coverage
+coverage/
+.nyc_output/
+
+# ============================================
+# Misc
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+.cache/
+
+# ============================================
+# Project Specific
+# ============================================
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Report outputs
+reports/*.pdf
+reports/*.html
+
+# Scan results
+scan_results/
+
+# NVD cache
+nvd_cache/
+cve_cache/
