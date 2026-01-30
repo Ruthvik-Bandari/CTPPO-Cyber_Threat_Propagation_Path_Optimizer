@@ -23,7 +23,7 @@ export const Route = createFileRoute('/settings')({
 
 function SettingsPage() {
   const { user, setUser } = useAuthStore()
-  const queryClient = useQueryClient()
+  const _queryClient = useQueryClient()
   
   const [setup2FAData, setSetup2FAData] = useState<Setup2FAResponse | null>(null)
   const [totpCode, setTotpCode] = useState('')

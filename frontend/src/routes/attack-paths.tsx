@@ -41,12 +41,12 @@ interface PathData {
 function NetworkGraph({
   data,
   selectedPath,
-  setSelectedPath,
+  _setSelectedPath,
   layout,
 }: {
   data: any
   selectedPath: string | null
-  setSelectedPath: (path: string | null) => void
+  _setSelectedPath: (path: string | null) => void
   layout: LayoutType
 }) {
   const [zoom, setZoom] = useState(1)
@@ -405,11 +405,11 @@ function NetworkGraph({
 function ParetoChart({
   paths,
   selectedPath,
-  setSelectedPath,
+  _setSelectedPath,
 }: {
   paths: PathData[]
   selectedPath: string | null
-  setSelectedPath: (path: string | null) => void
+  _setSelectedPath: (path: string | null) => void
 }) {
   const [hoveredPath, setHoveredPath] = useState<PathData | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
@@ -526,7 +526,7 @@ function ParetoChart({
             <g
               key={i}
               style={{ cursor: 'pointer' }}
-              onClick={() => setSelectedPath(isSelected ? null : p.name)}
+              onClick={() => _setSelectedPath(isSelected ? null : p.name)}
               onMouseEnter={(e) => {
                 setHoveredPath(p)
                 setTooltip({ x: e.clientX, y: e.clientY })
@@ -629,7 +629,7 @@ function ParetoChart({
 
 function AttackPathsPage() {
   const { accessToken } = useAuthStore()
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [selectedPath, _setSelectedPath] = useState<string | null>(null)
   const [scanMode, setScanMode] = useState<'demo' | 'real'>('demo')
   const [targetUrl, setTargetUrl] = useState('')
   const [scanResult, setScanResult] = useState<any>(null)
@@ -658,7 +658,7 @@ function AttackPathsPage() {
     },
     onSuccess: (data) => {
       setScanResult(data)
-      setSelectedPath(null)
+      _setSelectedPath(null)
     },
   })
 
@@ -831,7 +831,7 @@ function AttackPathsPage() {
             <NetworkGraph
               data={data}
               selectedPath={selectedPath}
-              setSelectedPath={setSelectedPath}
+              _setSelectedPath={setSelectedPath}
               layout={layout}
             />
           ) : (
@@ -885,7 +885,7 @@ function AttackPathsPage() {
             <ParetoChart
               paths={pathsData}
               selectedPath={selectedPath}
-              setSelectedPath={setSelectedPath}
+              _setSelectedPath={setSelectedPath}
             />
           )}
 
@@ -909,7 +909,7 @@ function AttackPathsPage() {
                   return (
                     <button
                       key={p.name}
-                      onClick={() => setSelectedPath(selectedPath === p.name ? null : p.name)}
+                      onClick={() => _setSelectedPath(selectedPath === p.name ? null : p.name)}
                       className={`w-full p-2 rounded-lg text-left transition-all border ${
                         selectedPath === p.name
                           ? 'bg-primary/20 border-primary ring-2 ring-primary/50'

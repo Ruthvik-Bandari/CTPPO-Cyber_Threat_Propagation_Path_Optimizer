@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Radar,
-  Shield,
+  // Shield,
   AlertTriangle,
   Loader2,
   Play,

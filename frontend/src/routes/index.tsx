@@ -16,7 +16,7 @@ import {
   AlertCircle,
   Github,
   Linkedin,
-  ExternalLink,
+  // ExternalLink,
 } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
