@@ -77,6 +77,40 @@ USERS_DB: Dict[str, Dict] = {
 
 
 # ============================================================================
+# SUBSCRIPTION SYSTEM (Early declaration for get_current_user)
+# ============================================================================
+
+OWNER_EMAILS = [
+    "bandari.ru@northeastern.edu",
+    "ruthvik299@gmail.com"
+]
+
+PRODUCT_KEYS_DB = {}
+ACTIVATED_KEYS_DB = {}
+
+def is_owner(email: str) -> bool:
+    """Check if email is owner."""
+    return email.lower() in [e.lower() for e in OWNER_EMAILS]
+
+def check_subscription(email: str) -> dict:
+    """Check if user has active subscription."""
+    if is_owner(email):
+        return {"has_subscription": True, "is_owner": True, "status": "active"}
+    if email.lower() not in ACTIVATED_KEYS_DB:
+        return {"has_subscription": False, "status": "no_subscription"}
+    activation = ACTIVATED_KEYS_DB[email.lower()]
+    expires_at = datetime.fromisoformat(activation["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        return {"has_subscription": False, "status": "expired"}
+    return {
+        "has_subscription": True,
+        "is_owner": False,
+        "subscription_type": activation["subscription_type"],
+        "expires_at": activation["expires_at"],
+        "status": "active"
+    }
+
+# ============================================================================
 # MODEL CONFIG
 # ============================================================================
 
@@ -329,6 +363,11 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(securit
     user = USERS_DB[email]
     if user["is_2fa_enabled"] and not payload.get("2fa_ok"):
         raise HTTPException(status_code=401, detail="2FA required")
+    # Check subscription (owners bypass)
+    if not is_owner(email):
+        sub = check_subscription(email)
+        if not sub["has_subscription"]:
+            raise HTTPException(status_code=403, detail="No active subscription. Please activate a product key.")
     return user
 
 
@@ -358,7 +397,7 @@ def encode_cvss(cvss: Optional[CVSSVector]) -> List[int]:
 # MODEL LOADING
 # ============================================================================
 
-def load_model(model_dir: str = "./models/severity_v3"):
+def load_model(model_dir: str = "../models/severity_v3"):
     model_path = Path(model_dir)
     if not (model_path / "checkpoint_best.pt").exists():
         print(f"Warning: Model not found at {model_path}")
@@ -431,7 +470,7 @@ def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_model(os.environ.get("MODEL_DIR", "./models/severity_v3"))
+    load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
     yield
 
 
@@ -1473,7 +1512,7 @@ async def quick_scan(target: str, user: dict = Depends(get_current_user)):
 from fastapi.responses import Response
 
 try:
-    from api.pdf_generator import SecurityReportGenerator
+    from pdf_generator import SecurityReportGenerator
     PDF_AVAILABLE = True
     pdf_generator = SecurityReportGenerator()
 except ImportError:
@@ -1523,3 +1562,178 @@ async def generate_attack_path_pdf(path_data: dict, user: dict = Depends(get_cur
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# ============================================================================
+# REFRESH TOKEN ENDPOINT (Missing)
+# ============================================================================
+
+@app.post("/api/auth/refresh")
+async def refresh_token(request: dict):
+    """Refresh access token using refresh token."""
+    refresh_token = request.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(400, "Refresh token required")
+    
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(401, "Invalid token type")
+        
+        email = payload.get("sub")
+        if email not in USERS_DB:
+            raise HTTPException(401, "User not found")
+        
+        # Generate new access token
+        user = USERS_DB[email]
+        access_token = jwt.encode({
+            "sub": email,
+            "type": "access",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        }, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid refresh token")
+
+
+# ============================================================================
+# SUBSCRIPTION SYSTEM
+# ============================================================================
+
+import secrets as sec
+import string
+
+# Owner emails (no subscription needed)
+OWNER_EMAILS = [
+    "bandari.ru@northeastern.edu",
+    "ruthvik299@gmail.com"
+]
+
+# Product keys storage
+PRODUCT_KEYS_DB = {}
+ACTIVATED_KEYS_DB = {}
+
+def generate_product_key() -> str:
+    """Generate a unique product key: CTPPO-XXXX-XXXX-XXXX-XXXX"""
+    chars = string.ascii_uppercase + string.digits
+    segments = [''.join(sec.choice(chars) for _ in range(4)) for _ in range(4)]
+    return f"CTPPO-{'-'.join(segments)}"
+
+def create_product_key(subscription_type: str = "individual", validity_days: int = 365) -> dict:
+    """Create a new product key."""
+    key = generate_product_key()
+    while key in PRODUCT_KEYS_DB:
+        key = generate_product_key()
+    
+    key_data = {
+        "key": key,
+        "subscription_type": subscription_type,
+        "validity_days": validity_days,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "is_activated": False,
+        "activated_by": None,
+        "expires_at": None
+    }
+    PRODUCT_KEYS_DB[key] = key_data
+    return key_data
+
+def is_owner(email: str) -> bool:
+    """Check if email is owner."""
+    return email.lower() in [e.lower() for e in OWNER_EMAILS]
+
+def check_subscription(email: str) -> dict:
+    """Check if user has active subscription."""
+    if is_owner(email):
+        return {"has_subscription": True, "is_owner": True, "status": "active"}
+    
+    if email.lower() not in ACTIVATED_KEYS_DB:
+        return {"has_subscription": False, "status": "no_subscription"}
+    
+    activation = ACTIVATED_KEYS_DB[email.lower()]
+    expires_at = datetime.fromisoformat(activation["expires_at"].replace('Z', '+00:00'))
+    
+    if datetime.now(timezone.utc) > expires_at:
+        return {"has_subscription": False, "status": "expired"}
+    
+    return {
+        "has_subscription": True,
+        "is_owner": False,
+        "subscription_type": activation["subscription_type"],
+        "expires_at": activation["expires_at"],
+        "status": "active"
+    }
+
+
+class ProductKeyActivation(BaseModel):
+    product_key: str
+    email: EmailStr
+
+
+@app.post("/api/subscription/activate")
+async def activate_product_key(data: ProductKeyActivation):
+    """Activate a product key for a user."""
+    if is_owner(data.email):
+        return {"success": True, "message": "Owner account - no activation required", "is_owner": True}
+    
+    if data.product_key not in PRODUCT_KEYS_DB:
+        raise HTTPException(400, "Invalid product key")
+    
+    key_data = PRODUCT_KEYS_DB[data.product_key]
+    
+    if key_data["is_activated"]:
+        raise HTTPException(400, "Product key already activated")
+    
+    expires_at = datetime.now(timezone.utc) + timedelta(days=key_data["validity_days"])
+    
+    key_data["is_activated"] = True
+    key_data["activated_by"] = data.email
+    key_data["expires_at"] = expires_at.isoformat()
+    
+    ACTIVATED_KEYS_DB[data.email.lower()] = {
+        "key": data.product_key,
+        "subscription_type": key_data["subscription_type"],
+        "expires_at": expires_at.isoformat()
+    }
+    
+    return {
+        "success": True,
+        "message": "Product key activated",
+        "subscription_type": key_data["subscription_type"],
+        "expires_at": expires_at.isoformat()
+    }
+
+
+@app.post("/api/subscription/check")
+async def check_user_subscription(email: str):
+    """Check subscription status."""
+    return check_subscription(email)
+
+
+@app.post("/api/subscription/generate-key")
+async def generate_key(subscription_type: str = "individual", validity_days: int = 365, admin_secret: str = ""):
+    """Generate a new product key (admin only)."""
+    if admin_secret != os.environ.get("ADMIN_SECRET", "ctppo-admin-2026"):
+        raise HTTPException(403, "Invalid admin credentials")
+    
+    key_data = create_product_key(subscription_type, validity_days)
+    return {"success": True, "product_key": key_data["key"], "validity_days": validity_days}
+
+
+# Generate demo keys on startup
+_demo_keys = [
+    create_product_key("individual", 30),
+    create_product_key("individual", 365),
+    create_product_key("enterprise", 365),
+]
+print("=" * 60)
+print("CTPPO - Demo Product Keys Generated:")
+print("=" * 60)
+for k in _demo_keys:
+    print(f"  {k['key']} ({k['subscription_type']}, {k['validity_days']} days)")
+print("=" * 60)

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { authApi, Setup2FAResponse } from '@/api/client'
+import { authApi, Setup2FAResponse, subscriptionApi, SubscriptionStatus } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -31,6 +31,14 @@ function SettingsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [copied, setCopied] = useState(false)
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
+
+  // Fetch subscription status on mount
+  useEffect(() => {
+    if (user?.email) {
+      subscriptionApi.check(user.email).then(setSubscription).catch(console.error)
+    }
+  }, [user?.email])
 
   const setup2FAMutation = useMutation({
     mutationFn: authApi.setup2FA,
@@ -139,9 +147,9 @@ function SettingsPage() {
           </div>
           <div className="flex justify-between items-center py-3 border-b border-border">
             <span className="text-muted-foreground">Account Status</span>
-            <span className={`flex items-center gap-2 ${user?.is_active ? 'text-green-500' : 'text-red-500'}`}>
-              {user?.is_active ? <CheckCircle size={16} /> : <XCircle size={16} />}
-              {user?.is_active ? 'Active' : 'Inactive'}
+            <span className={`flex items-center gap-2 ${subscription?.has_subscription ? 'text-green-500' : 'text-red-500'}`}>
+              {subscription?.has_subscription ? <CheckCircle size={16} /> : <XCircle size={16} />}
+              {subscription?.is_owner ? 'Active (Owner)' : subscription?.has_subscription ? 'Active' : 'Inactive'}
             </span>
           </div>
           <div className="flex justify-between items-center py-3">

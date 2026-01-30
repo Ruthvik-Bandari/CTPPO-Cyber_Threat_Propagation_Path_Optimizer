@@ -390,3 +390,25 @@ export const healthApi = {
     return apiClient.get('/health', { requiresAuth: false })
   },
 }
+
+// ============================================================================
+// SUBSCRIPTION API
+// ============================================================================
+
+export interface SubscriptionStatus {
+  has_subscription: boolean
+  is_owner: boolean
+  status: string
+  subscription_type?: string
+  expires_at?: string
+}
+
+export const subscriptionApi = {
+  check: async (email: string): Promise<SubscriptionStatus> => {
+    return apiClient.post(`/subscription/check?email=${encodeURIComponent(email)}`, null, { requiresAuth: false })
+  },
+  
+  activate: async (productKey: string, email: string): Promise<{ success: boolean; message: string }> => {
+    return apiClient.post('/subscription/activate', { product_key: productKey, email }, { requiresAuth: false })
+  },
+}
