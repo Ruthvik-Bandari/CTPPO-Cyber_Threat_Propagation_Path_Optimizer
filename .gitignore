@@ -1,0 +1,42 @@
+# Large data files (DO NOT COMMIT)
+data/
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+.venv/
+*.egg-info/
+.coverage
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/node_modules/
+bun.lockb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+build/
+frontend/dist/

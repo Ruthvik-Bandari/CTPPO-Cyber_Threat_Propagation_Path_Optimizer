@@ -1,0 +1,42 @@
+# CTPPO Security Scanner Requirements
+# =====================================
+
+# Core Dependencies (already in your venv)
+torch>=2.0.0
+transformers>=4.35.0
+fastapi>=0.109.0
+uvicorn>=0.25.0
+pydantic>=2.0.0
+
+# Authentication
+PyJWT>=2.8.0
+pyotp>=2.9.0
+qrcode[pil]>=7.4.0
+email-validator>=2.1.0
+
+# Security Scanner - Network Scanning
+python-nmap>=0.7.1
+
+# Security Scanner - Web Application Scanning
+python-owasp-zap-v2.4>=0.0.21
+
+# Security Scanner - HTTP Client for API calls
+httpx>=0.26.0
+
+# Optional: For faster NVD API access
+# Get your API key from: https://nvd.nist.gov/developers/request-an-api-key
+
+# ===========================================
+# SYSTEM REQUIREMENTS (install separately)
+# ===========================================
+
+# Nmap (network scanner)
+# Mac:   brew install nmap
+# Linux: sudo apt install nmap
+# Windows: Download from https://nmap.org/download.html
+
+# OWASP ZAP (web application scanner)
+# Download from: https://www.zaproxy.org/download/
+# Run with API enabled:
+#   Mac:   /Applications/OWASP\ ZAP.app/Contents/Java/zap.sh -daemon -port 8080 -config api.key=your-api-key
+#   Linux: ./zap.sh -daemon -port 8080 -config api.key=your-api-key
