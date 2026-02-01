@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { authApi, Setup2FAResponse, subscriptionApi, SubscriptionStatus } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -23,7 +23,6 @@ export const Route = createFileRoute('/settings')({
 
 function SettingsPage() {
   const { user, setUser } = useAuthStore()
-  const queryClient = useQueryClient()
   
   const [setup2FAData, setSetup2FAData] = useState<Setup2FAResponse | null>(null)
   const [totpCode, setTotpCode] = useState('')
@@ -33,7 +32,6 @@ function SettingsPage() {
   const [copied, setCopied] = useState(false)
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null)
 
-  // Fetch subscription status on mount
   useEffect(() => {
     if (user?.email) {
       subscriptionApi.check(user.email).then(setSubscription).catch(console.error)
@@ -57,7 +55,6 @@ function SettingsPage() {
       setSuccess('2FA has been enabled successfully!')
       setSetup2FAData(null)
       setTotpCode('')
-      // Refresh user data
       const updatedUser = await authApi.getMe()
       setUser(updatedUser)
     },
@@ -71,7 +68,6 @@ function SettingsPage() {
     onSuccess: async () => {
       setSuccess('2FA has been disabled.')
       setDisableCode('')
-      // Refresh user data
       const updatedUser = await authApi.getMe()
       setUser(updatedUser)
     },
@@ -147,25 +143,9 @@ function SettingsPage() {
           </div>
           <div className="flex justify-between items-center py-3 border-b border-border">
             <span className="text-muted-foreground">Account Status</span>
-            <span className="flex items-center gap-2 text-green-500">
-              <CheckCircle size={16} />
-              Active (Owner)
-            </span>
-            <span className="text-muted-foreground">Account Status</span>
-            <span className="flex items-center gap-2 text-green-500">
-              <CheckCircle size={16} />
-              Active (Owner)
-            </span>
-            <span className="text-muted-foreground">Account Status</span>
-            <span className="flex items-center gap-2 text-green-500">
-              <CheckCircle size={16} />
-              Active (Owner)
-            </span>
-            <span className="text-muted-foreground">Account Status</span>
-            <span className="flex items-center gap-2 text-green-500">
-              <CheckCircle size={16} />
-              Active (Owner)
-            </span>
+            <span className={`flex items-center gap-2 ${subscription?.has_subscription ? 'text-green-500' : 'text-red-500'}`}>
+              {subscription?.has_subscription ? <CheckCircle size={16} /> : <XCircle size={16} />}
+              {subscription?.is_owner ? 'Active (Owner)' : subscription?.has_subscription ? 'Active' : 'Inactive'}
             </span>
           </div>
           <div className="flex justify-between items-center py-3">
@@ -215,7 +195,7 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* Success/Error Messages */}
+        {/* Messages */}
         <AnimatePresence>
           {success && (
             <motion.div
@@ -228,6 +208,7 @@ function SettingsPage() {
               <span className="text-sm">{success}</span>
             </motion.div>
           )}
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -241,7 +222,7 @@ function SettingsPage() {
           )}
         </AnimatePresence>
 
-        {/* 2FA Setup Flow */}
+        {/* Enable 2FA Button */}
         {!user?.is_2fa_enabled && !setup2FAData && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -250,8 +231,7 @@ function SettingsPage() {
             <button
               onClick={handleSetup2FA}
               disabled={isLoading}
-              className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium
-                hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
             >
               {setup2FAMutation.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -263,7 +243,7 @@ function SettingsPage() {
           </div>
         )}
 
-        {/* QR Code Setup */}
+        {/* 2FA Setup Flow */}
         {setup2FAData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -272,9 +252,9 @@ function SettingsPage() {
           >
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0 p-4 bg-white rounded-xl">
-                <img 
-                  src={setup2FAData.qr_code} 
-                  alt="2FA QR Code" 
+                <img
+                  src={setup2FAData.qr_code}
+                  alt="2FA QR Code"
                   className="w-40 h-40"
                 />
               </div>
@@ -311,15 +291,13 @@ function SettingsPage() {
                     onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
                     maxLength={6}
-                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-secondary border border-border
-                      focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-lg tracking-widest"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg bg-secondary border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono text-lg tracking-widest"
                   />
                 </div>
                 <button
                   onClick={handleConfirm2FA}
                   disabled={isLoading || totpCode.length !== 6}
-                  className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium
-                    hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
                 >
                   {confirm2FAMutation.isPending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -354,15 +332,13 @@ function SettingsPage() {
                   onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="Enter code to disable"
                   maxLength={6}
-                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-secondary border border-border
-                    focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg bg-secondary border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
                 />
               </div>
               <button
                 onClick={handleDisable2FA}
                 disabled={isLoading || disableCode.length !== 6}
-                className="px-6 py-3 rounded-lg bg-destructive text-destructive-foreground font-medium
-                  hover:bg-destructive/90 disabled:opacity-50 flex items-center gap-2"
+                className="px-6 py-3 rounded-lg bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 flex items-center gap-2"
               >
                 {disable2FAMutation.isPending ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
