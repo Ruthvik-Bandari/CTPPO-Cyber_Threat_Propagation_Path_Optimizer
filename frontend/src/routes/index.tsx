@@ -36,7 +36,7 @@ function LandingPage() {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/subscription/activate', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/subscription/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_key: productKey, email }),

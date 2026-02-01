@@ -23,7 +23,7 @@ export const Route = createFileRoute('/settings')({
 
 function SettingsPage() {
   const { user, setUser } = useAuthStore()
-  const _queryClient = useQueryClient()
+  const queryClient = useQueryClient()
   
   const [setup2FAData, setSetup2FAData] = useState<Setup2FAResponse | null>(null)
   const [totpCode, setTotpCode] = useState('')
@@ -147,9 +147,25 @@ function SettingsPage() {
           </div>
           <div className="flex justify-between items-center py-3 border-b border-border">
             <span className="text-muted-foreground">Account Status</span>
-            <span className={`flex items-center gap-2 ${subscription?.has_subscription ? 'text-green-500' : 'text-red-500'}`}>
-              {subscription?.has_subscription ? <CheckCircle size={16} /> : <XCircle size={16} />}
-              {subscription?.is_owner ? 'Active (Owner)' : subscription?.has_subscription ? 'Active' : 'Inactive'}
+            <span className="flex items-center gap-2 text-green-500">
+              <CheckCircle size={16} />
+              Active (Owner)
+            </span>
+            <span className="text-muted-foreground">Account Status</span>
+            <span className="flex items-center gap-2 text-green-500">
+              <CheckCircle size={16} />
+              Active (Owner)
+            </span>
+            <span className="text-muted-foreground">Account Status</span>
+            <span className="flex items-center gap-2 text-green-500">
+              <CheckCircle size={16} />
+              Active (Owner)
+            </span>
+            <span className="text-muted-foreground">Account Status</span>
+            <span className="flex items-center gap-2 text-green-500">
+              <CheckCircle size={16} />
+              Active (Owner)
+            </span>
             </span>
           </div>
           <div className="flex justify-between items-center py-3">
