@@ -59,6 +59,9 @@ TOTP_ISSUER = "CTPPO Security"
 # IN-MEMORY USER STORE (Replace with PostgreSQL in production)
 # ============================================================================
 
+# Admin Configuration
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
+
 def _hash(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
@@ -1737,3 +1740,107 @@ print("=" * 60)
 for k in _demo_keys:
     print(f"  {k['key']} ({k['subscription_type']}, {k['validity_days']} days)")
 print("=" * 60)
+# ============================================================================
+# ADMIN ENDPOINTS - Add these to server_secure.py before the last lines
+# ============================================================================
+
+import os
+
+# Add this near the top with other configs
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
+
+# Add these endpoints after the subscription endpoints
+
+@app.post("/api/admin/verify")
+async def verify_admin(request: dict):
+    """Verify admin secret"""
+    if request.get("admin_secret") != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    return {"success": True}
+
+
+@app.get("/api/admin/keys")
+async def get_all_keys(admin_secret: str):
+    """Get all product keys"""
+    if admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    
+    keys = []
+    for key, data in PRODUCT_KEYS_DB.items():
+        # Check if key is used
+        used_by = None
+        for email, activation in ACTIVATED_KEYS_DB.items():
+            if activation.get("product_key") == key:
+                used_by = email
+                break
+        
+        keys.append({
+            "key": key,
+            "subscription_type": data["subscription_type"],
+            "validity_days": data["validity_days"],
+            "created_at": data["created_at"],
+            "used": used_by is not None,
+            "used_by": used_by
+        })
+    
+    return {"keys": keys}
+
+
+@app.get("/api/admin/activations")
+async def get_all_activations(admin_secret: str):
+    """Get all activated subscriptions"""
+    if admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    
+    activations = []
+    for email, data in ACTIVATED_KEYS_DB.items():
+        activations.append({
+            "email": email,
+            "subscription_type": data["subscription_type"],
+            "activated_at": data["activated_at"],
+            "expires_at": data["expires_at"]
+        })
+    
+    return {"activations": activations}
+
+
+@app.post("/api/admin/generate-key")
+async def admin_generate_key(request: dict):
+    """Generate a new product key"""
+    if request.get("admin_secret") != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    
+    subscription_type = request.get("subscription_type", "individual")
+    validity_days = request.get("validity_days", 365)
+    
+    key = create_product_key(subscription_type, validity_days)
+    
+    return {
+        "key": key,
+        "subscription_type": subscription_type,
+        "validity_days": validity_days
+    }
+
+
+@app.post("/api/admin/revoke-key")
+async def revoke_key(request: dict):
+    """Revoke a product key"""
+    if request.get("admin_secret") != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    
+    product_key = request.get("product_key")
+    
+    if product_key in PRODUCT_KEYS_DB:
+        del PRODUCT_KEYS_DB[product_key]
+    
+    # Also remove from activated keys if used
+    to_remove = None
+    for email, data in ACTIVATED_KEYS_DB.items():
+        if data.get("product_key") == product_key:
+            to_remove = email
+            break
+    
+    if to_remove:
+        del ACTIVATED_KEYS_DB[to_remove]
+    
+    return {"success": True, "message": "Key revoked successfully"}
