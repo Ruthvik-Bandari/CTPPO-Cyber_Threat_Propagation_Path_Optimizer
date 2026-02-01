@@ -33,6 +33,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from transformers import DistilBertTokenizer, DistilBertModel
 
 # JWT and 2FA
+
+# Database
+from database import (
+    init_db, is_db_available, db_create_user, db_get_user, db_update_user, db_user_exists,
+    db_create_product_key, db_get_product_key, db_get_all_product_keys, db_mark_key_used, db_delete_product_key,
+    db_create_subscription, db_get_subscription, db_get_all_subscriptions, db_delete_subscription
+)
 import jwt
 import pyotp
 import qrcode
@@ -473,6 +480,7 @@ def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()  # Initialize database tables
     load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
     yield
 
@@ -494,29 +502,31 @@ app.add_middleware(
 
 @app.post("/api/auth/register", response_model=LoginResponse)
 async def register(req: RegisterRequest):
-    if req.email in USERS_DB:
-        raise HTTPException(400, "Email already registered")
-    
-    user_id = f"usr_{secrets.token_hex(4)}"
-    USERS_DB[req.email] = {
-        "id": user_id,
-        "email": req.email,
-        "name": req.name,
-        "password_hash": _hash(req.password),
-        "totp_secret": None,
-        "is_2fa_enabled": False,
-        "role": "user",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
+    # Check database first, fallback to in-memory
+    if is_db_available():
+        if db_user_exists(req.email):
+            raise HTTPException(400, "Email already registered")
+        user_data = db_create_user(req.email, req.name, _hash(req.password))
+        if not user_data:
+            raise HTTPException(500, "Failed to create user")
+    else:
+        if req.email in USERS_DB:
+            raise HTTPException(400, "Email already registered")
+        user_id = f"usr_{secrets.token_hex(4)}"
+        USERS_DB[req.email] = {
+            "id": user_id, "email": req.email, "name": req.name,
+            "password_hash": _hash(req.password), "totp_secret": None,
+            "is_2fa_enabled": False, "role": "user",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
     
     access_token = create_token({"sub": req.email, "2fa_ok": True}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     refresh_token = create_token({"sub": req.email, "type": "refresh"}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    
     return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user={"id": user_id, "email": req.email, "name": req.name, "role": "user", "is_2fa_enabled": False}
+        access_token=access_token, refresh_token=refresh_token,
+        user={"id": "usr_db", "email": req.email, "name": req.name, "role": "user", "is_2fa_enabled": False}
     )
+
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
