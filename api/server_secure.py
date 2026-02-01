@@ -1734,13 +1734,13 @@ _demo_keys = [
     create_product_key("individual", 365),
     create_product_key("enterprise", 365),
 ]
-print("=" * 60)
-print("CTPPO - Demo Product Keys Generated:")
-print("=" * 60)
-for k in _demo_keys:
-    print(f"  {k['key']} ({k['subscription_type']}, {k['validity_days']} days)")
-print("=" * 60)
-# ============================================================================
+# print("=" * 60)
+# print("CTPPO - Demo Product Keys Generated:")
+# print("=" * 60)
+# for k in _demo_keys:
+#     print(f"  {k['key']} ({k['subscription_type']}, {k['validity_days']} days)")
+# print("=" * 60)
+# # ============================================================================
 # ADMIN ENDPOINTS - Add these to server_secure.py before the last lines
 # ============================================================================
 
