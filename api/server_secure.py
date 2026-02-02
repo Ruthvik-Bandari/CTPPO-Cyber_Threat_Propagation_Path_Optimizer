@@ -508,9 +508,19 @@ def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
 # ============================================================================
 
 @asynccontextmanager
+import asyncio
+
 async def lifespan(app: FastAPI):
-    init_db()  # Initialize database tables
-    load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
+    # Initialize database (with error handling)
+    try:
+        init_db()
+    except Exception as e:
+        print(f"⚠️ Database init failed: {e}")
+    # Load model in background (non-blocking)
+    async def load_model_bg():
+        await asyncio.sleep(1)  # Let server start first
+        load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
+    asyncio.create_task(load_model_bg())
     yield
 
 
