@@ -20,8 +20,12 @@ SessionLocal = None
 
 if DATABASE_URL:
     try:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        engine = None
+        SessionLocal = None
 
 
 # ============================================================================
