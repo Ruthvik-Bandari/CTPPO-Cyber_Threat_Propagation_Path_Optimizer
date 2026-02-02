@@ -503,13 +503,6 @@ def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
     )
 
 
-# ============================================================================
-# FASTAPI APP
-# ============================================================================
-
-@asynccontextmanager
-import asyncio
-
 async def lifespan(app: FastAPI):
     # Initialize database (with error handling)
     try:
