@@ -514,7 +514,7 @@ async def lifespan(app: FastAPI):
     async def load_model_bg():
         await asyncio.sleep(1)  # Let server start first
         load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
-    asyncio.create_task(load_model_bg())
+    # asyncio.create_task(load_model_bg())  # Disabled - causes OOM on free tier
     yield
 
 
