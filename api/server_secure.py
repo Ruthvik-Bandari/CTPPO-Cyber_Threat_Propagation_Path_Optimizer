@@ -408,11 +408,37 @@ def encode_cvss(cvss: Optional[CVSSVector]) -> List[int]:
 # ============================================================================
 
 def load_model(model_dir: str = "../models/severity_v3"):
+    """Load model from local path or download from Hugging Face"""
+    from huggingface_hub import hf_hub_download, snapshot_download
+    import os
+    
+    HF_REPO = "RuthvikBandari/ctppo-severity-model"
     model_path = Path(model_dir)
+    
+    # Try to download from Hugging Face if not exists locally
+    if not (model_path / "checkpoint_best.pt").exists():
+        print(f"Model not found locally. Downloading from Hugging Face...")
+        try:
+            # Create directory
+            model_path.mkdir(parents=True, exist_ok=True)
+            
+            # Download all files from HF repo
+            snapshot_download(
+                repo_id=HF_REPO,
+                local_dir=str(model_path),
+                local_dir_use_symlinks=False
+            )
+            print(f"✓ Downloaded model from {HF_REPO}")
+        except Exception as e:
+            print(f"Warning: Could not download model: {e}")
+            return False
+    
+    # Check again after download
     if not (model_path / "checkpoint_best.pt").exists():
         print(f"Warning: Model not found at {model_path}")
         return False
     
+    # Set device
     if torch.cuda.is_available():
         state.device = torch.device('cuda')
     elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -422,12 +448,15 @@ def load_model(model_dir: str = "../models/severity_v3"):
     
     print(f"Using device: {state.device}")
     
+    # Load vocab
     with open(model_path / "cwe_vocab.json") as f:
         state.cwe_vocab = json.load(f)
     
+    # Load tokenizer
     tok_path = model_path / "tokenizer"
     state.tokenizer = DistilBertTokenizer.from_pretrained(tok_path if tok_path.exists() else state.config.model_name)
     
+    # Load model
     state.model = MultiModalCVEClassifier(state.config, len(state.cwe_vocab))
     checkpoint = torch.load(model_path / "checkpoint_best.pt", map_location=state.device, weights_only=False)
     state.model.load_state_dict(checkpoint['model_state_dict'])
@@ -437,7 +466,7 @@ def load_model(model_dir: str = "../models/severity_v3"):
     state.loaded = True
     print(f"✓ Model loaded (val_f1: {checkpoint.get('val_f1', 0):.4f})")
     return True
-
+    return True
 
 # ============================================================================
 # INFERENCE
