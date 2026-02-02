@@ -14,6 +14,7 @@ Date: January 2026
 
 import os
 import sys
+import asyncio
 import json
 import time
 import secrets
