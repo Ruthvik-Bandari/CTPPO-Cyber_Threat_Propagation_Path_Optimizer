@@ -49,6 +49,9 @@ from subscription_store import subscriptions, is_owner, OWNER_EMAILS
 # B3: instances (scan/analysis workspaces) with CRUD
 from instance_store import instances as instance_store
 from instance_routes import create_instance_router
+# B4: enterprise organizations + RBAC
+from org_store import orgs as org_store
+from org_routes import create_org_router
 import jwt
 import pyotp
 import qrcode
@@ -379,6 +382,8 @@ app.add_middleware(
 app.include_router(create_auth_router(USERS_DB, sessions))
 # B3: instance CRUD, gated by get_current_user (auth + active subscription) and owner-scoped.
 app.include_router(create_instance_router(instance_store, get_current_user))
+# B4: enterprise orgs + RBAC, subscription-gated; per-org admin/member enforced in the store.
+app.include_router(create_org_router(org_store, get_current_user))
 
 
 # ============================================================================

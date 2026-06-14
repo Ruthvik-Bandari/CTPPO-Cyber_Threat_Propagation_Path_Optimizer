@@ -31,9 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **88 tests passing** (16 files, run each with `python3 <file>`).
+· clean git `main` · **104 tests passing** (18 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) DONE** — see §2.
+**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) DONE** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -65,6 +65,7 @@ regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/expl
 core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes (8),
 api/test_subscription_store (9), api/test_subscription_gating (6),
 api/test_instance_store (7), api/test_instance_routes (7),
+api/test_org_store (9), api/test_org_routes (7),
 scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
 evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
 ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -202,7 +203,17 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   `tests/api/test_instance_routes.py` (7: isolated-router CRUD + owner isolation, plus a
   real-app test that signs up, activates, and CRUDs through the booted server). *Deferred:*
   Postgres-backing + real file upload/content scanning.
-- **B4.** **Enterprise tier**: org accounts, user allotment + RBAC, org data from Redis.
+- **B4. Enterprise tier (orgs + RBAC). ✅ DONE.** Canonical `api/org_store.py`
+  (`OrgStore` + typed `OrgError`): organizations with a **seat allotment**, the creator as
+  first **admin**, role-based access (`admin`/`member`), last-admin protection, and
+  one-org-per-user. Only admins mutate membership/roles; members can view the roster;
+  outsiders get 404. `api/org_routes.py` (`create_org_router(store, current_user_dep)`):
+  create org / `GET /api/orgs/me` / list+add+set-role+remove members under `/api/orgs`,
+  mounted in `server_secure.py` with `get_current_user` → subscription-gated; the store
+  enforces per-org RBAC (403 for non-admins, 400 for seat/last-admin, 404 for
+  non-members). Tests: `tests/api/test_org_store.py` (9) + `tests/api/test_org_routes.py`
+  (7: isolated admin/member/outsider RBAC + a real-app enterprise-key flow). *Deferred:*
+  Redis/Postgres backing; gating org creation specifically on an `enterprise`-type sub.
 - **B5.** **Distributable `pip` CLI** tied to the subscription: API key embedded, SSH login,
   Git integration + verification, scans the main repo model-assisted (CI/CD). Builds on the
   existing `ctppo` CLI + `scanners/llm_code_review.py`.
