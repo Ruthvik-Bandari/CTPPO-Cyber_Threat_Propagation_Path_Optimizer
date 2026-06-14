@@ -34,7 +34,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 | Attack graph | `core/attack_graph.py`, `core/node_types.py`, `core/edge_costs.py` | done (canonical) |
 | NAMOA* | `algorithms/namoa_star.py`, `algorithms/pareto_utils.py` | done (canonical) |
 | Data-grounded cost model | `core/cost_model.py` | done (EPSS/KEV/CVSS → cost vector, provenance-tracked) |
-| Threat data provider | `core/threat_data.py` | done (EPSS + CISA KEV, cached, offline fallback) |
+| Threat data provider | `core/threat_data.py` | done + **live** (A2): real EPSS 341k + KEV 1.6k cached to `data/threat_cache/`, certifi SSL, offline fallback |
 | Web scanner (wired) | `scanners/website_analyzer.py` | exploit edges use the cost model |
 | LLM code reviewer | `scanners/llm_code_review.py` | done; needs `anthropic` + `ANTHROPIC_API_KEY` to run |
 | GNN | `ml/gnn/{model,data,train}.py` | GCN built + synthetic-trained + real-graph converter; **wired into NAMOA\*** (A1 done) via `ml/gnn/refine.py` + `core/cost_model.refine_success_probability`; **not yet trained on real data** |
@@ -69,10 +69,15 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
   meaningful. **Not yet wired into `scanners/website_analyzer.py`** (the product scan path):
   call `refine_graph_costs` on its built graph behind a `use_gnn` flag once a checkpoint
   exists — deferred to after A3 so the toggle reflects a trained model.
-- **A2. Real threat data.** ◀ NEXT. Run `ThreatDataProvider` online (download EPSS CSV + CISA KEV
-  JSON, cache to `data/threat_cache/`). *Verify:* `epss("CVE-2021-44228")` and `is_kev(...)`
-  return real values.
-- **A3. Train the GNN on real data.** Get an attack-graph dataset (e.g. the MDPI ~1,033
+- **A2. Real threat data. ✅ DONE.** `ThreatDataProvider` now fetches live and caches to
+  `data/threat_cache/` (git-ignored; re-downloaded when stale). Fix that unblocked it:
+  macOS Python.framework SSL verification failed (`CERTIFICATE_VERIFY_FAILED`); now uses a
+  certifi CA bundle (`core/threat_data._build_ssl_context`, certifi added to requirements).
+  Snapshot loaded: **341,309 EPSS scores + 1,619 KEV CVEs**. *Verified:*
+  `epss("CVE-2021-44228")=0.944`, `is_kev(...)=True`; `build_edge_cost(...)` with no EPSS
+  passed now pulls real EPSS via the provider (fallbacks=[]). New CLI: `ctppo threat-data
+  [--refresh] [--cve ...]`. Offline reproducibility confirmed (same values, no network).
+- **A3. Train the GNN on real data.** ◀ NEXT. Get an attack-graph dataset (e.g. the MDPI ~1,033
   labelled environment graphs, or generate via the Phase-C testbed) OR train the node-level
   EPSS-prediction target on real CVE features. Save a checkpoint. *Verify:* held-out metric
   reported honestly; **ablation GNN vs rule-based cost** (the GNN must beat the prior).

@@ -316,6 +316,29 @@ def cmd_review_code(args):
             console.print(f"      [dim]{f.solution[:100]}[/dim]")
 
 
+def cmd_threat_data(args):
+    """Download/refresh real EPSS + CISA KEV data and report what's cached."""
+    from core.threat_data import ThreatDataProvider
+    provider = ThreatDataProvider()
+    if args.refresh:
+        console.print("[bold cyan]Refreshing[/bold cyan] EPSS + CISA KEV feeds...")
+        provider.refresh()
+    stats = provider.stats()
+    console.print(Panel(
+        f"EPSS scores: [yellow]{stats['epss_cves']:,}[/yellow]   "
+        f"KEV CVEs: [red]{stats['kev_cves']:,}[/red]\n"
+        f"Cache: [dim]{stats['cache_dir']}[/dim]",
+        title="Threat data (EPSS / CISA KEV)", border_style="cyan"))
+    if stats["epss_cves"] == 0 and stats["kev_cves"] == 0:
+        console.print("[yellow]No data cached.[/yellow] Run with --refresh while online "
+                      "to download (needs network + certifi CA bundle).")
+        return
+    for cve in args.cve:
+        epss = provider.epss(cve)
+        console.print(f"  {cve}: epss={epss if epss is not None else 'n/a'}  "
+                      f"kev={provider.is_kev(cve)}")
+
+
 def cmd_compare_baselines(args):
     """Demonstrate CVSS-ranking vs NAMOA* Pareto divergence (offline)."""
     import logging
@@ -356,6 +379,12 @@ if __name__ == "__main__":
 
     p_cmp = sub.add_parser("compare-baselines", help="CVSS-ranking vs NAMOA* Pareto (offline)")
     p_cmp.set_defaults(func=cmd_compare_baselines)
+
+    p_td = sub.add_parser("threat-data", help="download/inspect real EPSS + CISA KEV data")
+    p_td.add_argument("--refresh", action="store_true", help="force re-download (ignores TTL)")
+    p_td.add_argument("--cve", nargs="*", default=["CVE-2021-44228", "CVE-2017-0144"],
+                      help="CVEs to look up after loading")
+    p_td.set_defaults(func=cmd_threat_data)
 
     args = parser.parse_args()
     if not getattr(args, "command", None):

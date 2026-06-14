@@ -27,6 +27,7 @@ import gzip
 import io
 import json
 import logging
+import ssl
 import time
 import urllib.request
 from pathlib import Path
@@ -42,6 +43,20 @@ KEV_URL = (
 )
 
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "threat_cache"
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """SSL context with a real CA bundle. The macOS Python.framework build does not
+    trust the system keychain by default, so prefer certifi's bundle when available
+    (it ships with our `requests` dependency). We never disable verification."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+_SSL_CONTEXT = _build_ssl_context()
 
 
 class ThreatDataProvider:
@@ -119,7 +134,7 @@ class ThreatDataProvider:
             return False
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "CTPPO/0.1"})
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout, context=_SSL_CONTEXT) as resp:
                 data = resp.read()
             dest.write_bytes(data)
             logger.info("threat_data: downloaded %s (%d bytes)", url, len(data))
