@@ -365,28 +365,15 @@ def cmd_analyze_network(args):
         f"Pareto attack paths: [magenta]{len(result.pareto_paths)}[/magenta]",
         title="Multi-host network analysis", border_style="cyan"))
 
-    from core.edge_costs import CostType
-
     def host_hops(path):
         return [graph.get_node(nid).hostname for nid in path
                 if graph.get_node(nid) and graph.get_node(nid).node_type == NodeType.ASSET]
 
-    def path_objectives(path):
-        """Aggregate the three objectives from the path's own edges (time=sum,
-        success=product, impact=max) — computed directly rather than read from the
-        NAMOA* output vector, whose success component is currently degenerate."""
-        t, p, imp = 0.0, 1.0, 0.0
-        for a, b in zip(path, path[1:]):
-            cv = graph.get_edge(a, b).cost_vector
-            t += cv.get_component(CostType.TIME_TO_EXPLOIT).expected_value()
-            p *= cv.get_component(CostType.SUCCESS_PROBABILITY).expected_value()
-            imp = max(imp, cv.get_component(CostType.BUSINESS_IMPACT).expected_value())
-        return t, p, imp
-
-    for i, (path, _cost) in enumerate(result.pareto_paths[:10], 1):
-        t, p, imp = path_objectives(path)
+    # cost.values = [time (sum), success probability (∏ pᵢ), business impact (max)]
+    for i, (path, cost) in enumerate(result.pareto_paths[:10], 1):
         console.print(f"  {i}. [green]{' → '.join(host_hops(path))}[/green]  "
-                      f"[dim]time={t:.2f} success={p:.3f} impact={imp:.2f}[/dim]")
+                      f"[dim]time={cost.values[0]:.2f} success={cost.values[1]:.3f} "
+                      f"impact={cost.values[2]:.2f}[/dim]")
 
 
 def cmd_compare_baselines(args):

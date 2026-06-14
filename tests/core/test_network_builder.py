@@ -110,6 +110,27 @@ def test_namoa_finds_multihost_path():
     assert multi, "expected at least one path spanning >= 2 distinct hosts (lateral movement)"
 
 
+def test_namoa_success_objective_is_cumulative_product():
+    """Regression guard for the NAMOA* success-objective fix (Phase A completion).
+
+    The reported success of a path must equal the PRODUCT of its edges' success
+    probabilities (P(all steps succeed)), recovered from the -log(p) surprisal. Before
+    the fix the objective was degenerate and returned 1.0 for every multi-edge path."""
+    g = create_sample_multihost_network(provider=_offline_provider(), logger=LOGGER)
+    result = run_namoa_star(g, logger=LOGGER)
+    assert result.pareto_paths
+    for path, cost in result.pareto_paths:
+        product = 1.0
+        for a, b in zip(path, path[1:]):
+            product *= g.get_edge(a, b).cost_vector.get_component(
+                CostType.SUCCESS_PROBABILITY).expected_value()
+        engine_success = float(cost.values[1])
+        assert abs(engine_success - product) < 1e-6, (engine_success, product)
+        assert 0.0 <= engine_success <= 1.0
+        if len(path) - 1 >= 2:                 # a genuine multi-edge path
+            assert engine_success < 0.999      # NOT the old degenerate 1.0
+
+
 def test_graph_is_gnn_refinable():
     # The multi-host graph plugs into the GNN refinement path unchanged.
     from ml.gnn.refine import refine_graph_costs

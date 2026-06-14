@@ -31,12 +31,13 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **40 tests passing** (10 files, run each with `python3 <file>`).
+· clean git `main` · **41 tests passing** (10 files, run each with `python3 <file>`).
+**Phase A (A1–A5) is COMPLETE**, including the NAMOA* success-objective fix below.
 
 | Area | File(s) | State |
 |------|---------|-------|
 | Attack graph | `core/attack_graph.py`, `core/node_types.py`, `core/edge_costs.py` | done (canonical) |
-| NAMOA* | `algorithms/namoa_star.py`, `algorithms/pareto_utils.py` | done (canonical) — see known-issue note below (SUCCESS_PROBABILITY objective degenerate) |
+| NAMOA* | `algorithms/namoa_star.py`, `algorithms/pareto_utils.py` | done (canonical); SUCCESS_PROBABILITY objective **fixed** — now -log(p) surprisal, returns the true ∏pᵢ (see A5 note) |
 | Multi-host builder | `core/network_builder.py` | **A5 done**: spec → canonical `AttackGraph` w/ lateral movement; vuln→exploit edges data-grounded; segmentation-prior lateral edges (labeled heuristic); CLI `ctppo analyze-network [--gnn]` |
 | Data-grounded cost model | `core/cost_model.py` | done (EPSS/KEV/CVSS → cost vector, provenance-tracked) |
 | Threat data provider | `core/threat_data.py` | done + **live** (A2): real EPSS 341k + KEV 1.6k cached to `data/threat_cache/`, certifi SSL, offline fallback |
@@ -59,8 +60,8 @@ regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/expl
 (`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
 `data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
 
-**Tests (40, run each with `python3 <file>`):** core/test_cost_model (9),
-core/test_network_builder (7), scanners/test_llm_code_review (4),
+**Tests (41, run each with `python3 <file>`):** core/test_cost_model (9),
+core/test_network_builder (8), scanners/test_llm_code_review (4),
 evaluation/test_baseline_comparison (2), evaluation/test_pignn_validation (2),
 ml/test_gnn (3), ml/test_gnn_cost (3), ml/test_synth_graphs (4),
 ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -137,22 +138,23 @@ ml/test_train_synth (3), ml/test_cve_classifier (3).
   plugs unchanged into `run_namoa_star` and `refine_graph_costs` (GNN). CLI:
   `ctppo analyze-network [--gnn]`; sample 5-host topology in
   `create_sample_multihost_network`. Tests: `tests/core/test_network_builder.py` (7).
-  *Verified:* NAMOA* returns 2 Pareto paths spanning DMZ→internal→critical
-  (web01→app01→db01 vs web01→app01→files01→db01) — a real time/impact trade-off; CLI
-  computes the three objectives directly from the path's edges (see known-issue note).
+  *Verified:* after the NAMOA* fix below, NAMOA* returns the single non-dominated path
+  web01→app01→db01 (DMZ→internal→critical) with engine-reported success **0.068** — the
+  longer web01→app01→files01→db01 is now correctly dominated (more hops ⇒ lower cumulative
+  success). The CLI reads the three objectives straight from the (now-correct) cost vector.
 
-> **Known engine issue (discovered during A5, pre-existing — not introduced here):**
-> NAMOA*'s **SUCCESS_PROBABILITY objective is degenerate**: the cost returned in
-> `pareto_paths` reports `values[1] = 1.0` for *every* path regardless of the real
-> cumulative success (e.g. a path whose edges multiply to 0.068 success still reports
-> 1.0). `values[0]` (time = exact edge sum) and `values[2]` (impact) are correct. This
-> means the engine is effectively optimizing 2 objectives, not 3, and the existing
-> `demo`/`scan-web` UIs have been displaying "100% success" for all paths. The
-> `analyze-network` CLI works around it by aggregating success itself from the path
-> edges. **Fix candidate (own step):** correct the internal success aggregation in
-> `algorithms/namoa_star.py` so `_convert_cost_for_output` yields the real product; this
-> touches core search + may shift Pareto fronts, so it needs its own commit + a
-> regression check against the 40 tests. Honesty-first: flagged, not silently patched.
+> **NAMOA* success-objective fix (Phase A completion — was a pre-existing bug found in A5,
+> now RESOLVED in `algorithms/namoa_star.py`):** the SUCCESS_PROBABILITY objective used to
+> accumulate `∏(1−pᵢ)` (product of per-edge *failure*) and output `1 − ∏(1−pᵢ)` =
+> P(succeed on ≥1 edge), which collapsed to 1.0 for every multi-edge path and *rewarded*
+> longer paths. Replaced with **surprisal −log(p)**: per-edge `−log(pᵢ)` (≥0), **summed**
+> along the path (so `Σ−log pᵢ = −log ∏pᵢ`), minimised (lower surprisal = higher success),
+> and recovered on output via `exp(−·) = ∏pᵢ`. The A* heuristic stays admissible (optimistic
+> remaining surprisal = 0). Now the engine genuinely optimises **3** objectives and Pareto
+> fronts are correct. Regression guard:
+> `tests/core/test_network_builder.py::test_namoa_success_objective_is_cumulative_product`
+> (asserts engine success == ∏ edge pᵢ and < 1 for multi-edge paths). Side benefit: the
+> existing `demo`/`scan-web` "Success %" displays are now correct. All 41 tests pass.
 
 ### Phase B — Product / platform (see §3 for the frontend approach)
 - **B1.** Redis-backed **session auth**: signup / login / logout / forgot-password.

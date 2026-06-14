@@ -37,6 +37,10 @@ from algorithms.pareto_utils import (
     compute_hypervolume, fast_nondominated_sort
 )
 
+# Floor for success probability before taking -log, so a p of 0 maps to a large but
+# finite surprisal instead of +inf (which would poison path-cost accumulation).
+_P_FLOOR = 1e-6
+
 
 @dataclass
 class PathLabel:
@@ -198,8 +202,8 @@ class CyberHeuristic:
                 # Minimum time = min_edge_time * hops
                 estimates.append(self._min_edge_costs[ct] * hop_dist)
             elif ct == CostType.SUCCESS_PROBABILITY:
-                # For probability (maximize), heuristic should be optimistic (1.0)
-                # But we track 1-p for minimization, so estimate 0
+                # Optimistic: assume remaining edges all succeed (p=1 => surprisal 0).
+                # 0 is admissible — it never overestimates the remaining surprisal.
                 estimates.append(0.0)
             elif ct == CostType.BUSINESS_IMPACT:
                 # Optimistic: no additional impact
@@ -252,10 +256,11 @@ class NAMOAStar:
             CostType.BUSINESS_IMPACT
         ]
         
-        # Default senses (minimize time and impact, minimize probability)
+        # Default senses (all minimization; success is tracked as surprisal -log(p),
+        # so minimizing it maximizes the cumulative success probability)
         self.objective_senses = objective_senses or [
             ObjectiveSense.MINIMIZE,  # Time - minimize
-            ObjectiveSense.MINIMIZE,  # Probability (1-P) - minimize
+            ObjectiveSense.MINIMIZE,  # Success surprisal -log(p) - minimize
             ObjectiveSense.MINIMIZE   # Impact - minimize (for stealth)
         ]
         
@@ -269,10 +274,13 @@ class NAMOAStar:
         for ct in self.objective_types:
             if ct in expected:
                 val = expected[ct]
-                # For probability with maximization, we track 1-p internally
-                # so dominance works correctly (all minimization)
+                # Success probability is multiplicative along a path and we want to
+                # MAXIMISE it, but accumulation/dominance here are all-minimisation.
+                # Track surprisal -log(p): it is >= 0, ADDS along the path
+                # (-log of the product = sum of the -logs), and is minimised exactly
+                # when cumulative success is maximised. Recovered via exp(-.) on output.
                 if ct == CostType.SUCCESS_PROBABILITY:
-                    val = 1.0 - val  # Convert to "failure probability" for minimization
+                    val = -float(np.log(max(val, _P_FLOOR)))
                 values.append(val)
             else:
                 values.append(0.0)
@@ -295,9 +303,8 @@ class NAMOAStar:
                 # Time adds up
                 new_values.append(g_val + e_val)
             elif ct == CostType.SUCCESS_PROBABILITY:
-                # Probabilities compound. Since g_val and e_val are already (1-P),
-                # the new combined (1-P) is simply their product.
-                new_values.append(g_val * e_val)
+                # Surprisal is additive: -log(∏ pᵢ) = Σ -log(pᵢ).
+                new_values.append(g_val + e_val)
             elif ct == CostType.BUSINESS_IMPACT:
                 # Impact takes maximum
                 new_values.append(max(g_val, e_val))
@@ -373,12 +380,10 @@ class NAMOAStar:
         # Goal labels - non-dominated paths that reached goals
         goal_labels: ParetoSet = ParetoSet(self.objective_senses)
         
-        # Initialize with source labels
+        # Initialize with source labels. All objectives start at 0; for the success
+        # surprisal -log(p) that means cumulative success = exp(-0) = 1.0 before any
+        # edge is traversed (each edge then adds its own -log(p)).
         initial_values = np.zeros(self.n_objectives)
-        # For SUCCESS_PROBABILITY (stored as 1-P), initial "cost" (1-P) is 1.0 (meaning 0% success)
-        for i, ct in enumerate(self.objective_types):
-            if ct == CostType.SUCCESS_PROBABILITY:
-                initial_values[i] = 1.0
 
         zero_cost = CostVector(
             values=initial_values,
@@ -549,11 +554,11 @@ class NAMOAStar:
     def _convert_cost_for_output(self, cost: CostVector) -> CostVector:
         """Convert internal cost representation back to user-friendly format"""
         values = cost.values.copy()
-        
-        # Convert failure probability back to success probability
+
+        # Recover cumulative success probability from the surprisal: ∏ pᵢ = exp(-Σ -log pᵢ)
         for i, ct in enumerate(self.objective_types):
             if ct == CostType.SUCCESS_PROBABILITY:
-                values[i] = 1.0 - values[i]
+                values[i] = float(np.exp(-values[i]))
         
         return CostVector(
             values=values,
