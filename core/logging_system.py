@@ -13,6 +13,7 @@ Date: November 2025
 import os
 import json
 import time
+import platform
 import hashlib
 from datetime import datetime
 from pathlib import Path
@@ -132,7 +133,7 @@ class ResearchLogger:
             {
                 "experiment_id": self.experiment_id,
                 "log_directory": str(self.experiment_dir),
-                "python_version": os.popen("python --version").read().strip(),
+                "python_version": platform.python_version(),
                 "start_time": datetime.now().isoformat()
             }
         )
