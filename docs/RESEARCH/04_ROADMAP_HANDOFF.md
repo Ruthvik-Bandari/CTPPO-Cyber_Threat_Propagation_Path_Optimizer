@@ -31,9 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **118 tests passing** (20 files, run each with `python3 <file>`).
+· clean git `main` · **129 tests passing** (22 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5a (subscription-tied API keys) DONE; B5b (pip CLI client) + B6 (frontend) remain** — see §2.
+**Phase B: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client, first cut) DONE; only B6 (frontend rework) remains** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -67,6 +67,7 @@ api/test_subscription_store (9), api/test_subscription_gating (6),
 api/test_instance_store (7), api/test_instance_routes (7),
 api/test_org_store (9), api/test_org_routes (7),
 api/test_api_key_store (8), api/test_api_key_routes (6),
+cli/test_cli_config (4), cli/test_cli_client (7),
 scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
 evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
 ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -227,9 +228,19 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
     to the subscription gate. Tests: `tests/api/test_api_key_store.py` (8) +
     `tests/api/test_api_key_routes.py` (6, incl. real-app: issue → authenticate a protected
     endpoint via `X-API-Key` with no cookie → revoke → key stops working).
-  - **B5b. The `pip` CLI client (remaining):** embed the API key in client config, SSH login,
-    Git integration + verification, model-assisted repo scan for CI/CD. Builds on the existing
-    `ctppo` CLI (`main.py`) + `scanners/llm_code_review.py`.
+  - **B5b. The `pip` CLI client. ✅ DONE (first cut).** New `cli/` package + `ctppo-cli`
+    console entry point (setup.py): `cli/config.py` (store API key + URL in `~/.ctppo/config.json`,
+    0600; env `CTPPO_API_KEY`/`CTPPO_API_URL` override — CI-friendly), `cli/client.py`
+    (`CtppoClient`, httpx, `X-API-Key`; injectable `http_client` so it's testable in-process via
+    FastAPI TestClient), `cli/scan.py` (walk a local repo → file metadata + code paths; run the
+    model-assisted reviewer if available, else degrade honestly), `cli/main.py` (commands:
+    `configure`, `login`/`whoami`, `scan PATH`). `scan` submits results as a B3 **instance**
+    over the API using the key. Added `GET /api/auth/whoami` (get_authenticated_user) for key
+    validation. Tests: `tests/cli/test_cli_config.py` (4) + `tests/cli/test_cli_client.py` (7,
+    incl. key-auth whoami/status/create-instance against the real app + scan-flow). **Deferred
+    (labeled, not faked):** SSH login + remote Git clone/verification (`scan` is local-path only;
+    `target_spec.remote_git="not_implemented"`); the reviewer needs `anthropic` + key to produce
+    findings (else metadata-only).
 - **B6.** **Frontend rework** (React+TS+Tailwind): landing, auth pages, dashboard, instances
   CRUD UI, attack-path views (`NetworkGraph`/`ParetoChart` updated to the new API response
   shape — the attack-path endpoints now return a Pareto-front structure).

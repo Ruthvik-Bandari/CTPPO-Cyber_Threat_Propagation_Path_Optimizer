@@ -398,6 +398,13 @@ app.include_router(create_org_router(org_store, get_current_user))
 app.include_router(create_api_key_router(api_keys, get_current_user))
 
 
+@app.get("/api/auth/whoami")
+async def whoami(user: dict = Depends(get_authenticated_user)):
+    """Identity for the current credential — session cookie, API key, or JWT. Used by the
+    B5 CLI to validate a key. No subscription gate here (see /api/subscription/status)."""
+    return {"user": public_view(user)}
+
+
 # ============================================================================
 # AUTH ENDPOINTS
 # ============================================================================

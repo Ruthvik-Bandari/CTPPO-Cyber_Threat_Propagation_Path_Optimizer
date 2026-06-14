@@ -52,6 +52,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ctppo=core.cli:main",
+            "ctppo-cli=cli.main:main",   # B5b: subscription-tied API client
         ],
     },
 )
