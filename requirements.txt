@@ -27,6 +27,7 @@ pyotp>=2.9.0
 qrcode>=7.4.0
 pillow>=10.0.0
 email-validator>=2.1.0
+redis>=5.0.0  # B1 server-side session store (api/session_store.py); falls back to in-memory if unset
 
 # Reports
 reportlab>=4.0.0

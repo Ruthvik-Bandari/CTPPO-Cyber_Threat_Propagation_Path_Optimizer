@@ -17,7 +17,6 @@ import sys
 import asyncio
 import time
 import secrets
-import hashlib
 import urllib.parse
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -26,7 +25,7 @@ from contextlib import asynccontextmanager
 
 import torch
 from pydantic import BaseModel, Field, EmailStr
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # transformers is imported lazily inside the severity-classifier load path
@@ -40,6 +39,11 @@ from database import (
     db_create_product_key, db_get_product_key, db_get_all_product_keys, db_mark_key_used, db_delete_product_key,
     db_create_subscription, db_get_subscription, db_get_all_subscriptions, db_delete_subscription
 )
+# B1: canonical user store + server-side Redis sessions + session-auth router
+from user_store import UserStore, public_view
+from passwords import hash_password, verify_password
+from session_store import SessionStore
+from auth_routes import create_auth_router, SESSION_COOKIE
 import jwt
 import pyotp
 import qrcode
@@ -67,27 +71,30 @@ TOTP_ISSUER = "CTPPO Security"
 
 
 # ============================================================================
-# IN-MEMORY USER STORE (Replace with PostgreSQL in production)
+# USER STORE + SESSIONS (B1)
 # ============================================================================
 
 # Admin Configuration
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
 
-def _hash(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
-
-USERS_DB: Dict[str, Dict] = {
-    "admin@ctppo.io": {
-        "id": "usr_001",
-        "email": "admin@ctppo.io",
-        "name": "Admin User",
-        "password_hash": _hash("admin123"),
-        "totp_secret": None,
-        "is_2fa_enabled": False,
-        "role": "admin",
-        "created_at": "2026-01-01T00:00:00Z"
-    }
+# Canonical user store (B1). It is dict-like, so the existing server code keeps using
+# USERS_DB[email] / email in USERS_DB unchanged, while the session-auth router shares
+# the same object. Passwords are salted (bcrypt/PBKDF2), not the old unsalted sha256.
+USERS_DB = UserStore()
+USERS_DB["admin@ctppo.io"] = {
+    "id": "usr_001",
+    "email": "admin@ctppo.io",
+    "name": "Admin User",
+    "password_hash": hash_password("admin123"),
+    "totp_secret": None,
+    "is_2fa_enabled": False,
+    "role": "admin",
+    "created_at": "2026-01-01T00:00:00Z",
 }
+
+# Server-side session store: Redis when REDIS_URL is set, else a labeled in-memory
+# fallback for local dev (see api/session_store.py).
+sessions = SessionStore()
 
 
 # ============================================================================
@@ -153,23 +160,17 @@ class AppState:
     val_f1: float = 0.0
 
 state = AppState()
-security = HTTPBearer()
+# auto_error=False so requests authenticated by session cookie (no Authorization
+# header) are not rejected before get_current_user can check the cookie.
+security = HTTPBearer(auto_error=False)
 
 
 # ============================================================================
 # PYDANTIC MODELS
 # ============================================================================
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    name: str
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
+# Signup/login request models now live with the session-auth router (api/auth_routes.py).
+# LoginResponse is still used by the 2FA endpoints below.
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -281,16 +282,28 @@ def generate_qr_code(email: str, secret: str) -> tuple[str, str]:
     return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}", uri
 
 
-async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    payload = verify_token(creds.credentials)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    email = payload.get("sub")
-    if email not in USERS_DB:
-        raise HTTPException(status_code=401, detail="User not found")
+async def get_current_user(
+    request: Request,
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> dict:
+    email = None
+    # 1. Server-side session cookie (B1) — the primary mechanism.
+    sid = request.cookies.get(SESSION_COOKIE)
+    if sid:
+        session = sessions.get_session(sid)
+        if session:
+            email = session.get("email")
+    # 2. Fall back to a JWT bearer token (legacy / non-browser API clients).
+    if email is None and creds is not None:
+        payload = verify_token(creds.credentials)
+        if payload:
+            email = payload.get("sub")
+            jwt_user = USERS_DB.get(email)
+            if jwt_user and jwt_user["is_2fa_enabled"] and not payload.get("2fa_ok"):
+                raise HTTPException(status_code=401, detail="2FA required")
+    if email is None or email not in USERS_DB:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     user = USERS_DB[email]
-    if user["is_2fa_enabled"] and not payload.get("2fa_ok"):
-        raise HTTPException(status_code=401, detail="2FA required")
     # Check subscription (owners bypass)
     if not is_owner(email):
         sub = check_subscription(email)
@@ -377,59 +390,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# B1: session-based auth (signup / login / logout / forgot-password / reset-password).
+# Replaces the old stateless-JWT register/login below; shares the canonical USERS_DB and
+# the server-side session store so logout is a real revocation.
+app.include_router(create_auth_router(USERS_DB, sessions))
+
 
 # ============================================================================
 # AUTH ENDPOINTS
 # ============================================================================
-
-@app.post("/api/auth/register", response_model=LoginResponse)
-async def register(req: RegisterRequest):
-    # Check database first, fallback to in-memory
-    if is_db_available():
-        if db_user_exists(req.email):
-            raise HTTPException(400, "Email already registered")
-        user_data = db_create_user(req.email, req.name, _hash(req.password))
-        if not user_data:
-            raise HTTPException(500, "Failed to create user")
-    else:
-        if req.email in USERS_DB:
-            raise HTTPException(400, "Email already registered")
-        user_id = f"usr_{secrets.token_hex(4)}"
-        USERS_DB[req.email] = {
-            "id": user_id, "email": req.email, "name": req.name,
-            "password_hash": _hash(req.password), "totp_secret": None,
-            "is_2fa_enabled": False, "role": "user",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    
-    access_token = create_token({"sub": req.email, "2fa_ok": True}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    refresh_token = create_token({"sub": req.email, "type": "refresh"}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    return LoginResponse(
-        access_token=access_token, refresh_token=refresh_token,
-        user={"id": "usr_db", "email": req.email, "name": req.name, "role": "user", "is_2fa_enabled": False}
-    )
-
-
-
-@app.post("/api/auth/login", response_model=LoginResponse)
-async def login(req: LoginRequest):
-    user = USERS_DB.get(req.email)
-    if not user or user["password_hash"] != _hash(req.password):
-        raise HTTPException(401, "Invalid credentials")
-    
-    if user["is_2fa_enabled"]:
-        temp_token = create_token({"sub": req.email, "type": "2fa_pending"}, timedelta(minutes=5))
-        return LoginResponse(access_token="", refresh_token="", requires_2fa=True, temp_token=temp_token)
-    
-    access_token = create_token({"sub": req.email, "2fa_ok": True}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    refresh_token = create_token({"sub": req.email, "type": "refresh"}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user={"id": user["id"], "email": user["email"], "name": user["name"], "role": user["role"], "is_2fa_enabled": user["is_2fa_enabled"]}
-    )
-
+# signup / login / logout / forgot-password / reset-password are provided by the
+# session-auth router mounted above (api/auth_routes.py). The 2FA endpoints below remain
+# JWT-flavoured for now; reconciling 2FA with sessions is a later Phase-B step.
 
 @app.post("/api/auth/verify-2fa", response_model=LoginResponse)
 async def verify_2fa(req: Verify2FARequest):
@@ -490,9 +462,7 @@ async def disable_2fa(request: dict, user: dict = Depends(get_current_user)):
     return {"message": "2FA disabled"}
 
 
-@app.get("/api/auth/me", response_model=UserResponse)
-async def get_me(user: dict = Depends(get_current_user)):
-    return UserResponse(**{k: user[k] for k in ["id", "email", "name", "role", "is_2fa_enabled", "created_at"]})
+# /api/auth/me is provided by the session-auth router (api/auth_routes.py).
 
 
 # ============================================================================

@@ -31,8 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **41 tests passing** (10 files, run each with `python3 <file>`).
-**Phase A (A1–A5) is COMPLETE**, including the NAMOA* success-objective fix below.
+· clean git `main` · **59 tests passing** (12 files, run each with `python3 <file>`).
+**Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
+**Phase B in progress: B1 (Redis session auth) DONE** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -60,11 +61,13 @@ regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/expl
 (`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
 `data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
 
-**Tests (41, run each with `python3 <file>`):** core/test_cost_model (9),
-core/test_network_builder (8), scanners/test_llm_code_review (4),
-evaluation/test_baseline_comparison (2), evaluation/test_pignn_validation (2),
-ml/test_gnn (3), ml/test_gnn_cost (3), ml/test_synth_graphs (4),
-ml/test_train_synth (3), ml/test_cve_classifier (3).
+**Tests (59, run each with `python3 <file>`):** core/test_cost_model (9),
+core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes (8),
+scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
+evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
+ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
+**API deps now installed:** fastapi, httpx, sqlalchemy, pyotp, qrcode, email-validator
+(the app imports + runs locally now); `redis` optional (session store falls back to memory).
 
 ---
 
@@ -157,7 +160,20 @@ ml/test_train_synth (3), ml/test_cve_classifier (3).
 > existing `demo`/`scan-web` "Success %" displays are now correct. All 41 tests pass.
 
 ### Phase B — Product / platform (see §3 for the frontend approach)
-- **B1.** Redis-backed **session auth**: signup / login / logout / forgot-password.
+- **B1. Redis-backed session auth. ✅ DONE.** Server-side sessions (revocable logout,
+  unlike the prior stateless JWT) in `api/session_store.py` — Redis via `REDIS_URL`, else a
+  labeled in-memory fallback so it runs/tests anywhere. Salted password hashing in
+  `api/passwords.py` (bcrypt if installed, else stdlib PBKDF2-HMAC-SHA256 — replaces the
+  old unsalted sha256). Canonical `api/user_store.py` (dict-like, consolidates the 3
+  scattered `USERS_DB` dicts; B2 backs it with Postgres). Session-auth router
+  `api/auth_routes.py`: `/api/auth/{signup,login,logout,me,forgot-password,reset-password}`
+  with an HttpOnly session cookie; password reset issues a single-use token (email delivery
+  stubbed in dev → `dev_reset_token` in the response, B6/prod wires a mailer). Wired into
+  `server_secure.py`: `get_current_user` now accepts the session cookie (JWT still works as
+  a fallback); old register/login/me removed. Tests: `tests/api/test_session_store.py` (10)
+  + `tests/api/test_auth_routes.py` (8, TestClient). *Verified end-to-end on the real app*:
+  signup→me→logout(revokes)→login→forgot→reset; session cookie authenticates protected
+  endpoints (subscription gate still returns 403 for non-subscribers — that's B2).
 - **B2.** **Subscription + product-key gating** (`api/subscription.py`, `api/database.py`
   reconciled with Redis sessions).
 - **B3.** **Instances** (scan/analysis workspaces) with full **CRUD**; inputs = prompts +
