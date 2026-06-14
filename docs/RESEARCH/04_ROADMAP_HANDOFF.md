@@ -1,7 +1,8 @@
 # CTPPO — Roadmap & Handoff
 
-**Updated:** 2026-06-13 · Read this first when resuming work. It is the single source of
-truth for *what's built, what's left, and the product/frontend plan.*
+**Updated:** 2026-06-14 · Read this first when resuming work. It is the single source of
+truth for *what's built, what's left, and the product/frontend plan.* **Phase A (A1–A4)
+is DONE; A5 + Phase B remain — see §2.**
 
 Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 [`01_NOVELTY.md`](01_NOVELTY.md) (research gap), [`02_COST_MODEL_SPEC.md`](02_COST_MODEL_SPEC.md)
@@ -13,8 +14,11 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 1. **Honesty-first** — never fabricate metrics. A number appears only after a documented
    measurement; stubs are labelled as stubs. (We removed hardcoded "97.5% F1 / 94.2%" and a
    `np.random` "training" loop.)
-2. **Build completely → clean + test → research paper.** Sequence chosen by the user: get
-   the full working app first, then clean/test, then write the paper from real behaviour.
+2. **PRODUCT FIRST, thesis later** (user, 2026-06-14 — flips the earlier "research-engine-first"
+   order): build the real, working end-to-end product (engine + an API that actually runs +
+   the Phase-B platform/frontend); the paper / Phase-C evaluation is deferred and written FROM
+   the real product later. When a research refinement competes with making the product work,
+   pick the product. Honesty-first (#1) still binds — real product = real measured behaviour.
 3. **Update graphify after each meaningful step** (`graphify-out/` lives in the parent
    `cyber/` dir; query with `/graphify "question"`).
 4. **One canonical engine** — `core/attack_graph.py` + `algorithms/namoa_star.py`. Never
@@ -27,7 +31,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· fresh clean git `main` · 139 files · **18 tests passing**.
+· clean git `main` · **33 tests passing** (9 files, run each with `python3 <file>`).
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -37,20 +41,27 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 | Threat data provider | `core/threat_data.py` | done + **live** (A2): real EPSS 341k + KEV 1.6k cached to `data/threat_cache/`, certifi SSL, offline fallback |
 | Web scanner (wired) | `scanners/website_analyzer.py` | exploit edges use the cost model |
 | LLM code reviewer | `scanners/llm_code_review.py` | done; needs `anthropic` + `ANTHROPIC_API_KEY` to run |
-| GNN | `ml/gnn/{model,data,train}.py` | GCN built + synthetic-trained + real-graph converter; **wired into NAMOA\*** (A1 done) via `ml/gnn/refine.py` + `core/cost_model.refine_success_probability`; **not yet trained on real data** |
-| Evaluation | `evaluation/baseline_comparison.py` | CVSS-ranking vs NAMOA* Pareto (illustrative) |
-| CLI | `main.py` | `ctppo demo / scan-web / review-code / compare-baselines` |
-| API (deployed) | `api/server_secure.py` | on the canonical engine; `render.yaml` deploys it |
-| Frontend | `frontend/` (React+TS+Tailwind) | exists; still has stale marketing copy; not yet reworked |
+| GNN | `ml/gnn/{model,data,train,features,synth_graphs,train_synth,refine}.py` | wired into NAMOA\* (A1) + trained (A3): synthetic ablation `docs/RESEARCH/A3_GNN_ABLATION.md`; checkpoint `models/exploitability_gnn.pt` (git-ignored) |
+| Severity classifier | `ml/cve_classifier.py`, `ml/train_severity.py` | **A4 done**: text-only DistilBERT, **0.73 macro-F1** (held-out, dedup'd); checkpoint `models/severity_text/` (git-ignored) |
+| Evaluation | `evaluation/baseline_comparison.py`, `evaluation/pignn_validation.py` | CVSS-vs-Pareto illustrative; PIGNN real-data GCN validation (A3, ROC-AUC 0.956) |
+| CLI | `main.py` | `ctppo demo [--gnn] / scan-web / review-code / compare-baselines / threat-data` |
+| API | `api/server_secure.py` | canonical engine; text-only `/api/classify` (real test_f1); transformers lazy-imported; `render.yaml` deploys it |
+| Frontend | `frontend/` (React+TS+Tailwind) | fabricated 97.5%/94.2% metrics removed (A4 → real 0.73); full rework + classify-page CVSS-input removal still pending (B6) |
 
-**Environment notes:** Python **3.14**; **torch 2.12.0 (CPU) installed**;
-`anthropic`, `transformers`, `torch_geometric`, `sklearn`, `nltk` **NOT installed**.
-Optional scanner deps (`zapv2`, `nmap`) absent — scanners degrade gracefully.
-graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
+**Environment notes:** Python **3.14** (use `python3`, NOT `python`); **torch 2.12.0 (CPU/MPS)**,
+**`transformers` 5.9 + `scikit-learn` 1.9 INSTALLED** (added in A4). Still NOT installed:
+`anthropic` (LLM reviewer), `torch_geometric` (GNN is pure-torch, not needed), `nltk` (the
+`ml/data_pipeline/__init__` pulls it in — load `data_collector.py` directly to bypass), `fastapi`
+(needed to run the API locally), scanner deps `zapv2`/`nmap` (scanners degrade gracefully).
+graphify graph: `cyber/graphify-out/graph.json` (~2,228 nodes). **Git-ignored artifacts to
+regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/exploitability_gnn.pt`
+(`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
+`data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
 
-**Tests:** `tests/core/test_cost_model.py` (9), `tests/scanners/test_llm_code_review.py` (4),
-`tests/evaluation/test_baseline_comparison.py` (2), `tests/ml/test_gnn.py` (3). Run each with
-`python <file>` (no pytest needed).
+**Tests (33, run each with `python3 <file>`):** core/test_cost_model (9),
+scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
+evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
+ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
 
 ---
 
