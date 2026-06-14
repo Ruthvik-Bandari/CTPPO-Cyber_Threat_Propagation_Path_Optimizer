@@ -342,6 +342,53 @@ def cmd_threat_data(args):
                       f"kev={provider.is_kev(cve)}")
 
 
+def cmd_analyze_network(args):
+    """Build a multi-host network, find Pareto-optimal lateral-movement attack paths."""
+    from core.logging_system import ResearchLogger
+    from core.network_builder import create_sample_multihost_network
+    from core.threat_data import ThreatDataProvider
+    from core.node_types import NodeType
+    from algorithms.namoa_star import run_namoa_star
+
+    logger = ResearchLogger("AnalyzeNetwork", console_output=False)
+    graph = create_sample_multihost_network(provider=ThreatDataProvider(), logger=logger)
+
+    if args.gnn:
+        from ml.gnn.refine import refine_graph_costs, DEFAULT_CHECKPOINT
+        n = refine_graph_costs(graph, provider=ThreatDataProvider(offline=True))
+        src = "A3-trained checkpoint" if DEFAULT_CHECKPOINT.exists() else "untrained model"
+        console.print(f"[magenta]GNN-refined {n} edge success-probabilities[/magenta] [dim]({src})[/dim]")
+
+    result = run_namoa_star(graph, logger=logger)
+    console.print(Panel(
+        f"Nodes: [cyan]{graph.num_nodes}[/cyan]   Edges: [cyan]{graph.num_edges}[/cyan]   "
+        f"Pareto attack paths: [magenta]{len(result.pareto_paths)}[/magenta]",
+        title="Multi-host network analysis", border_style="cyan"))
+
+    from core.edge_costs import CostType
+
+    def host_hops(path):
+        return [graph.get_node(nid).hostname for nid in path
+                if graph.get_node(nid) and graph.get_node(nid).node_type == NodeType.ASSET]
+
+    def path_objectives(path):
+        """Aggregate the three objectives from the path's own edges (time=sum,
+        success=product, impact=max) — computed directly rather than read from the
+        NAMOA* output vector, whose success component is currently degenerate."""
+        t, p, imp = 0.0, 1.0, 0.0
+        for a, b in zip(path, path[1:]):
+            cv = graph.get_edge(a, b).cost_vector
+            t += cv.get_component(CostType.TIME_TO_EXPLOIT).expected_value()
+            p *= cv.get_component(CostType.SUCCESS_PROBABILITY).expected_value()
+            imp = max(imp, cv.get_component(CostType.BUSINESS_IMPACT).expected_value())
+        return t, p, imp
+
+    for i, (path, _cost) in enumerate(result.pareto_paths[:10], 1):
+        t, p, imp = path_objectives(path)
+        console.print(f"  {i}. [green]{' → '.join(host_hops(path))}[/green]  "
+                      f"[dim]time={t:.2f} success={p:.3f} impact={imp:.2f}[/dim]")
+
+
 def cmd_compare_baselines(args):
     """Demonstrate CVSS-ranking vs NAMOA* Pareto divergence (offline)."""
     import logging
@@ -379,6 +426,11 @@ if __name__ == "__main__":
     p_code.add_argument("paths", nargs="+")
     p_code.add_argument("--model", default="claude-opus-4-8")
     p_code.set_defaults(func=cmd_review_code)
+
+    p_net = sub.add_parser("analyze-network", help="multi-host lateral-movement attack paths")
+    p_net.add_argument("--gnn", action="store_true",
+                       help="run NAMOA* on GNN-refined costs (rule-vs-GNN ablation)")
+    p_net.set_defaults(func=cmd_analyze_network)
 
     p_cmp = sub.add_parser("compare-baselines", help="CVSS-ranking vs NAMOA* Pareto (offline)")
     p_cmp.set_defaults(func=cmd_compare_baselines)
