@@ -89,11 +89,15 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
   reported as measured (01_NOVELTY risk #3) — EPSS is already a strong per-CVE ranker; the
   decisive test is the Phase-C multi-objective NAMOA* path-recovery, not per-node AUC.
   Fixed a self-loop confound in the label + a tie bug in the AUC metric while building this.
-- **A3 (A). PIGNN external validation.** ◀ NEXT. Use the real PIGNN Active-Directory
-  attack-path dataset (github.com/mbdlrocks/PhD_Replication_Package, GPLv3, 329MB) as a
-  standalone "architecture works on real data" check: download `_data_.zip` to a git-ignored
-  `data/pignn/`, train/eval our GCN on their binary node-classification, report ROC-AUC vs
-  their published baseline. Standalone (AD schema ≠ CTPPO schema), does not feed the engine.
+- **A3 (A). PIGNN external validation. ✅ DONE.** `evaluation/pignn_validation.py` runs our
+  GCN on the **real** PIGNN Active-Directory dataset (mbdlrocks/PhD_Replication_Package,
+  GPL-3.0; 1,033 graphs × 361 nodes × 19 feats; `data/pignn/` git-ignored, 9 GB extracted;
+  loaded `weights_only=True` — no code exec from the download). Node-classification reduction
+  (node on any attack-path edge; ~1.3% positives, class-weighted MSE). **Result**
+  (`docs/RESEARCH/A3_PIGNN_VALIDATION.md`): held-out **ROC-AUC 0.956** with message passing
+  vs **0.883** identity-adjacency (MLP) — topology adds **+0.07**; the architecture learns
+  attack-path structure on real data. NOT a head-to-head with their edge-level PINN — an
+  external-validity check (their AD schema ≠ CTPPO schema; standalone from the engine).
 - **A4. CVE severity classifier** (decide keep/cut). Training scripts exist
   (`ml/04_train_model.py`, `ml/training_pipeline.py`). If kept: train a real DistilBERT model
   (needs `transformers`), save it, wire into the API classify endpoint, and report the **real
