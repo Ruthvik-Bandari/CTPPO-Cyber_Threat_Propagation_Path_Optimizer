@@ -98,10 +98,20 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
   vs **0.883** identity-adjacency (MLP) — topology adds **+0.07**; the architecture learns
   attack-path structure on real data. NOT a head-to-head with their edge-level PINN — an
   external-validity check (their AD schema ≠ CTPPO schema; standalone from the engine).
-- **A4. CVE severity classifier** (decide keep/cut). Training scripts exist
-  (`ml/04_train_model.py`, `ml/training_pipeline.py`). If kept: train a real DistilBERT model
-  (needs `transformers`), save it, wire into the API classify endpoint, and report the **real
-  measured F1** (the API currently returns `test_f1: None`).
+- **A4. CVE severity classifier. ✅ DONE — KEPT + trained, text-only.** Decision: the old
+  `MultiModalCVEClassifier` fed the CVSS score/vector as inputs, but severity is a
+  deterministic threshold on that score → circular (fake ~100% F1). Replaced with an honest
+  **text-only** DistilBERT (description → severity) in `ml/cve_classifier.py` (shared by API +
+  trainer). `ml/train_severity.py` fetches real NVD CVEs and fine-tunes it; **held-out
+  macro-F1 = 0.71** vs 0.10 majority baseline (`docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`).
+  Installed `transformers` 5.9 + `scikit-learn` (Py 3.14). API refactored: lazy transformers
+  import (API now imports without it), simplified `/api/classify` to {description, cve_id},
+  `/api/model/info` returns the **real** test_f1. Frontend: removed the fabricated
+  "97.5% F1 / 94.2%" claims across classify/index/dashboard → real 0.71 macro-F1.
+  Checkpoint → `models/severity_text/` (git-ignored, 266 MB; retrain to regenerate).
+  **Deferred:** removing the now-ignored CVSS inputs from the classify *page* UI → Phase-B
+  frontend rework (B6); the residual fabricated metrics in `docs/DEVELOPMENT.md` +
+  `docs/ENTERPRISE_GUIDE.md` → D2 docs sweep.
 - **A5. Multi-host attack graphs.** Add a builder for real multi-host network topologies
   (lateral movement across hosts), not just the single-site web template — this is where
   attack-path analysis earns its keep.

@@ -60,9 +60,9 @@ function DashboardPage() {
 
   const stats = [
     {
-      label: 'Model Accuracy',
-      value: '97.50%',
-      subtext: 'F1 Score',
+      label: 'Severity Model',
+      value: '0.71',
+      subtext: 'Macro-F1 (held-out)',
       icon: Zap,
     },
     {
@@ -216,10 +216,6 @@ function DashboardPage() {
             <div>
               <p className="text-sm text-muted-foreground">Test F1 Score</p>
               <p className="font-medium text-green-500">{modelQuery.data.test_f1}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">CWE Vocabulary</p>
-              <p className="font-medium">{modelQuery.data.cwe_vocab_size} types</p>
             </div>
           </div>
         </motion.div>

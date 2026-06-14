@@ -15,7 +15,6 @@ Date: January 2026
 import os
 import sys
 import asyncio
-import json
 import time
 import secrets
 import hashlib
@@ -26,12 +25,12 @@ from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
 import torch
-import torch.nn as nn
 from pydantic import BaseModel, Field, EmailStr
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from transformers import DistilBertTokenizer, DistilBertModel
+# transformers is imported lazily inside the severity-classifier load path
+# (ml/cve_classifier.py) so the API imports/runs even when transformers is absent.
 
 # JWT and 2FA
 
@@ -129,97 +128,29 @@ def check_subscription(email: str) -> dict:
 # MODEL CONFIG
 # ============================================================================
 
-class ModelConfig:
-    model_name = "distilbert-base-uncased"
-    text_hidden_dim = 512
-    metadata_hidden_dim = 128
-    fusion_hidden_dim = 256
-    num_classes = 4
-    cvss_vocab_sizes = {
-        'attackVector': 5, 'attackComplexity': 3, 'privilegesRequired': 4,
-        'userInteraction': 3, 'scope': 3, 'confidentialityImpact': 4,
-        'integrityImpact': 4, 'availabilityImpact': 4,
-    }
-    cvss_embed_dim = 8
-    cwe_embed_dim = 64
-    max_length = 256
-    dropout = 0.3
-    class_names = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+# The severity classifier is text-only (DistilBERT on the CVE description) and lives in
+# ml/cve_classifier.py. A4 replaced the earlier MultiModalCVEClassifier, which fed the CVSS
+# score/vector as inputs — circular, since the severity label is a deterministic threshold
+# on that score (it would yield a fake ~100% F1). Honest held-out macro-F1: see
+# docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md.
+SEVERITY_CLASSES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+DEFAULT_MODEL_DIR = str(Path(__file__).resolve().parent.parent / "models" / "severity_text")
 
 
 # ============================================================================
 # ML MODEL
 # ============================================================================
 
-class CVSSEmbedding(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.embeddings = nn.ModuleDict({
-            k: nn.Embedding(v, config.cvss_embed_dim, padding_idx=v-1)
-            for k, v in config.cvss_vocab_sizes.items()
-        })
-        self.output_dim = config.cvss_embed_dim * 8
-    
-    def forward(self, x):
-        keys = list(self.embeddings.keys())
-        return torch.cat([self.embeddings[k](x[:, i]) for i, k in enumerate(keys)], dim=-1)
-
-
-class MultiModalCVEClassifier(nn.Module):
-    def __init__(self, config, cwe_vocab_size):
-        super().__init__()
-        self.bert = DistilBertModel.from_pretrained(config.model_name)
-        self.text_projection = nn.Sequential(
-            nn.Linear(768, config.text_hidden_dim),
-            nn.LayerNorm(config.text_hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(config.dropout)
-        )
-        self.cvss_embedding = CVSSEmbedding(config)
-        self.cwe_embedding = nn.Embedding(cwe_vocab_size, config.cwe_embed_dim, padding_idx=1)
-        self.numeric_projection = nn.Sequential(
-            nn.Linear(8, 32), nn.ReLU(), nn.Dropout(config.dropout)
-        )
-        metadata_dim = self.cvss_embedding.output_dim + config.cwe_embed_dim + 32
-        self.metadata_fusion = nn.Sequential(
-            nn.Linear(metadata_dim, config.metadata_hidden_dim),
-            nn.LayerNorm(config.metadata_hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(config.dropout)
-        )
-        fusion_dim = config.text_hidden_dim + config.metadata_hidden_dim
-        self.classifier = nn.Sequential(
-            nn.Linear(fusion_dim, config.fusion_hidden_dim),
-            nn.LayerNorm(config.fusion_hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(config.dropout),
-            nn.Linear(config.fusion_hidden_dim, config.fusion_hidden_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(config.dropout),
-            nn.Linear(config.fusion_hidden_dim // 2, config.num_classes)
-        )
-    
-    def forward(self, input_ids, attention_mask, cvss_features, numeric_features, cwe_id):
-        bert_out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        text = self.text_projection(bert_out.last_hidden_state[:, 0, :])
-        cvss = self.cvss_embedding(cvss_features)
-        cwe = self.cwe_embedding(cwe_id)
-        numeric = self.numeric_projection(numeric_features)
-        metadata = self.metadata_fusion(torch.cat([cvss, cwe, numeric], dim=-1))
-        return self.classifier(torch.cat([text, metadata], dim=-1))
-
-
 # ============================================================================
 # GLOBAL STATE
 # ============================================================================
 
 class AppState:
-    model: Optional[MultiModalCVEClassifier] = None
-    tokenizer: Optional[DistilBertTokenizer] = None
-    cwe_vocab: Dict[str, int] = {}
+    model = None                 # ml.cve_classifier.SeverityClassifier (loaded lazily)
+    tokenizer = None
     device: torch.device = torch.device('cpu')
-    config: ModelConfig = ModelConfig()
     loaded: bool = False
+    val_f1: float = 0.0
 
 state = AppState()
 security = HTTPBearer()
@@ -269,27 +200,9 @@ class UserResponse(BaseModel):
     created_at: str
 
 
-class CVSSVector(BaseModel):
-    attackVector: str = "NETWORK"
-    attackComplexity: str = "LOW"
-    privilegesRequired: str = "NONE"
-    userInteraction: str = "NONE"
-    scope: str = "UNCHANGED"
-    confidentialityImpact: str = "HIGH"
-    integrityImpact: str = "HIGH"
-    availabilityImpact: str = "HIGH"
-
-
 class CVEClassifyRequest(BaseModel):
-    description: str
+    description: str                       # the model predicts severity from this text
     cve_id: Optional[str] = None
-    cvss_vector: Optional[CVSSVector] = None
-    cvss_score: float = Field(default=0.0, ge=0, le=10)
-    exploitability_score: float = Field(default=0.0, ge=0, le=4)
-    impact_score: float = Field(default=0.0, ge=0, le=6)
-    cwe_id: Optional[str] = None
-    has_exploit: bool = False
-    has_patch: bool = False
 
 
 class CVEClassifyResponse(BaseModel):
@@ -387,90 +300,34 @@ async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(securit
 
 
 # ============================================================================
-# CVSS ENCODING
-# ============================================================================
-
-CVSS_MAP = {
-    'attackVector': {'NETWORK': 0, 'ADJACENT_NETWORK': 1, 'LOCAL': 2, 'PHYSICAL': 3},
-    'attackComplexity': {'LOW': 0, 'HIGH': 1},
-    'privilegesRequired': {'NONE': 0, 'LOW': 1, 'HIGH': 2},
-    'userInteraction': {'NONE': 0, 'REQUIRED': 1},
-    'scope': {'UNCHANGED': 0, 'CHANGED': 1},
-    'confidentialityImpact': {'NONE': 0, 'LOW': 1, 'HIGH': 2},
-    'integrityImpact': {'NONE': 0, 'LOW': 1, 'HIGH': 2},
-    'availabilityImpact': {'NONE': 0, 'LOW': 1, 'HIGH': 2},
-}
-
-
-def encode_cvss(cvss: Optional[CVSSVector]) -> List[int]:
-    if cvss is None:
-        return [state.config.cvss_vocab_sizes[k] - 1 for k in CVSS_MAP.keys()]
-    return [CVSS_MAP[k].get(getattr(cvss, k, None), state.config.cvss_vocab_sizes[k] - 1) for k in CVSS_MAP.keys()]
-
-
-# ============================================================================
 # MODEL LOADING
 # ============================================================================
 
-def load_model(model_dir: str = "../models/severity_v3"):
-    """Load model from local path or download from Hugging Face"""
-    from huggingface_hub import hf_hub_download, snapshot_download
-    import os
-    
-    HF_REPO = "RuthvikBandari/ctppo-severity-model"
-    model_path = Path(model_dir)
-    
-    # Try to download from Hugging Face if not exists locally
-    if not (model_path / "checkpoint_best.pt").exists():
-        print(f"Model not found locally. Downloading from Hugging Face...")
-        try:
-            # Create directory
-            model_path.mkdir(parents=True, exist_ok=True)
-            
-            # Download all files from HF repo
-            snapshot_download(
-                repo_id=HF_REPO,
-                local_dir=str(model_path),
-                local_dir_use_symlinks=False
-            )
-            print(f"✓ Downloaded model from {HF_REPO}")
-        except Exception as e:
-            print(f"Warning: Could not download model: {e}")
-            return False
-    
-    # Check again after download
-    if not (model_path / "checkpoint_best.pt").exists():
-        print(f"Warning: Model not found at {model_path}")
-        return False
-    
-    # Set device
+def load_model(model_dir: str = DEFAULT_MODEL_DIR) -> bool:
+    """Load the text-only severity classifier from a local checkpoint dir.
+
+    Returns True if a checkpoint was found and loaded, False otherwise (the API still
+    runs — /api/classify returns 503 until a model is trained via ml/train_severity.py).
+    transformers is imported here, not at module top, so the API loads without it.
+    """
     if torch.cuda.is_available():
         state.device = torch.device('cuda')
     elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
         state.device = torch.device('mps')
     else:
         state.device = torch.device('cpu')
-    
-    print(f"Using device: {state.device}")
-    
-    # Load vocab
-    with open(model_path / "cwe_vocab.json") as f:
-        state.cwe_vocab = json.load(f)
-    
-    # Load tokenizer
-    tok_path = model_path / "tokenizer"
-    state.tokenizer = DistilBertTokenizer.from_pretrained(tok_path if tok_path.exists() else state.config.model_name)
-    
-    # Load model
-    state.model = MultiModalCVEClassifier(state.config, len(state.cwe_vocab))
-    checkpoint = torch.load(model_path / "checkpoint_best.pt", map_location=state.device, weights_only=False)
-    state.model.load_state_dict(checkpoint['model_state_dict'])
-    state.model = state.model.to(state.device)
-    state.model.eval()
-    
+    try:
+        from cve_classifier import load_classifier
+        loaded = load_classifier(model_dir, device=state.device)
+    except Exception as e:
+        print(f"Severity classifier unavailable ({e}); /api/classify will return 503.")
+        return False
+    if loaded is None:
+        print(f"Severity model not found at {model_dir} — train it with ml/train_severity.py.")
+        return False
+    state.model, state.tokenizer, state.val_f1 = loaded
     state.loaded = True
-    print(f"✓ Model loaded (val_f1: {checkpoint.get('val_f1', 0):.4f})")
-    return True
+    print(f"✓ Severity classifier loaded (val_f1: {state.val_f1:.4f})")
     return True
 
 # ============================================================================
@@ -479,31 +336,19 @@ def load_model(model_dir: str = "../models/severity_v3"):
 
 def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
     if not state.loaded:
-        raise HTTPException(503, "Model not loaded")
-    
+        load_model(os.environ.get("MODEL_DIR", DEFAULT_MODEL_DIR))   # lazy load on first use
+    if not state.loaded:
+        raise HTTPException(503, "Severity model not trained. Run ml/train_severity.py.")
+
     start = time.time()
-    enc = state.tokenizer(req.description, max_length=state.config.max_length, padding='max_length', truncation=True, return_tensors='pt')
-    cvss = encode_cvss(req.cvss_vector)
-    cwe_idx = state.cwe_vocab.get(req.cwe_id or '<UNK>', state.cwe_vocab.get('<UNK>', 0))
-    
-    numeric = torch.tensor([[req.cvss_score / 10.0, req.exploitability_score / 4.0, req.impact_score / 6.0, float(req.has_exploit), float(req.has_patch), 0.0, 0.0, 0.0]], dtype=torch.float32)
-    
-    with torch.no_grad():
-        logits = state.model(
-            enc['input_ids'].to(state.device),
-            enc['attention_mask'].to(state.device),
-            torch.tensor([cvss], dtype=torch.long).to(state.device),
-            numeric.to(state.device),
-            torch.tensor([cwe_idx], dtype=torch.long).to(state.device)
-        )
-        probs = torch.softmax(logits, dim=-1)
-        pred = torch.argmax(logits, dim=-1).item()
-    
+    from cve_classifier import predict_severity
+    severity, confidence, probs = predict_severity(
+        state.model, state.tokenizer, req.description, state.device)
     return CVEClassifyResponse(
         cve_id=req.cve_id,
-        predicted_severity=state.config.class_names[pred],
-        confidence=round(probs[0, pred].item(), 4),
-        probabilities={state.config.class_names[i]: round(probs[0, i].item(), 4) for i in range(state.config.num_classes)},
+        predicted_severity=severity,
+        confidence=confidence,
+        probabilities=probs,
         processing_time_ms=round((time.time() - start) * 1000, 2)
     )
 
@@ -517,7 +362,7 @@ async def lifespan(app: FastAPI):
     # Load model in background (non-blocking)
     async def load_model_bg():
         await asyncio.sleep(1)  # Let server start first
-        load_model(os.environ.get("MODEL_DIR", "../models/severity_v3"))
+        load_model(os.environ.get("MODEL_DIR", DEFAULT_MODEL_DIR))
     # asyncio.create_task(load_model_bg())  # Disabled - causes OOM on free tier
     yield
 
@@ -670,7 +515,8 @@ async def health():
 
 @app.get("/api/model/info")
 async def model_info(user: dict = Depends(get_current_user)):
-    return {"loaded": state.loaded, "device": str(state.device), "classes": state.config.class_names, "test_f1": None, "cwe_vocab_size": len(state.cwe_vocab)}
+    return {"loaded": state.loaded, "device": str(state.device), "classes": SEVERITY_CLASSES,
+            "test_f1": round(state.val_f1, 4) if state.loaded else None}
 
 
 @app.post("/api/classify", response_model=CVEClassifyResponse)
