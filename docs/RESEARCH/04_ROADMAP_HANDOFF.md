@@ -37,7 +37,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 | Threat data provider | `core/threat_data.py` | done (EPSS + CISA KEV, cached, offline fallback) |
 | Web scanner (wired) | `scanners/website_analyzer.py` | exploit edges use the cost model |
 | LLM code reviewer | `scanners/llm_code_review.py` | done; needs `anthropic` + `ANTHROPIC_API_KEY` to run |
-| GNN | `ml/gnn/{model,data,train}.py` | GCN built + synthetic-trained + real-graph converter; **not yet trained on real data, not yet wired into NAMOA*** |
+| GNN | `ml/gnn/{model,data,train}.py` | GCN built + synthetic-trained + real-graph converter; **wired into NAMOA\*** (A1 done) via `ml/gnn/refine.py` + `core/cost_model.refine_success_probability`; **not yet trained on real data** |
 | Evaluation | `evaluation/baseline_comparison.py` | CVSS-ranking vs NAMOA* Pareto (illustrative) |
 | CLI | `main.py` | `ctppo demo / scan-web / review-code / compare-baselines` |
 | API (deployed) | `api/server_secure.py` | on the canonical engine; `render.yaml` deploys it |
@@ -56,12 +56,20 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
 
 ## 2. Remaining steps (ordered)
 
-### Phase A — Complete engine + ML  ◀ START HERE
-- **A1. Wire the GNN into the engine.** GNN predicts per-edge/node exploitability →
-  feed into `cost_model` success-probability → NAMOA*. Add a flag to switch
-  rule-based vs GNN-refined costs (for the ablation). *Verify:* NAMOA* runs on GNN costs;
-  ablation produces comparable Pareto fronts.
-- **A2. Real threat data.** Run `ThreatDataProvider` online (download EPSS CSV + CISA KEV
+### Phase A — Complete engine + ML
+- **A1. Wire the GNN into the engine. ✅ DONE.** `ml/gnn/refine.py` runs the GNN over a
+  built `AttackGraph`'s topology → per-node exploitability → blends into each edge's
+  `SUCCESS_PROBABILITY` via `core/cost_model.refine_success_probability` (convex blend;
+  `weight=0` = rule baseline, `weight=1` = pure GNN). NAMOA* then searches the refined
+  costs. Flag: `ctppo demo --gnn`; reusable `refine_graph_costs(graph, model, weight)`.
+  Tests: `tests/ml/test_gnn_cost.py` (3). *Verified:* NAMOA* runs in both arms and both
+  fronts reach the same goals. **Honest caveat:** the GNN is **untrained**, so its scores
+  flatten the success-prob spread and *enlarge* the Pareto front (sample graph: 523→950
+  paths) — not an improvement, just wiring. A3 (training) is what makes the GNN scores
+  meaningful. **Not yet wired into `scanners/website_analyzer.py`** (the product scan path):
+  call `refine_graph_costs` on its built graph behind a `use_gnn` flag once a checkpoint
+  exists — deferred to after A3 so the toggle reflects a trained model.
+- **A2. Real threat data.** ◀ NEXT. Run `ThreatDataProvider` online (download EPSS CSV + CISA KEV
   JSON, cache to `data/threat_cache/`). *Verify:* `epss("CVE-2021-44228")` and `is_kev(...)`
   return real values.
 - **A3. Train the GNN on real data.** Get an attack-graph dataset (e.g. the MDPI ~1,033

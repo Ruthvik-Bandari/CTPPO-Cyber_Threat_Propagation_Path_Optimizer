@@ -54,6 +54,8 @@ _KEV_TIME_FACTOR = 0.5                       # mature tooling exists -> faster
 _AC_HIGH_TIME_FACTOR = 1.5                   # high complexity -> slower
 _KEV_EXIST_FLOOR = 0.90                      # KEV => exploit demonstrably exists/used
 _TIME_BASE = 10.0                            # numerator for relative time
+_GNN_BLEND_WEIGHT = 0.5                      # GNN-refined exploitability vs rule prior
+                                             #   (CALIBRATION TARGET, set by the A3 ablation)
 
 
 def parse_cvss31_vector(vector: str) -> Dict[str, str]:
@@ -125,6 +127,20 @@ def success_probability(epss: Optional[float], is_kev: bool, ac: Optional[str],
         p_exec = _P_EXEC_UNKNOWN
         flags.append("ac_unknown->p_exec_0.70")
     return _clamp(p_exists * p_exec)
+
+
+def refine_success_probability(p_rule: float, gnn_exploitability: float,
+                               weight: float = _GNN_BLEND_WEIGHT) -> float:
+    """Blend a rule-based success probability with a GNN exploitability score.
+
+    Convex combination so the GNN *refines* the data-grounded prior rather than
+    replacing it (spec 02_COST_MODEL_SPEC.md §3): ``weight=0`` recovers the rule
+    prior (the ablation baseline), ``weight=1`` is pure GNN. ``gnn_exploitability``
+    is the GNN's per-node compromise-likelihood in [0, 1]. Returns a probability in
+    [0, 1]. The blend weight is a calibration target, not an empirical fact — until
+    the GNN is trained on real attack-graph data (roadmap A3) this is wiring only.
+    """
+    return _clamp((1.0 - weight) * p_rule + weight * gnn_exploitability)
 
 
 def time_to_exploit_relative(expl: Optional[float], is_kev: bool, ac: Optional[str],

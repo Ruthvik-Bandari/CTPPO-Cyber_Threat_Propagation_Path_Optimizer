@@ -61,7 +61,7 @@ def print_header():
     console.print(header, style="bold cyan")
 
 
-def main():
+def main(use_gnn: bool = False):
     """Main execution function"""
     print_header()
     
@@ -111,7 +111,16 @@ def main():
         if count > 0:
             console.print(f"      • {node_type}: {count}")
     console.print()
-    
+
+    # Optional: refine edge success-probabilities with the GNN (rule-vs-GNN ablation)
+    if use_gnn:
+        from ml.gnn.refine import refine_graph_costs
+        n = refine_graph_costs(graph)
+        console.print(
+            f"   [magenta]GNN-refined {n} edge success-probabilities[/magenta] "
+            f"[dim](untrained model — wiring only, see roadmap A3)[/dim]\n"
+        )
+
     # Step 3: Run NAMOA* Algorithm
     console.print("[bold cyan]Step 3:[/bold cyan] Running NAMOA* Multi-Objective Search...")
     console.print("   Objectives: [yellow]Time-to-Exploit[/yellow], [yellow]Success Probability[/yellow], [yellow]Business Impact[/yellow]\n")
@@ -236,16 +245,21 @@ def main():
     return graph, result, logger
 
 
-def run_quick_demo():
+def run_quick_demo(use_gnn: bool = False):
     """Run a minimal demo for testing"""
     console.print("[bold]Quick Demo Mode[/bold]\n")
-    
+
     from core.logging_system import ResearchLogger
     from core.attack_graph import create_sample_enterprise_graph
     from algorithms.namoa_star import run_namoa_star
-    
+
     logger = ResearchLogger("QuickDemo", console_output=False)
     graph = create_sample_enterprise_graph(logger=logger)
+    if use_gnn:
+        from ml.gnn.refine import refine_graph_costs
+        n = refine_graph_costs(graph)
+        console.print(f"✓ GNN-refined {n} edge success-probabilities "
+                      f"(untrained model — wiring only, see roadmap A3)")
     result = run_namoa_star(graph, logger=logger)
     
     console.print(f"✓ Graph: {graph.num_nodes} nodes, {graph.num_edges} edges")
@@ -262,7 +276,7 @@ def run_quick_demo():
 
 def cmd_demo(args):
     """Run the sample enterprise attack-graph demonstration."""
-    run_quick_demo() if args.quick else main()
+    run_quick_demo(use_gnn=args.gnn) if args.quick else main(use_gnn=args.gnn)
 
 
 def cmd_scan_web(args):
@@ -326,6 +340,8 @@ if __name__ == "__main__":
 
     p_demo = sub.add_parser("demo", help="sample enterprise attack-graph demo")
     p_demo.add_argument("--quick", action="store_true", help="minimal output")
+    p_demo.add_argument("--gnn", action="store_true",
+                        help="run NAMOA* on GNN-refined costs (rule-vs-GNN ablation)")
     p_demo.set_defaults(func=cmd_demo)
 
     p_web = sub.add_parser("scan-web", help="scan a website for attack paths")
@@ -344,6 +360,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if not getattr(args, "command", None):
         args.quick = False
+        args.gnn = False
         args.func = cmd_demo  # default to the demo
 
     try:
