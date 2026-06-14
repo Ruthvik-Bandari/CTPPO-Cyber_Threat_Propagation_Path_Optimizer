@@ -62,8 +62,8 @@ function LandingPage() {
     {
       icon: Brain,
       title: 'AI-Powered CVE Classification',
-      description: 'DistilBERT classifier predicting CVE severity from descriptions (0.71 macro-F1, held-out)',
-      stat: '0.71 macro-F1',
+      description: 'DistilBERT classifier predicting CVE severity from descriptions (0.73 macro-F1, held-out)',
+      stat: '0.73 macro-F1',
     },
     {
       icon: Network,
@@ -144,7 +144,7 @@ function LandingPage() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm mb-6">
               <Zap size={16} />
-              0.71 macro-F1 on CVE severity classification
+              0.73 macro-F1 on CVE severity classification
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary via-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -175,7 +175,7 @@ function LandingPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
               {[
-                { value: '0.71', label: 'Macro-F1 (held-out)' },
+                { value: '0.73', label: 'Macro-F1 (held-out)' },
                 { value: '3.2K', label: 'CVEs trained' },
                 { value: '341K', label: 'EPSS scores' },
                 { value: '1.6K', label: 'CISA KEV tracked' },
@@ -327,7 +327,7 @@ function LandingPage() {
                     </div>
                     <div className="flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
-                      <span className="text-sm text-muted-foreground">CVE severity classifier (0.71 macro-F1, held-out)</span>
+                      <span className="text-sm text-muted-foreground">CVE severity classifier (0.73 macro-F1, held-out)</span>
                     </div>
                     <div className="flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />

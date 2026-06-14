@@ -61,7 +61,7 @@ function DashboardPage() {
   const stats = [
     {
       label: 'Severity Model',
-      value: '0.71',
+      value: '0.73',
       subtext: 'Macro-F1 (held-out)',
       icon: Zap,
     },

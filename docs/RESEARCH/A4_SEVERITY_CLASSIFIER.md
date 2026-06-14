@@ -7,26 +7,26 @@ description text only**. CVSS score/vector are deliberately NOT model inputs: th
 label is a deterministic threshold on the CVSS score, so feeding it would make the task
 circular (a fake ~100% F1). This reports the honest, non-trivial text→severity capability.
 
-Real NVD data: 3200 CVEs (2242 train / 479 held-out test),
-class distribution {'CRITICAL': 800, 'HIGH': 800, 'MEDIUM': 817, 'LOW': 783}. Trained 3 epochs on mps.
+Real NVD data: 3186 CVEs (2232 train / 477 held-out test),
+class distribution {'CRITICAL': 800, 'HIGH': 800, 'MEDIUM': 817, 'LOW': 769}. Trained 3 epochs on mps.
 
 | Metric (held-out test) | macro-F1 |
 |------------------------|----------|
-| **DistilBERT (description → severity)** | **0.7094** |
-| Majority-class baseline | 0.1015 |
+| **DistilBERT (description → severity)** | **0.7294** |
+| Majority-class baseline | 0.1018 |
 
 Per-class report (held-out):
 ```
               precision    recall  f1-score   support
 
-    CRITICAL       0.69      0.92      0.79       120
-        HIGH       0.70      0.46      0.55       120
-      MEDIUM       0.69      0.64      0.66       122
-         LOW       0.80      0.87      0.83       117
+    CRITICAL       0.73      0.84      0.78       120
+        HIGH       0.63      0.66      0.64       120
+      MEDIUM       0.69      0.63      0.66       122
+         LOW       0.90      0.78      0.84       115
 
-    accuracy                           0.72       479
-   macro avg       0.72      0.72      0.71       479
-weighted avg       0.72      0.72      0.71       479
+    accuracy                           0.73       477
+   macro avg       0.74      0.73      0.73       477
+weighted avg       0.73      0.73      0.73       477
 
 ```
 

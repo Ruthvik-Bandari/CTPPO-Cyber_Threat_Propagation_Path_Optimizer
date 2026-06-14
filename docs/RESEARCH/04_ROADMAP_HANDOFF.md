@@ -103,11 +103,12 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
   deterministic threshold on that score → circular (fake ~100% F1). Replaced with an honest
   **text-only** DistilBERT (description → severity) in `ml/cve_classifier.py` (shared by API +
   trainer). `ml/train_severity.py` fetches real NVD CVEs and fine-tunes it; **held-out
-  macro-F1 = 0.71** vs 0.10 majority baseline (`docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`).
+  macro-F1 = 0.73** (dedup'd, leakage-free) vs 0.10 majority baseline
+  (`docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`).
   Installed `transformers` 5.9 + `scikit-learn` (Py 3.14). API refactored: lazy transformers
   import (API now imports without it), simplified `/api/classify` to {description, cve_id},
   `/api/model/info` returns the **real** test_f1. Frontend: removed the fabricated
-  "97.5% F1 / 94.2%" claims across classify/index/dashboard → real 0.71 macro-F1.
+  "97.5% F1 / 94.2%" claims across classify/index/dashboard → real 0.73 macro-F1.
   Checkpoint → `models/severity_text/` (git-ignored, 266 MB; retrain to regenerate).
   **Deferred:** removing the now-ignored CVSS inputs from the classify *page* UI → Phase-B
   frontend rework (B6); the residual fabricated metrics in `docs/DEVELOPMENT.md` +

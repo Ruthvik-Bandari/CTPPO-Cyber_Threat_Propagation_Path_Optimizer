@@ -124,7 +124,7 @@ function ClassifyPage() {
           CVE Severity Classification
         </h1>
         <p className="text-muted-foreground mt-2">
-          Predict CVE severity from a description with a DistilBERT model (0.71 macro-F1 on held-out NVD CVEs)
+          Predict CVE severity from a description with a DistilBERT model (0.73 macro-F1 on held-out NVD CVEs)
         </p>
       </motion.div>
 

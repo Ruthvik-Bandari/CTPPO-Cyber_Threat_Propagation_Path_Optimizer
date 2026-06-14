@@ -56,11 +56,17 @@ def fetch_dataset(per_class: int) -> List[Tuple[str, int]]:
     collector = mod.CVEDataCollector(cache_dir=str(CACHE_DIR))
     records = collector.fetch_balanced_dataset(samples_per_class=per_class)
 
+    # Light cleaning only — DistilBERT wants raw text (its tokenizer normalises), so we do
+    # NOT stopword-strip/lemmatise. We keep the 4 real severity classes, drop empty/short
+    # descriptions, and DEDUPLICATE by description text so identical entries can't straddle
+    # the train/test split (REJECTED/RESERVED CVEs are already excluded — they have no CVSS).
     data: List[Tuple[str, int]] = []
+    seen = set()
     for r in records:
         idx = severity_to_index(str(r.severity_label))
         desc = (r.description or "").strip()
-        if idx is not None and len(desc) > 10:
+        if idx is not None and len(desc) > 10 and desc not in seen:
+            seen.add(desc)
             data.append((desc, idx))
     return data
 
