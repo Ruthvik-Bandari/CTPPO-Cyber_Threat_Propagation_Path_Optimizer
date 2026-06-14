@@ -241,9 +241,22 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
     (labeled, not faked):** SSH login + remote Git clone/verification (`scan` is local-path only;
     `target_spec.remote_git="not_implemented"`); the reviewer needs `anthropic` + key to produce
     findings (else metadata-only).
-- **B6.** **Frontend rework** (React+TS+Tailwind): landing, auth pages, dashboard, instances
-  CRUD UI, attack-path views (`NetworkGraph`/`ParetoChart` updated to the new API response
-  shape — the attack-path endpoints now return a Pareto-front structure).
+- **B6. Frontend rework (React+TS+Tailwind, `frontend/`). — REMAINING (the only Phase B item
+  left).** The backend now exposes a complete session-based API; wire the React app to it:
+  - **Auth:** migrate from JWT/bearer → the **session cookie** (`fetch(..., {credentials:'include'})`);
+    wire signup/login/logout/forgot-password/reset to
+    `/api/auth/{signup,login,logout,forgot-password,reset-password}` and identity to `/api/auth/whoami`.
+  - **Dashboard gating:** unlock on `GET /api/subscription/status` (`has_subscription`); product-key
+    activation UI → `POST /api/subscription/activate {product_key}`.
+  - **Instances CRUD UI** → `/api/instances` (B3); **enterprise org/RBAC UI** → `/api/orgs` (B4);
+    **API-key management UI** → `/api/keys` (B5a).
+  - **Attack-path views:** update `NetworkGraph`/`ParetoChart` to the Pareto-front response shape
+    (`/api/attack-paths/*`).
+  - **Remove the classify-page CVSS inputs** (the A4 severity model is text-only: description in,
+    severity out — feeding CVSS would be the circular-input mistake A4 fixed).
+  - No `python3` test harness for TS — verify via the frontend build/typecheck (+ component checks
+    where feasible). Suggested first move: **audit `frontend/`** (existing pages, API calls, build
+    tooling) and propose a concrete B6 sub-plan before implementing.
 
 ### Phase C — Evaluation for the paper
 - **C1. Baselines:** B1 CVSS-ranking · B2 single-objective shortest path · B3 rule-cost +
@@ -294,6 +307,29 @@ A licensed cybersecurity platform. **Built in Phase B**, after the engine/ML is 
 
 ## 4. How to resume (starter prompt for a new chat)
 
-Paste the prompt block the assistant provided alongside this file. It points the new session
-at this doc + the memory index + graphify, restates the working agreements, and tells it to
-continue from **A1**.
+**Current resume point: B6 (frontend rework) — the only remaining Phase B item; then Phase C
+(evaluation) and Phase D (cleanup → test → paper).** Everything else is DONE: Phase A (A1–A5 +
+the NAMOA* success-objective fix) and Phase B B1–B5 (session auth · subscription gating ·
+instances CRUD · enterprise orgs/RBAC · API keys + pip CLI). **129 tests pass** (22 files, run
+each with `python3 <file>`).
+
+When resuming:
+1. Read this doc + the memory index (`ctppo-status-handoff`, `ctppo-product-architecture`,
+   `working-agreements`, `ctppo-graphify-update-procedure`). Use `/graphify "question"` for any
+   codebase question (graph at `cyber/graphify-out/`, ~2,697 nodes) instead of grepping blind.
+2. Honor the working agreements (§0): **product-first**, **honesty-first** (no fabricated
+   metrics; stubs labeled as stubs), **one canonical engine**, **/graphify after each step**,
+   **commit each step** with the `Co-Authored-By: Claude Opus 4.8 (1M context)` trailer.
+3. **Env (already set up):** Python 3.14 (`python3`, not `python`). API deps installed
+   (fastapi, httpx, sqlalchemy, pyotp, qrcode, email-validator); `redis`/`bcrypt`/`anthropic`
+   optional (stores fall back to in-memory/PBKDF2; reviewer degrades). The API boots:
+   `cd api && python3 -c "import server_secure"`; drive it with FastAPI `TestClient`.
+4. **Start B6** with a frontend audit (what's in `frontend/`, its API calls, build tooling),
+   propose a sub-plan, then implement. B6 verification is the frontend build/typecheck (no
+   `python3` test harness for TS).
+
+**Deferred / labeled-stub items to revisit later (not bugs — honest gaps):** Postgres/Redis
+backing for the in-memory stores (subscription/instance/org/api-key); real email delivery for
+password reset (dev returns `dev_reset_token`); CLI SSH login + remote Git clone/verification
+(B5b `scan` is local-path only); the LLM reviewer needs `anthropic` + `ANTHROPIC_API_KEY`;
+gating org creation specifically on an `enterprise`-type subscription. Phase C/D per §2.
