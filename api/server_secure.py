@@ -52,6 +52,9 @@ from instance_routes import create_instance_router
 # B4: enterprise organizations + RBAC
 from org_store import orgs as org_store
 from org_routes import create_org_router
+# B5a: subscription-tied API keys for the CLI / CI
+from api_key_store import api_keys, KEY_PREFIX
+from api_key_routes import create_api_key_router
 import jwt
 import pyotp
 import qrcode
@@ -269,14 +272,21 @@ async def get_authenticated_user(
     not-yet-subscribed user must still reach (e.g. activating a product key).
     """
     email = None
-    # 1. Server-side session cookie (B1) — the primary mechanism.
+    # 1. Server-side session cookie (B1) — the primary mechanism (browsers).
     sid = request.cookies.get(SESSION_COOKIE)
     if sid:
         session = sessions.get_session(sid)
         if session:
             email = session.get("email")
-    # 2. Fall back to a JWT bearer token (legacy / non-browser API clients).
-    if email is None and creds is not None:
+    # 2. API key (B5a) — for the CLI / CI. Via X-API-Key, or a `ctppo_`-prefixed bearer.
+    if email is None:
+        api_key = request.headers.get("X-API-Key")
+        if not api_key and creds is not None and creds.credentials.startswith(KEY_PREFIX):
+            api_key = creds.credentials
+        if api_key:
+            email = api_keys.resolve(api_key)
+    # 3. Fall back to a JWT bearer token (legacy / non-browser API clients).
+    if email is None and creds is not None and not creds.credentials.startswith(KEY_PREFIX):
         payload = verify_token(creds.credentials)
         if payload:
             email = payload.get("sub")
@@ -384,6 +394,8 @@ app.include_router(create_auth_router(USERS_DB, sessions))
 app.include_router(create_instance_router(instance_store, get_current_user))
 # B4: enterprise orgs + RBAC, subscription-gated; per-org admin/member enforced in the store.
 app.include_router(create_org_router(org_store, get_current_user))
+# B5a: API-key management (issue/list/revoke), session-authenticated + subscription-gated.
+app.include_router(create_api_key_router(api_keys, get_current_user))
 
 
 # ============================================================================

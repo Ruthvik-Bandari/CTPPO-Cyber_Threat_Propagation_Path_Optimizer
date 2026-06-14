@@ -31,9 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **104 tests passing** (18 files, run each with `python3 <file>`).
+· clean git `main` · **118 tests passing** (20 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) DONE** — see §2.
+**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5a (subscription-tied API keys) DONE; B5b (pip CLI client) + B6 (frontend) remain** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -66,6 +66,7 @@ core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes
 api/test_subscription_store (9), api/test_subscription_gating (6),
 api/test_instance_store (7), api/test_instance_routes (7),
 api/test_org_store (9), api/test_org_routes (7),
+api/test_api_key_store (8), api/test_api_key_routes (6),
 scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
 evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
 ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -214,9 +215,21 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   non-members). Tests: `tests/api/test_org_store.py` (9) + `tests/api/test_org_routes.py`
   (7: isolated admin/member/outsider RBAC + a real-app enterprise-key flow). *Deferred:*
   Redis/Postgres backing; gating org creation specifically on an `enterprise`-type sub.
-- **B5.** **Distributable `pip` CLI** tied to the subscription: API key embedded, SSH login,
-  Git integration + verification, scans the main repo model-assisted (CI/CD). Builds on the
-  existing `ctppo` CLI + `scanners/llm_code_review.py`.
+- **B5. Distributable `pip` CLI** tied to the subscription. Split into the server key layer
+  (a) and the client (b):
+  - **B5a. Subscription-tied API keys. ✅ DONE.** Canonical `api/api_key_store.py`
+    (`ApiKeyStore`): issue (raw key shown **once**; only its SHA-256 hash stored — keys are
+    high-entropy so a fast hash is correct, unlike passwords), resolve/validate (stamps
+    `last_used`), owner-scoped list (metadata only) + revoke. `api/api_key_routes.py`
+    (`/api/keys` issue/list/revoke), session-authenticated + subscription-gated. Resolution
+    wired into `get_authenticated_user` (order: session cookie → API key via `X-API-Key` or a
+    `ctppo_`-prefixed bearer → JWT), so the CLI/CI authenticates with a key and stays subject
+    to the subscription gate. Tests: `tests/api/test_api_key_store.py` (8) +
+    `tests/api/test_api_key_routes.py` (6, incl. real-app: issue → authenticate a protected
+    endpoint via `X-API-Key` with no cookie → revoke → key stops working).
+  - **B5b. The `pip` CLI client (remaining):** embed the API key in client config, SSH login,
+    Git integration + verification, model-assisted repo scan for CI/CD. Builds on the existing
+    `ctppo` CLI (`main.py`) + `scanners/llm_code_review.py`.
 - **B6.** **Frontend rework** (React+TS+Tailwind): landing, auth pages, dashboard, instances
   CRUD UI, attack-path views (`NetworkGraph`/`ParetoChart` updated to the new API response
   shape — the attack-path endpoints now return a Pareto-front structure).
