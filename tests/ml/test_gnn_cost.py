@@ -22,7 +22,7 @@ from core.edge_costs import CostType  # noqa: E402
 from core.cost_model import refine_success_probability  # noqa: E402
 from algorithms.namoa_star import run_namoa_star  # noqa: E402
 from ml.gnn.model import ExploitabilityGNN  # noqa: E402
-from ml.gnn.data import attack_graph_to_features  # noqa: E402
+from ml.gnn.features import graph_features, FEATURE_DIM  # noqa: E402
 from ml.gnn.refine import gnn_exploitability_scores, refine_graph_costs  # noqa: E402
 
 _LOG = ResearchLogger("TestGNNCostA1", console_output=False)
@@ -55,10 +55,10 @@ def test_namoa_runs_on_gnn_refined_costs():
     assert front_rule, "rule-based NAMOA* should find Pareto-optimal paths"
     before = _success_probs(graph)
 
-    # GNN arm on the same graph (fixed seed -> deterministic untrained model)
+    # GNN arm on the same graph (fixed seed -> deterministic untrained model so the
+    # test does not depend on whether an A3 checkpoint is present on disk)
     torch.manual_seed(0)
-    x, _, _ = attack_graph_to_features(graph)
-    model = ExploitabilityGNN(in_features=x.shape[1])
+    model = ExploitabilityGNN(in_features=FEATURE_DIM)
     n_refined = refine_graph_costs(graph, model=model)
     assert n_refined == graph.num_edges, "every edge has a success-prob component to refine"
 

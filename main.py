@@ -114,11 +114,13 @@ def main(use_gnn: bool = False):
 
     # Optional: refine edge success-probabilities with the GNN (rule-vs-GNN ablation)
     if use_gnn:
-        from ml.gnn.refine import refine_graph_costs
-        n = refine_graph_costs(graph)
+        from ml.gnn.refine import refine_graph_costs, DEFAULT_CHECKPOINT
+        from core.threat_data import ThreatDataProvider
+        n = refine_graph_costs(graph, provider=ThreatDataProvider(offline=True))
+        src = "A3-trained checkpoint" if DEFAULT_CHECKPOINT.exists() else "untrained model"
         console.print(
             f"   [magenta]GNN-refined {n} edge success-probabilities[/magenta] "
-            f"[dim](untrained model — wiring only, see roadmap A3)[/dim]\n"
+            f"[dim]({src})[/dim]\n"
         )
 
     # Step 3: Run NAMOA* Algorithm
@@ -256,10 +258,11 @@ def run_quick_demo(use_gnn: bool = False):
     logger = ResearchLogger("QuickDemo", console_output=False)
     graph = create_sample_enterprise_graph(logger=logger)
     if use_gnn:
-        from ml.gnn.refine import refine_graph_costs
-        n = refine_graph_costs(graph)
-        console.print(f"✓ GNN-refined {n} edge success-probabilities "
-                      f"(untrained model — wiring only, see roadmap A3)")
+        from ml.gnn.refine import refine_graph_costs, DEFAULT_CHECKPOINT
+        from core.threat_data import ThreatDataProvider
+        n = refine_graph_costs(graph, provider=ThreatDataProvider(offline=True))
+        src = "A3-trained checkpoint" if DEFAULT_CHECKPOINT.exists() else "untrained model"
+        console.print(f"✓ GNN-refined {n} edge success-probabilities ({src})")
     result = run_namoa_star(graph, logger=logger)
     
     console.print(f"✓ Graph: {graph.num_nodes} nodes, {graph.num_edges} edges")

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -21,21 +21,32 @@ from ml.gnn.data import GraphSample, synthetic_graph
 
 
 def train_gnn(samples: List[GraphSample], in_features: int, hidden: int = 32,
-              epochs: int = 100, lr: float = 0.01,
-              seed: int = 0) -> Tuple[ExploitabilityGNN, List[float]]:
-    """Train the GNN; returns (model, per-epoch mean loss)."""
+              epochs: int = 100, lr: float = 0.01, seed: int = 0,
+              masks: Optional[List[torch.Tensor]] = None,
+              num_layers: int = 2) -> Tuple[ExploitabilityGNN, List[float]]:
+    """Train the GNN; returns (model, per-epoch mean loss).
+
+    ``masks`` (optional, one bool tensor per sample) restricts the MSE loss to the
+    selected nodes — the whole graph still participates in message passing, but only
+    those nodes contribute to the loss. Use it to train on the population you evaluate
+    on (e.g. vulnerability nodes) instead of diluting the signal across all node types.
+    """
     torch.manual_seed(seed)
-    model = ExploitabilityGNN(in_features, hidden=hidden)
+    model = ExploitabilityGNN(in_features, hidden=hidden, num_layers=num_layers)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
     history: List[float] = []
     for _ in range(epochs):
         model.train()
         total = 0.0
-        for s in samples:
+        for i, s in enumerate(samples):
             opt.zero_grad()
             pred = model(s.x, s.adj_norm)
-            loss = loss_fn(pred, s.y)
+            if masks is not None and masks[i].any():
+                m = masks[i]
+                loss = loss_fn(pred[m], s.y[m])
+            else:
+                loss = loss_fn(pred, s.y)
             loss.backward()
             opt.step()
             total += loss.item()

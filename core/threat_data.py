@@ -103,6 +103,12 @@ class ThreatDataProvider:
         self._ensure_kev()
         return bool(self._kev) and cve_id.upper() in self._kev
 
+    def epss_items(self) -> Dict[str, float]:
+        """The full ``{CVE: EPSS}`` mapping (loads/caches first), for sampling a real
+        CVE population. Empty dict if no data is available."""
+        self._ensure_epss()
+        return dict(self._epss or {})
+
     def refresh(self) -> None:
         """Force a re-download of both datasets (ignores TTL)."""
         self._download_epss(force=True)

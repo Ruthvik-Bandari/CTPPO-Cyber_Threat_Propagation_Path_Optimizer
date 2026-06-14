@@ -6,9 +6,10 @@ rule-based prior with the GNN score of the node the edge leads into. NAMOA* then
 searches on the GNN-refined costs. This is the GNN arm of the rule-vs-GNN ablation
 (docs/RESEARCH/02_COST_MODEL_SPEC.md §3); ``weight=0`` recovers the rule baseline.
 
-The GNN is sized to the graph and, until trained on real attack-graph data
-(roadmap A3), its scores are NOT yet meaningful — this module is the wiring, not
-a claim that the GNN improves anything.
+Node features come from the shared, fixed-width ``ml/gnn/features.graph_features`` so a
+checkpoint trained in A3 (``models/exploitability_gnn.pt``) loads and scores live graphs.
+If no model/checkpoint is given and that default checkpoint exists, it is used; otherwise
+an untrained model is instantiated (wiring still works, scores are just not meaningful).
 """
 
 from __future__ import annotations
@@ -24,21 +25,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.edge_costs import CostType, create_probability_cost
 from core.cost_model import refine_success_probability
 from ml.gnn.model import ExploitabilityGNN
-from ml.gnn.data import attack_graph_to_features
+from ml.gnn.features import graph_features, FEATURE_DIM
+
+DEFAULT_CHECKPOINT = Path(__file__).resolve().parents[2] / "models" / "exploitability_gnn.pt"
+
+
+def _load_checkpoint(path) -> ExploitabilityGNN:
+    ckpt = torch.load(path, map_location="cpu")
+    model = ExploitabilityGNN(in_features=ckpt["in_features"], hidden=ckpt["hidden"],
+                              num_layers=ckpt.get("num_layers", 2))
+    model.load_state_dict(ckpt["state_dict"])
+    return model
 
 
 def gnn_exploitability_scores(graph, model: Optional[ExploitabilityGNN] = None,
-                              checkpoint: Optional[str] = None) -> Dict[str, float]:
+                              checkpoint: Optional[str] = None, provider=None) -> Dict[str, float]:
     """Per-node exploitability in [0, 1], keyed by node id.
 
-    If ``model`` is None a fresh GNN is sized to the graph's node-type features
-    (and optionally loaded from ``checkpoint``).
+    Resolution order for the model: explicit ``model`` > explicit ``checkpoint`` >
+    the default A3 checkpoint if present > a fresh untrained model.
     """
-    x, adj_norm, node_ids = attack_graph_to_features(graph)
+    x, adj_norm, node_ids = graph_features(graph, provider)
     if model is None:
-        model = ExploitabilityGNN(in_features=x.shape[1])
-        if checkpoint:
-            model.load_state_dict(torch.load(checkpoint, map_location="cpu"))
+        path = checkpoint or (DEFAULT_CHECKPOINT if DEFAULT_CHECKPOINT.exists() else None)
+        model = _load_checkpoint(path) if path else ExploitabilityGNN(in_features=FEATURE_DIM)
     model.eval()
     with torch.no_grad():
         scores = model(x, adj_norm)
@@ -46,15 +56,16 @@ def gnn_exploitability_scores(graph, model: Optional[ExploitabilityGNN] = None,
 
 
 def refine_graph_costs(graph, model: Optional[ExploitabilityGNN] = None,
-                       checkpoint: Optional[str] = None,
-                       weight: Optional[float] = None) -> int:
+                       checkpoint: Optional[str] = None, weight: Optional[float] = None,
+                       provider=None) -> int:
     """Refine each edge's SUCCESS_PROBABILITY with its target node's GNN score.
 
-    Mutates ``graph`` in place; returns the number of edges refined. Each refined
-    edge records (rule, gnn, blended) values under ``cost_vector.metadata`` so the
-    refinement is auditable. Other objectives (time, impact) are left untouched.
+    Mutates ``graph`` in place; returns the number of edges refined. Each refined edge
+    records (rule, gnn, blended) values under ``cost_vector.metadata`` so the refinement
+    is auditable. Other objectives (time, impact) are left untouched.
     """
-    scores = gnn_exploitability_scores(graph, model=model, checkpoint=checkpoint)
+    scores = gnn_exploitability_scores(graph, model=model, checkpoint=checkpoint,
+                                       provider=provider)
     refined = 0
     for edge in graph.edges.values():
         comp = edge.cost_vector.get_component(CostType.SUCCESS_PROBABILITY)
