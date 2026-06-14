@@ -255,20 +255,99 @@ def run_quick_demo():
     return graph, result
 
 
+# =============================================================================
+# CLI command handlers (each imports lazily so missing optional deps don't break
+# the whole CLI)
+# =============================================================================
+
+def cmd_demo(args):
+    """Run the sample enterprise attack-graph demonstration."""
+    run_quick_demo() if args.quick else main()
+
+
+def cmd_scan_web(args):
+    """Scan a website and find data-grounded Pareto-optimal attack paths."""
+    from scanners.website_analyzer import analyze_website
+    console.print(f"[bold cyan]Scanning[/bold cyan] {args.url} (mode={args.mode})...\n")
+    result = analyze_website(args.url, mode=args.mode)
+    d = result.to_dict()
+    console.print(Panel(
+        f"Vulnerabilities: [yellow]{d['scan_summary']['total_vulnerabilities']}[/yellow]   "
+        f"Risk score: [red]{d['scan_summary']['risk_score']:.1f}[/red]   "
+        f"Attack paths: [magenta]{d['attack_paths']}[/magenta]   "
+        f"({d['analysis_time_seconds']:.1f}s)",
+        title=f"Scan: {d['scan_summary']['target']}", border_style="cyan"))
+    for rec in d.get("top_recommendations", [])[:5]:
+        console.print(f"  [{rec.get('severity','?')}] {rec.get('title','')}")
+
+
+def cmd_review_code(args):
+    """Run the Claude-based code security reviewer over files/dirs."""
+    from scanners.llm_code_review import LLMCodeReviewer
+    reviewer = LLMCodeReviewer(model=args.model)
+    if not reviewer.available:
+        console.print(f"[yellow]LLM reviewer unavailable:[/yellow] {reviewer._unavailable_reason}")
+        console.print("[dim]Install `anthropic` and set ANTHROPIC_API_KEY to enable.[/dim]")
+        return
+    paths = []
+    for p in args.paths:
+        pp = Path(p)
+        paths.extend(str(f) for f in pp.rglob("*.py")) if pp.is_dir() else paths.append(str(pp))
+    console.print(f"[bold cyan]Reviewing[/bold cyan] {len(paths)} file(s) with {args.model}...\n")
+    findings = reviewer.review_paths(paths)
+    console.print(f"[bold]{len(findings)} finding(s)[/bold]\n")
+    for f in sorted(findings, key=lambda x: -x.severity.value):
+        console.print(f"  [{f.severity.name}] {f.title}  {f.cve_ids or f.cwe_ids}")
+        if f.solution:
+            console.print(f"      [dim]{f.solution[:100]}[/dim]")
+
+
+def cmd_compare_baselines(args):
+    """Demonstrate CVSS-ranking vs NAMOA* Pareto divergence (offline)."""
+    import logging
+    logging.disable(logging.CRITICAL)
+    from evaluation.baseline_comparison import illustrative_scenario, compare
+    out = compare(*illustrative_scenario())
+    console.print(Panel(
+        f"CVSS-only would fix:  [yellow]{out['cvss_top']}[/yellow]\n"
+        f"Pareto-path-critical: [green]{out['path_critical']}[/green]  "
+        f"({out['num_pareto_paths']} path(s); critical={out['pareto_critical_counts']})\n"
+        f"Diverge: [bold]{out['diverge']}[/bold]",
+        title="Baseline comparison (illustrative)", border_style="magenta"))
+
+
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Cyber Threat Propagation Path Optimizer")
-    parser.add_argument("--quick", action="store_true", help="Run quick demo without visualization")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
-    
+
+    parser = argparse.ArgumentParser(
+        prog="ctppo", description="Cyber Threat Propagation Path Optimizer")
+    parser.add_argument("--verbose", "-v", action="store_true", help="verbose tracebacks")
+    sub = parser.add_subparsers(dest="command")
+
+    p_demo = sub.add_parser("demo", help="sample enterprise attack-graph demo")
+    p_demo.add_argument("--quick", action="store_true", help="minimal output")
+    p_demo.set_defaults(func=cmd_demo)
+
+    p_web = sub.add_parser("scan-web", help="scan a website for attack paths")
+    p_web.add_argument("url")
+    p_web.add_argument("--mode", choices=["quick", "full"], default="quick")
+    p_web.set_defaults(func=cmd_scan_web)
+
+    p_code = sub.add_parser("review-code", help="LLM security review of source files")
+    p_code.add_argument("paths", nargs="+")
+    p_code.add_argument("--model", default="claude-opus-4-8")
+    p_code.set_defaults(func=cmd_review_code)
+
+    p_cmp = sub.add_parser("compare-baselines", help="CVSS-ranking vs NAMOA* Pareto (offline)")
+    p_cmp.set_defaults(func=cmd_compare_baselines)
+
     args = parser.parse_args()
-    
+    if not getattr(args, "command", None):
+        args.quick = False
+        args.func = cmd_demo  # default to the demo
+
     try:
-        if args.quick:
-            run_quick_demo()
-        else:
-            main()
+        args.func(args)
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
         sys.exit(0)
