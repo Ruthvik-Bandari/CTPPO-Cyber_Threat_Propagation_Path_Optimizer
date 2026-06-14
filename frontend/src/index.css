@@ -90,6 +90,14 @@
   background: color-mix(in srgb, var(--color-cyber) 55%, transparent);
 }
 
+/* Hide scrollbar (used by the Apple-style carousel track) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---- Reusable visual utilities (no CSS grid; flex layouts only) ---- */
 
 /* Frosted marble panel */
