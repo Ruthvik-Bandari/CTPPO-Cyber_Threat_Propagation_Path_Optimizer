@@ -77,10 +77,23 @@ graphify graph: `cyber/graphify-out/graph.json` (~2,100 nodes).
   `epss("CVE-2021-44228")=0.944`, `is_kev(...)=True`; `build_edge_cost(...)` with no EPSS
   passed now pulls real EPSS via the provider (fallbacks=[]). New CLI: `ctppo threat-data
   [--refresh] [--cve ...]`. Offline reproducibility confirmed (same values, no network).
-- **A3. Train the GNN on real data.** ◀ NEXT. Get an attack-graph dataset (e.g. the MDPI ~1,033
-  labelled environment graphs, or generate via the Phase-C testbed) OR train the node-level
-  EPSS-prediction target on real CVE features. Save a checkpoint. *Verify:* held-out metric
-  reported honestly; **ablation GNN vs rule-based cost** (the GNN must beat the prior).
+- **A3 (C). Train the GNN on generated CTPPO graphs + ablation. ✅ DONE** (commit a41f162).
+  Chosen approach (user picked **C + A**): generate CTPPO-schema attack graphs
+  (`ml/gnn/synth_graphs.py`) with per-vuln EPSS/KEV from the REAL on-disk data and a
+  topology-dependent ground-truth (lateral context, self-loop-free 2-hop). Shared
+  fixed-width features (`ml/gnn/features.py`) so the trained model plugs into A1; checkpoint
+  → `models/` (git-ignored, regenerate with `python3 ml/gnn/train_synth.py`). **Honest
+  result** (`docs/RESEARCH/A3_GNN_ABLATION.md`, β-sweep, held-out vuln-node ROC-AUC): the
+  GNN **consistently improves calibration (RMSE)** but only **matches** EPSS-ranking AUC,
+  winning only under strong lateral coupling (β=10). Mixed/null on the headline metric,
+  reported as measured (01_NOVELTY risk #3) — EPSS is already a strong per-CVE ranker; the
+  decisive test is the Phase-C multi-objective NAMOA* path-recovery, not per-node AUC.
+  Fixed a self-loop confound in the label + a tie bug in the AUC metric while building this.
+- **A3 (A). PIGNN external validation.** ◀ NEXT. Use the real PIGNN Active-Directory
+  attack-path dataset (github.com/mbdlrocks/PhD_Replication_Package, GPLv3, 329MB) as a
+  standalone "architecture works on real data" check: download `_data_.zip` to a git-ignored
+  `data/pignn/`, train/eval our GCN on their binary node-classification, report ROC-AUC vs
+  their published baseline. Standalone (AD schema ≠ CTPPO schema), does not feed the engine.
 - **A4. CVE severity classifier** (decide keep/cut). Training scripts exist
   (`ml/04_train_model.py`, `ml/training_pipeline.py`). If kept: train a real DistilBERT model
   (needs `transformers`), save it, wire into the API classify endpoint, and report the **real
