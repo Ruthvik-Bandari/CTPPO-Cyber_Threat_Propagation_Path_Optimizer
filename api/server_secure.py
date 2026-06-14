@@ -46,6 +46,9 @@ from session_store import SessionStore
 from auth_routes import create_auth_router, SESSION_COOKIE
 # B2: one canonical subscription + product-key store (replaces the duplicated copies)
 from subscription_store import subscriptions, is_owner, OWNER_EMAILS
+# B3: instances (scan/analysis workspaces) with CRUD
+from instance_store import instances as instance_store
+from instance_routes import create_instance_router
 import jwt
 import pyotp
 import qrcode
@@ -374,6 +377,8 @@ app.add_middleware(
 # Replaces the old stateless-JWT register/login below; shares the canonical USERS_DB and
 # the server-side session store so logout is a real revocation.
 app.include_router(create_auth_router(USERS_DB, sessions))
+# B3: instance CRUD, gated by get_current_user (auth + active subscription) and owner-scoped.
+app.include_router(create_instance_router(instance_store, get_current_user))
 
 
 # ============================================================================

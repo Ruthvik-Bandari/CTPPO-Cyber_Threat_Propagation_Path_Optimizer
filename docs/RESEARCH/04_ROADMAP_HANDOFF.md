@@ -31,9 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **74 tests passing** (14 files, run each with `python3 <file>`).
+· clean git `main` · **88 tests passing** (16 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B in progress: B1 (Redis session auth) + B2 (subscription/product-key gating) DONE** — see §2.
+**Phase B in progress: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) DONE** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -61,9 +61,10 @@ regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/expl
 (`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
 `data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
 
-**Tests (74, run each with `python3 <file>`):** core/test_cost_model (9),
+**Tests (88, run each with `python3 <file>`):** core/test_cost_model (9),
 core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes (8),
 api/test_subscription_store (9), api/test_subscription_gating (6),
+api/test_instance_store (7), api/test_instance_routes (7),
 scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
 evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
 ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -189,8 +190,18 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   real-app TestClient: unsubscribed→403 → activate → ungated; owner bypass; invalid/used
   key rejected). *Deferred:* Postgres-backing the store via `database.py` (run-anywhere
   in-memory for now).
-- **B3.** **Instances** (scan/analysis workspaces) with full **CRUD**; inputs = prompts +
-  files (with metadata scans).
+- **B3. Instances (scan/analysis workspaces) with full CRUD. ✅ DONE.** Canonical
+  `api/instance_store.py` (`InstanceStore`, in-memory run-anywhere; per-user, owner-scoped
+  get/list/update/delete) + `api/instance_routes.py` (`create_instance_router(store,
+  current_user_dep)` → POST/GET/GET{id}/PUT/DELETE under `/api/instances`). An instance
+  holds name, prompt, `target_spec`, and files recorded as **metadata** (the "metadata
+  scan" derives ext/size/content-type/`scanned_at`; raw bytes + engine scanning are wired
+  later in B5). Mounted in `server_secure.py` with `get_current_user` as the injected
+  dependency, so instances are **subscription-gated and owner-scoped** (a user can't see or
+  touch another's — returns 404). Tests: `tests/api/test_instance_store.py` (7) +
+  `tests/api/test_instance_routes.py` (7: isolated-router CRUD + owner isolation, plus a
+  real-app test that signs up, activates, and CRUDs through the booted server). *Deferred:*
+  Postgres-backing + real file upload/content scanning.
 - **B4.** **Enterprise tier**: org accounts, user allotment + RBAC, org data from Redis.
 - **B5.** **Distributable `pip` CLI** tied to the subscription: API key embedded, SSH login,
   Git integration + verification, scans the main repo model-assisted (CI/CD). Builds on the
