@@ -1,115 +1,162 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-@layer base {
-  :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-    --radius: 0.5rem;
-  }
+/*
+  CTPPO design system — Tailwind v4 CSS-first theme.
+  Palette: near-black base, marble dark-blue surfaces, cyber-green accent.
+  Tokens here generate utilities: bg-base, text-cyber, border-line, etc.
+*/
+@theme {
+  /* Surfaces (black → marble dark blue) */
+  --color-base: #04060b;
+  --color-base-2: #070b15;
+  --color-surface: #0a1228;
+  --color-surface-2: #0e1a3a;
+  --color-elevated: #122149;
+  --color-line: #1c2c54;
+  --color-line-soft: #14203d;
+
+  /* Text */
+  --color-fg: #e8eefb;
+  --color-muted: #93a4c4;
+  --color-faint: #5d6f93;
+
+  /* Cyber green accent */
+  --color-cyber: #2ff5a8;
+  --color-cyber-bright: #5affc1;
+  --color-cyber-deep: #0c5a40;
+
+  /* Marble blue accent */
+  --color-marine: #3b6fff;
+  --color-marine-bright: #6f97ff;
+
+  /* Severity / status */
+  --color-crit: #ff4d6d;
+  --color-sev-high: #ff9f43;
+  --color-sev-med: #ffd23f;
+  --color-sev-low: #2ff5a8;
+  --color-danger: #ff5470;
+  --color-warn: #ffb454;
+
+  /* Type */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--color-line-soft);
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: var(--color-base);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-cyber) 35%, transparent);
+    color: #ffffff;
   }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 4px;
+  background: var(--color-base);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-marine) 40%, transparent);
+  border-radius: 999px;
+  border: 2px solid var(--color-base);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: color-mix(in srgb, var(--color-cyber) 55%, transparent);
 }
 
-/* Severity badges */
-.severity-critical {
-  @apply bg-red-600 text-white;
-}
+/* ---- Reusable visual utilities (no CSS grid; flex layouts only) ---- */
 
-.severity-high {
-  @apply bg-orange-600 text-white;
-}
-
-.severity-medium {
-  @apply bg-yellow-600 text-black;
-}
-
-.severity-low {
-  @apply bg-green-600 text-white;
-}
-
-/* Glass effect */
+/* Frosted marble panel */
 .glass {
-  @apply bg-white/5 backdrop-blur-md border border-white/10;
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
 }
 
-/* Glow effects */
-.glow-critical {
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+/* Marble dark-blue radial wash for section backgrounds */
+.marble {
+  background:
+    radial-gradient(60% 60% at 15% 0%, color-mix(in srgb, var(--color-marine) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 50% at 100% 10%, color-mix(in srgb, var(--color-cyber) 12%, transparent) 0%, transparent 55%),
+    radial-gradient(80% 80% at 50% 120%, color-mix(in srgb, var(--color-surface-2) 60%, transparent) 0%, transparent 70%),
+    var(--color-base);
 }
 
-.glow-high {
-  box-shadow: 0 0 20px rgba(234, 88, 12, 0.5);
+/* Cyber-green glow ring for interactive/active elements */
+.glow-cyber {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-cyber) 45%, transparent),
+    0 0 36px -10px color-mix(in srgb, var(--color-cyber) 80%, transparent);
+}
+.glow-marine {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-marine) 45%, transparent),
+    0 0 36px -10px color-mix(in srgb, var(--color-marine) 80%, transparent);
 }
 
-.glow-medium {
-  box-shadow: 0 0 20px rgba(202, 138, 4, 0.5);
+/* Gradient text */
+.text-gradient {
+  background: linear-gradient(100deg, var(--color-fg) 0%, var(--color-cyber-bright) 55%, var(--color-marine-bright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.glow-low {
-  box-shadow: 0 0 20px rgba(22, 163, 74, 0.5);
+/* Animated cyber sweep underline / divider */
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-cyber) 60%, transparent), transparent);
 }
 
-/* Animation */
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
-
 .animate-float {
-  animation: float 3s ease-in-out infinite;
+  animation: float 6s var(--ease-out-expo) infinite;
 }
 
-/* Grid pattern background */
-.bg-grid {
-  background-image: 
-    linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
-    linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
-  background-size: 40px 40px;
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -9,50 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ScanRouteImport } from './routes/scan'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ClassifyRouteImport } from './routes/classify'
-import { Route as AttackPathsRouteImport } from './routes/attack-paths'
 import { Route as IndexRouteImport } from './routes/index'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScanRoute = ScanRouteImport.update({
-  id: '/scan',
-  path: '/scan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClassifyRoute = ClassifyRouteImport.update({
-  id: '/classify',
-  path: '/classify',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AttackPathsRoute = AttackPathsRouteImport.update({
-  id: '/attack-paths',
-  path: '/attack-paths',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,130 +19,28 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/attack-paths': typeof AttackPathsRoute
-  '/classify': typeof ClassifyRoute
-  '/dashboard': typeof DashboardRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/scan': typeof ScanRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/attack-paths': typeof AttackPathsRoute
-  '/classify': typeof ClassifyRoute
-  '/dashboard': typeof DashboardRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/scan': typeof ScanRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/attack-paths': typeof AttackPathsRoute
-  '/classify': typeof ClassifyRoute
-  '/dashboard': typeof DashboardRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/scan': typeof ScanRoute
-  '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/attack-paths'
-    | '/classify'
-    | '/dashboard'
-    | '/login'
-    | '/register'
-    | '/scan'
-    | '/settings'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/attack-paths'
-    | '/classify'
-    | '/dashboard'
-    | '/login'
-    | '/register'
-    | '/scan'
-    | '/settings'
-  id:
-    | '__root__'
-    | '/'
-    | '/attack-paths'
-    | '/classify'
-    | '/dashboard'
-    | '/login'
-    | '/register'
-    | '/scan'
-    | '/settings'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AttackPathsRoute: typeof AttackPathsRoute
-  ClassifyRoute: typeof ClassifyRoute
-  DashboardRoute: typeof DashboardRoute
-  LoginRoute: typeof LoginRoute
-  RegisterRoute: typeof RegisterRoute
-  ScanRoute: typeof ScanRoute
-  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scan': {
-      id: '/scan'
-      path: '/scan'
-      fullPath: '/scan'
-      preLoaderRoute: typeof ScanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/classify': {
-      id: '/classify'
-      path: '/classify'
-      fullPath: '/classify'
-      preLoaderRoute: typeof ClassifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/attack-paths': {
-      id: '/attack-paths'
-      path: '/attack-paths'
-      fullPath: '/attack-paths'
-      preLoaderRoute: typeof AttackPathsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -197,13 +53,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AttackPathsRoute: AttackPathsRoute,
-  ClassifyRoute: ClassifyRoute,
-  DashboardRoute: DashboardRoute,
-  LoginRoute: LoginRoute,
-  RegisterRoute: RegisterRoute,
-  ScanRoute: ScanRoute,
-  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

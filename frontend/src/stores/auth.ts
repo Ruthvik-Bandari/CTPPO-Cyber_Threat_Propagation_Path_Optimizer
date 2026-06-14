@@ -1,78 +1,57 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { authApi, subscriptionApi, type User, type SubscriptionStatus } from '@/api/client'
 
-interface User {
-  id?: number
-  email: string
-  name: string
-  role?: string
-  is_2fa_enabled: boolean
-  created_at?: string
-}
+/*
+ * Session auth store.
+ *
+ * Holds the current user + subscription in memory only — nothing sensitive is persisted to
+ * localStorage (the credential is an HttpOnly cookie the JS never sees). On app load we call
+ * bootstrap() to rehydrate identity from the server.
+ */
+
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 interface AuthState {
   user: User | null
-  accessToken: string | null
-  refreshToken: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
-  requires2FA: boolean
-  tempToken: string | null
-  
-  // Actions
+  subscription: SubscriptionStatus | null
+  status: AuthStatus
+  bootstrap: () => Promise<void>
+  refreshSubscription: () => Promise<void>
   setUser: (user: User) => void
-  setTokens: (accessToken: string, refreshToken: string) => void
-  setRequires2FA: (requires: boolean, tempToken?: string) => void
-  logout: () => void
-  setLoading: (loading: boolean) => void
+  logout: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: true,
-      requires2FA: false,
-      tempToken: null,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  subscription: null,
+  status: 'loading',
 
-      setUser: (user) => set({ user, isAuthenticated: true, isLoading: false }),
-      
-      setTokens: (accessToken, refreshToken) => set({ 
-        accessToken, 
-        refreshToken, 
-        isAuthenticated: true,
-        requires2FA: false,
-        tempToken: null,
-        isLoading: false 
-      }),
-      
-      setRequires2FA: (requires, tempToken) => set({ 
-        requires2FA: requires, 
-        tempToken: tempToken || null,
-        isLoading: false 
-      }),
-      
-      logout: () => set({ 
-        user: null, 
-        accessToken: null, 
-        refreshToken: null, 
-        isAuthenticated: false,
-        requires2FA: false,
-        tempToken: null,
-        isLoading: false 
-      }),
-      
-      setLoading: (isLoading) => set({ isLoading }),
-    }),
-    {
-      name: 'ctppo-auth',
-      partialize: (state) => ({ 
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-      }),
+  bootstrap: async () => {
+    try {
+      const { user } = await authApi.me()
+      set({ user, status: 'authenticated' })
+      await get().refreshSubscription()
+    } catch {
+      set({ user: null, subscription: null, status: 'unauthenticated' })
     }
-  )
-)
+  },
+
+  refreshSubscription: async () => {
+    try {
+      set({ subscription: await subscriptionApi.status() })
+    } catch {
+      set({ subscription: null })
+    }
+  },
+
+  setUser: (user) => set({ user, status: 'authenticated' }),
+
+  logout: async () => {
+    try {
+      await authApi.logout()
+    } catch {
+      /* even if the network call fails, drop local state */
+    }
+    set({ user: null, subscription: null, status: 'unauthenticated' })
+  },
+}))

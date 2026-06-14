@@ -1,290 +1,135 @@
-import { useAuthStore } from '@/stores/auth'
+/*
+ * CTPPO API client (Phase B / B6).
+ *
+ * Session-cookie based: the backend issues an HttpOnly `ctppo_session` cookie (B1), so the
+ * browser sends it automatically with `credentials: 'include'`. We never read or store a
+ * token in JS — that keeps the credential out of reach of any XSS. Identity is rehydrated
+ * via /api/auth/me on load. No Authorization header, no refresh dance.
+ */
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
 
-interface FetchOptions extends RequestInit {
-  requiresAuth?: boolean
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
+  }
 }
 
-class ApiClient {
-  private getHeaders(requiresAuth: boolean = true): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    }
-    
-    if (requiresAuth) {
-      const token = useAuthStore.getState().accessToken
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-    }
-    
-    return headers
-  }
+async function request<T>(method: string, endpoint: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    method,
+    credentials: 'include',
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
 
-  private async handleResponse<T>(response: Response): Promise<T> {
-    if (response.status === 401) {
-      // Try to refresh token
-      const refreshed = await this.refreshToken()
-      if (!refreshed) {
-        useAuthStore.getState().logout()
-        throw new Error('Session expired. Please login again.')
-      }
-    }
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
-      // Handle different error formats
-      const message = typeof error === 'string' 
-        ? error 
-        : error.detail || error.message || JSON.stringify(error)
-      throw new Error(message)
-    }
-    
-    return response.json()
-  }
-
-  private async refreshToken(): Promise<boolean> {
-    const { refreshToken, setTokens, logout } = useAuthStore.getState()
-    
-    if (!refreshToken) return false
-    
+  if (!res.ok) {
+    let detail = `Request failed (${res.status})`
     try {
-      const response = await fetch(`${API_BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      })
-      
-      if (!response.ok) {
-        logout()
-        return false
-      }
-      
-      const data = await response.json()
-      setTokens(data.access_token, data.refresh_token)
-      return true
+      const data = await res.json()
+      detail = typeof data === 'string' ? data : (data?.detail ?? data?.message ?? detail)
     } catch {
-      logout()
-      return false
+      /* response had no JSON body */
     }
+    throw new ApiError(res.status, String(detail))
   }
 
-  async get<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'GET',
-      headers: this.getHeaders(options.requiresAuth !== false),
-      ...options,
-    })
-    return this.handleResponse<T>(response)
-  }
-
-  async post<T>(endpoint: string, data?: unknown, options: FetchOptions = {}): Promise<T> {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: this.getHeaders(options.requiresAuth !== false),
-      body: data ? JSON.stringify(data) : undefined,
-      ...options,
-    })
-    return this.handleResponse<T>(response)
-  }
-
-  // Form data for OAuth login
-  async postForm<T>(endpoint: string, data: URLSearchParams): Promise<T> {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: data,
-    })
-    return this.handleResponse<T>(response)
-  }
+  if (res.status === 204) return undefined as T
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
-export const apiClient = new ApiClient()
+const get = <T>(endpoint: string) => request<T>('GET', endpoint)
+const post = <T>(endpoint: string, body?: unknown) => request<T>('POST', endpoint, body)
+const put = <T>(endpoint: string, body?: unknown) => request<T>('PUT', endpoint, body)
+const del = <T>(endpoint: string) => request<T>('DELETE', endpoint)
 
 // ============================================================================
-// AUTH API
+// Shared types (mirror the backend store shapes)
 // ============================================================================
-
-export interface LoginResponse {
-  access_token?: string
-  refresh_token?: string
-  token_type?: string
-  requires_2fa?: boolean
-  temp_token?: string
-  message?: string
-  user?: User
-}
 
 export interface User {
-  id?: number
+  id?: string
   email: string
   name: string
   role?: string
-  is_2fa_enabled: boolean
+  is_2fa_enabled?: boolean
   created_at?: string
 }
 
-export interface Setup2FAResponse {
-  secret: string
-  qr_code: string
-  manual_entry_key: string
-}
-
-export const authApi = {
-  login: async (email: string, password: string): Promise<LoginResponse> => {
-    return apiClient.post('/auth/login', { 
-      email, 
-      password 
-    }, { requiresAuth: false })
-  },
-  
-  verify2FA: async (email: string, tempToken: string, code: string): Promise<LoginResponse> => {
-    return apiClient.post('/auth/verify-2fa', { 
-      email, 
-      temp_token: tempToken, 
-      totp_code: code 
-    }, { requiresAuth: false })
-  },
-  
-  register: async (email: string, password: string, fullName: string): Promise<User> => {
-    return apiClient.post('/auth/register', { 
-      email, 
-      password, 
-      name: fullName 
-    }, { requiresAuth: false })
-  },
-  
-  getMe: async (): Promise<User> => {
-    return apiClient.get('/auth/me')
-  },
-  
-  setup2FA: async (): Promise<Setup2FAResponse> => {
-    return apiClient.post('/auth/setup-2fa')
-  },
-  
-  confirm2FA: async (code: string): Promise<{ message: string }> => {
-    return apiClient.post('/auth/enable-2fa', { code })
-  },
-  
-  disable2FA: async (code: string): Promise<{ message: string }> => {
-    return apiClient.post('/auth/disable-2fa', { code })
-  },
-}
-
-// ============================================================================
-// SCAN API (Real Vulnerability Scanning)
-// ============================================================================
-
-export interface ScanCapabilities {
-  scanner_available: boolean
-  nmap_available: boolean
-  zap_available: boolean
-  simple_scanner: boolean
-}
-
-export interface ScanRequest {
-  target: string
-  scan_type: 'quick' | 'full' | 'vuln'
-  include_web_scan: boolean
-}
-
-export interface DiscoveredPort {
-  number: number
-  protocol: string
-  state: string
-  service: string
-  version: string
-  product: string
-}
-
-export interface DiscoveredHost {
-  ip: string
-  hostname: string
-  mac: string
-  os_guess: string
-  ports: DiscoveredPort[]
+export interface SubscriptionStatus {
+  has_subscription: boolean
+  is_owner: boolean
   status: string
+  subscription_type?: string
+  expires_at?: string | null
+  days_remaining?: number
 }
 
-export interface WebVulnerability {
-  alert: string
-  risk: string
-  confidence: string
-  url: string
-  description: string
-  solution: string
-  cwe_id?: number
+export interface ActivateResponse {
+  success: boolean
+  subscription_type?: string
+  expires_at?: string | null
+  days_remaining?: number
+  is_owner?: boolean
+  message?: string
 }
 
-export interface ScanResult {
-  target: string
-  scan_type: string
-  started_at: string
-  completed_at: string
-  hosts: DiscoveredHost[]
-  web_vulnerabilities: WebVulnerability[]
-  cve_matches: any[]
-  risk_summary: {
-    risk_level: string
-    total_hosts: number
-    total_open_ports: number
-    vulnerabilities: {
-      high: number
-      medium: number
-      low: number
-      total: number
-    }
-    recommendation: string
-  }
-  processing_time_ms: number
-  scanner_used: string
+export interface FileMeta {
+  name: string
+  size: number
+  content_type?: string
+  ext?: string
+  scanned_at?: string
 }
 
-export const scanApi = {
-  getCapabilities: async (): Promise<ScanCapabilities> => {
-    return apiClient.get('/scan/capabilities')
-  },
-  
-  scanTarget: async (request: ScanRequest): Promise<ScanResult> => {
-    return apiClient.post('/scan/target', request)
-  },
-  
-  quickScan: async (target: string): Promise<ScanResult> => {
-    return apiClient.post('/scan/quick', null, {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  },
+export interface Instance {
+  id: string
+  owner: string
+  name: string
+  prompt: string
+  target_spec: Record<string, unknown>
+  files: FileMeta[]
+  status: string
+  created_at: string
+  updated_at: string
 }
 
-// ============================================================================
-// CVE API
-// ============================================================================
-
-export interface CVSSVector {
-  attackVector: string
-  attackComplexity: string
-  privilegesRequired: string
-  userInteraction: string
-  scope: string
-  confidentialityImpact: string
-  integrityImpact: string
-  availabilityImpact: string
+export interface OrgMember {
+  email: string
+  role: string
 }
 
-export interface CVEClassifyRequest {
-  description: string
-  cve_id?: string
-  cvss_vector?: CVSSVector
-  cvss_score?: number
-  exploitability_score?: number
-  impact_score?: number
-  cwe_id?: string
-  has_exploit?: boolean
-  has_patch?: boolean
+export interface Org {
+  id: string
+  name: string
+  seats: number
+  members: Record<string, string>
+  created_at: string
 }
 
-export interface CVEClassifyResponse {
+export interface ApiKeyMeta {
+  id: string
+  name: string
+  prefix: string
+  created_at: string
+  last_used_at: string | null
+}
+
+export interface IssuedKey {
+  api_key: string
+  id: string
+  name: string
+  prefix: string
+  note: string
+}
+
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface ClassifyResponse {
   cve_id: string | null
   predicted_severity: string
   confidence: number
@@ -292,123 +137,114 @@ export interface CVEClassifyResponse {
   processing_time_ms: number
 }
 
-export interface BatchClassifyResponse {
-  results: CVEClassifyResponse[]
-  total_time_ms: number
+export interface ModelInfo {
+  loaded: boolean
+  device: string
+  classes: string[]
+  test_f1: number | null
 }
 
-export const cveApi = {
-  classify: async (request: CVEClassifyRequest): Promise<CVEClassifyResponse> => {
-    return apiClient.post('/classify', request)
-  },
-  
-  classifyBatch: async (cves: CVEClassifyRequest[]): Promise<BatchClassifyResponse> => {
-    return apiClient.post('/classify/batch', { cves })
-  },
-  
-  getModelInfo: async () => {
-    return apiClient.get('/model/info')
-  },
-}
-
-// ============================================================================
-// ATTACK PATH API
-// ============================================================================
-
-export interface NetworkNode {
+export interface AttackPathNode {
   id: string
   is_entry_point: boolean
   is_critical_asset: boolean
 }
 
-export interface NetworkVuln {
+export interface AttackPathVuln {
   cve_id: string
   source: string
   target: string
-  severity: string
-  cvss_score: number
-  exploitability_score: number
-  impact_score: number
-  has_exploit: boolean
+  severity?: string
+  cvss_score?: number
+  exploitability_score?: number
+  impact_score?: number
+  has_exploit?: boolean
 }
 
 export interface AttackPathRequest {
-  nodes: NetworkNode[]
-  vulnerabilities: NetworkVuln[]
+  nodes: AttackPathNode[]
+  vulnerabilities: AttackPathVuln[]
   max_depth?: number
 }
 
-export interface AttackPath {
-  source: string
-  target: string
-  path_length: number
-  total_cvss: number
-  max_severity: string
-  risk_score: number
-  vulnerabilities: NetworkVuln[]
-}
-
-export interface RiskSummary {
-  total_paths: number
-  highest_risk_path: AttackPath | null
-  critical_vulnerabilities: { cve_id: string; path_count: number }[]
-  risk_level: string
-  recommendation?: string
+export interface ParetoPath {
+  path: string[]
+  cost: Record<string, number>
 }
 
 export interface AttackPathResponse {
-  paths: Record<string, AttackPath[]>
-  risk_summary: RiskSummary
+  paths: { pareto_optimal: ParetoPath[] }
+  risk_summary: Record<string, number | string>
   processing_time_ms: number
 }
 
-export interface SampleNetworkResponse extends AttackPathResponse {
-  network: {
-    nodes: string[]
-    entry_points: string[]
-    critical_assets: string[]
-    edges: Record<string, unknown[]>
-  }
-}
-
-export const attackPathApi = {
-  analyze: async (request: AttackPathRequest): Promise<AttackPathResponse> => {
-    return apiClient.post('/attack-paths/analyze', request)
-  },
-  
-  getSample: async (): Promise<SampleNetworkResponse> => {
-    return apiClient.get('/attack-paths/sample')
-  },
+export interface SampleAttackPathResponse extends AttackPathResponse {
+  network: { nodes: number; edges: number }
 }
 
 // ============================================================================
-// HEALTH API
+// API groups
 // ============================================================================
 
-export const healthApi = {
-  check: async () => {
-    return apiClient.get('/health', { requiresAuth: false })
-  },
-}
-
-// ============================================================================
-// SUBSCRIPTION API
-// ============================================================================
-
-export interface SubscriptionStatus {
-  has_subscription: boolean
-  is_owner: boolean
-  status: string
-  subscription_type?: string
-  expires_at?: string
+export const authApi = {
+  signup: (email: string, password: string, name: string) =>
+    post<{ user: User }>('/auth/signup', { email, password, name }),
+  login: (email: string, password: string) =>
+    post<{ user: User }>('/auth/login', { email, password }),
+  logout: () => post<{ ok: boolean; revoked: boolean }>('/auth/logout'),
+  me: () => get<{ user: User }>('/auth/me'),
+  whoami: () => get<{ user: User }>('/auth/whoami'),
+  forgotPassword: (email: string) =>
+    post<{ message: string; dev_reset_token?: string }>('/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    post<{ ok: boolean }>('/auth/reset-password', { token, new_password: newPassword }),
 }
 
 export const subscriptionApi = {
-  check: async (email: string): Promise<SubscriptionStatus> => {
-    return apiClient.post(`/subscription/check?email=${encodeURIComponent(email)}`, null, { requiresAuth: false })
-  },
-  
-  activate: async (productKey: string, email: string): Promise<{ success: boolean; message: string }> => {
-    return apiClient.post('/subscription/activate', { product_key: productKey, email }, { requiresAuth: false })
-  },
+  status: () => get<SubscriptionStatus>('/subscription/status'),
+  activate: (productKey: string) =>
+    post<ActivateResponse>('/subscription/activate', { product_key: productKey }),
+}
+
+export const instanceApi = {
+  list: () => get<{ instances: Instance[] }>('/instances'),
+  get: (id: string) => get<Instance>(`/instances/${id}`),
+  create: (body: { name: string; prompt?: string; target_spec?: Record<string, unknown>; files?: FileMeta[] }) =>
+    post<Instance>('/instances', body),
+  update: (id: string, body: Partial<{ name: string; prompt: string; target_spec: Record<string, unknown>; files: FileMeta[]; status: string }>) =>
+    put<Instance>(`/instances/${id}`, body),
+  remove: (id: string) => del<{ ok: boolean }>(`/instances/${id}`),
+}
+
+export const orgApi = {
+  me: () => get<{ org: Org | null; role: string | null }>('/orgs/me'),
+  create: (name: string, seats: number) => post<Org>('/orgs', { name, seats }),
+  listMembers: (orgId: string) => get<{ members: OrgMember[] }>(`/orgs/${orgId}/members`),
+  addMember: (orgId: string, email: string, role: string) =>
+    post<Org>(`/orgs/${orgId}/members`, { email, role }),
+  setRole: (orgId: string, email: string, role: string) =>
+    put<Org>(`/orgs/${orgId}/members/${encodeURIComponent(email)}`, { role }),
+  removeMember: (orgId: string, email: string) =>
+    del<{ ok: boolean }>(`/orgs/${orgId}/members/${encodeURIComponent(email)}`),
+}
+
+export const keyApi = {
+  list: () => get<{ keys: ApiKeyMeta[] }>('/keys'),
+  issue: (name: string) => post<IssuedKey>('/keys', { name }),
+  revoke: (id: string) => del<{ ok: boolean }>(`/keys/${id}`),
+}
+
+export const classifyApi = {
+  classify: (description: string, cveId?: string) =>
+    post<ClassifyResponse>('/classify', { description, cve_id: cveId }),
+  modelInfo: () => get<ModelInfo>('/model/info'),
+}
+
+export const attackPathApi = {
+  analyze: (req: AttackPathRequest) => post<AttackPathResponse>('/attack-paths/analyze', req),
+  sample: () => get<SampleAttackPathResponse>('/attack-paths/sample'),
+}
+
+export const healthApi = {
+  check: () => get<{ status?: string }>('/health'),
 }
