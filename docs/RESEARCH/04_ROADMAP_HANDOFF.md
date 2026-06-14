@@ -31,9 +31,9 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **59 tests passing** (12 files, run each with `python3 <file>`).
+· clean git `main` · **74 tests passing** (14 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B in progress: B1 (Redis session auth) DONE** — see §2.
+**Phase B in progress: B1 (Redis session auth) + B2 (subscription/product-key gating) DONE** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -61,8 +61,9 @@ regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/expl
 (`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
 `data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
 
-**Tests (59, run each with `python3 <file>`):** core/test_cost_model (9),
+**Tests (74, run each with `python3 <file>`):** core/test_cost_model (9),
 core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes (8),
+api/test_subscription_store (9), api/test_subscription_gating (6),
 scanners/test_llm_code_review (4), evaluation/test_baseline_comparison (2),
 evaluation/test_pignn_validation (2), ml/test_gnn (3), ml/test_gnn_cost (3),
 ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
@@ -174,8 +175,20 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   + `tests/api/test_auth_routes.py` (8, TestClient). *Verified end-to-end on the real app*:
   signup→me→logout(revokes)→login→forgot→reset; session cookie authenticates protected
   endpoints (subscription gate still returns 403 for non-subscribers — that's B2).
-- **B2.** **Subscription + product-key gating** (`api/subscription.py`, `api/database.py`
-  reconciled with Redis sessions).
+- **B2. Subscription + product-key gating. ✅ DONE.** One canonical
+  `api/subscription_store.py` (`SubscriptionStore` + `is_owner`/`OWNER_EMAILS`), replacing
+  the **three** former copies (the dead `subscription.py` module — now a thin re-export
+  shim — and the **two** duplicate in-line blocks in `server_secure.py`). Gating tied to B1
+  sessions: `get_current_user` split into `get_authenticated_user` (no gate) +
+  `get_current_user` (auth **and** active-subscription, owners bypass — all 14 product
+  endpoints use it). Session-aware endpoints `POST /api/subscription/activate {product_key}`
+  and `GET /api/subscription/status` (no email trusted from the body, unlike before);
+  admin generate/list/revoke point at the canonical store. Fixed a latent KeyError (admin
+  activations read `activated_at`, which activations never set). Tests:
+  `tests/api/test_subscription_store.py` (9) + `tests/api/test_subscription_gating.py` (6,
+  real-app TestClient: unsubscribed→403 → activate → ungated; owner bypass; invalid/used
+  key rejected). *Deferred:* Postgres-backing the store via `database.py` (run-anywhere
+  in-memory for now).
 - **B3.** **Instances** (scan/analysis workspaces) with full **CRUD**; inputs = prompts +
   files (with metadata scans).
 - **B4.** **Enterprise tier**: org accounts, user allotment + RBAC, org data from Redis.

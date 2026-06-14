@@ -44,6 +44,8 @@ from user_store import UserStore, public_view
 from passwords import hash_password, verify_password
 from session_store import SessionStore
 from auth_routes import create_auth_router, SESSION_COOKIE
+# B2: one canonical subscription + product-key store (replaces the duplicated copies)
+from subscription_store import subscriptions, is_owner, OWNER_EMAILS
 import jwt
 import pyotp
 import qrcode
@@ -97,39 +99,8 @@ USERS_DB["admin@ctppo.io"] = {
 sessions = SessionStore()
 
 
-# ============================================================================
-# SUBSCRIPTION SYSTEM (Early declaration for get_current_user)
-# ============================================================================
-
-OWNER_EMAILS = [
-    "bandari.ru@northeastern.edu",
-    "ruthvik299@gmail.com"
-]
-
-PRODUCT_KEYS_DB = {}
-ACTIVATED_KEYS_DB = {}
-
-def is_owner(email: str) -> bool:
-    """Check if email is owner."""
-    return email.lower() in [e.lower() for e in OWNER_EMAILS]
-
-def check_subscription(email: str) -> dict:
-    """Check if user has active subscription."""
-    if is_owner(email):
-        return {"has_subscription": True, "is_owner": True, "status": "active"}
-    if email.lower() not in ACTIVATED_KEYS_DB:
-        return {"has_subscription": False, "status": "no_subscription"}
-    activation = ACTIVATED_KEYS_DB[email.lower()]
-    expires_at = datetime.fromisoformat(activation["expires_at"].replace("Z", "+00:00"))
-    if datetime.now(timezone.utc) > expires_at:
-        return {"has_subscription": False, "status": "expired"}
-    return {
-        "has_subscription": True,
-        "is_owner": False,
-        "subscription_type": activation["subscription_type"],
-        "expires_at": activation["expires_at"],
-        "status": "active"
-    }
+# Subscription + product-key logic now lives in api/subscription_store.py (imported as
+# `subscriptions` + is_owner above). The dashboard gate is enforced in get_current_user.
 
 # ============================================================================
 # MODEL CONFIG
@@ -282,10 +253,15 @@ def generate_qr_code(email: str, secret: str) -> tuple[str, str]:
     return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}", uri
 
 
-async def get_current_user(
+async def get_authenticated_user(
     request: Request,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
+    """Resolve the current user from the B1 session cookie or a JWT bearer token.
+
+    Does NOT enforce a subscription — use this for endpoints a signed-in but
+    not-yet-subscribed user must still reach (e.g. activating a product key).
+    """
     email = None
     # 1. Server-side session cookie (B1) — the primary mechanism.
     sid = request.cookies.get(SESSION_COOKIE)
@@ -303,10 +279,14 @@ async def get_current_user(
                 raise HTTPException(status_code=401, detail="2FA required")
     if email is None or email not in USERS_DB:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    user = USERS_DB[email]
-    # Check subscription (owners bypass)
-    if not is_owner(email):
-        sub = check_subscription(email)
+    return USERS_DB[email]
+
+
+async def get_current_user(user: dict = Depends(get_authenticated_user)) -> dict:
+    """Authenticated AND subscription-gated (B2). Owners bypass. Used by every product
+    endpoint — the dashboard/features are unlocked only with an active subscription."""
+    if not is_owner(user["email"]):
+        sub = subscriptions.check_subscription(user["email"])
         if not sub["has_subscription"]:
             raise HTTPException(status_code=403, detail="No active subscription. Please activate a product key.")
     return user
@@ -1534,241 +1514,72 @@ async def refresh_token(request: dict):
 
 
 # ============================================================================
-# SUBSCRIPTION SYSTEM
+# SUBSCRIPTION + PRODUCT-KEY GATING (B2)
 # ============================================================================
+# All product-key / subscription logic lives in api/subscription_store.py (imported as
+# `subscriptions`). Activation and status are tied to the logged-in session user — no
+# email is trusted from the request body. Owners bypass the gate. Product endpoints
+# enforce the gate via Depends(get_current_user); the two endpoints here use
+# get_authenticated_user so a signed-in user with no subscription can still activate one.
 
-import secrets as sec
-import string
-
-# Owner emails (no subscription needed)
-OWNER_EMAILS = [
-    "bandari.ru@northeastern.edu",
-    "ruthvik299@gmail.com"
-]
-
-# Product keys storage
-PRODUCT_KEYS_DB = {}
-ACTIVATED_KEYS_DB = {}
-
-def generate_product_key() -> str:
-    """Generate a unique product key: CTPPO-XXXX-XXXX-XXXX-XXXX"""
-    chars = string.ascii_uppercase + string.digits
-    segments = [''.join(sec.choice(chars) for _ in range(4)) for _ in range(4)]
-    return f"CTPPO-{'-'.join(segments)}"
-
-def create_product_key(subscription_type: str = "individual", validity_days: int = 365) -> dict:
-    """Create a new product key."""
-    key = generate_product_key()
-    while key in PRODUCT_KEYS_DB:
-        key = generate_product_key()
-    
-    key_data = {
-        "key": key,
-        "subscription_type": subscription_type,
-        "validity_days": validity_days,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "is_activated": False,
-        "activated_by": None,
-        "expires_at": None
-    }
-    PRODUCT_KEYS_DB[key] = key_data
-    return key_data
-
-def is_owner(email: str) -> bool:
-    """Check if email is owner."""
-    return email.lower() in [e.lower() for e in OWNER_EMAILS]
-
-def check_subscription(email: str) -> dict:
-    """Check if user has active subscription."""
-    if is_owner(email):
-        return {"has_subscription": True, "is_owner": True, "status": "active"}
-    
-    if email.lower() not in ACTIVATED_KEYS_DB:
-        return {"has_subscription": False, "status": "no_subscription"}
-    
-    activation = ACTIVATED_KEYS_DB[email.lower()]
-    expires_at = datetime.fromisoformat(activation["expires_at"].replace('Z', '+00:00'))
-    
-    if datetime.now(timezone.utc) > expires_at:
-        return {"has_subscription": False, "status": "expired"}
-    
-    return {
-        "has_subscription": True,
-        "is_owner": False,
-        "subscription_type": activation["subscription_type"],
-        "expires_at": activation["expires_at"],
-        "status": "active"
-    }
-
-
-class ProductKeyActivation(BaseModel):
+class ActivateRequest(BaseModel):
     product_key: str
-    email: EmailStr
 
 
 @app.post("/api/subscription/activate")
-async def activate_product_key(data: ProductKeyActivation):
-    """Activate a product key for a user."""
-    if is_owner(data.email):
-        return {"success": True, "message": "Owner account - no activation required", "is_owner": True}
-    
-    if data.product_key not in PRODUCT_KEYS_DB:
-        raise HTTPException(400, "Invalid product key")
-    
-    key_data = PRODUCT_KEYS_DB[data.product_key]
-    
-    if key_data["is_activated"]:
-        raise HTTPException(400, "Product key already activated")
-    
-    expires_at = datetime.now(timezone.utc) + timedelta(days=key_data["validity_days"])
-    
-    key_data["is_activated"] = True
-    key_data["activated_by"] = data.email
-    key_data["expires_at"] = expires_at.isoformat()
-    
-    ACTIVATED_KEYS_DB[data.email.lower()] = {
-        "key": data.product_key,
-        "subscription_type": key_data["subscription_type"],
-        "expires_at": expires_at.isoformat()
-    }
-    
-    return {
-        "success": True,
-        "message": "Product key activated",
-        "subscription_type": key_data["subscription_type"],
-        "expires_at": expires_at.isoformat()
-    }
+async def activate_subscription(req: ActivateRequest, user: dict = Depends(get_authenticated_user)):
+    """Activate a product key for the current session user."""
+    result = subscriptions.activate(req.product_key, user["email"])
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Activation failed"))
+    return result
 
 
-@app.post("/api/subscription/check")
-async def check_user_subscription(email: str):
-    """Check subscription status."""
-    return check_subscription(email)
+@app.get("/api/subscription/status")
+async def subscription_status(user: dict = Depends(get_authenticated_user)):
+    """Subscription status for the current user — drives dashboard gating."""
+    return subscriptions.check_subscription(user["email"])
 
 
-@app.post("/api/subscription/generate-key")
-async def generate_key(subscription_type: str = "individual", validity_days: int = 365, admin_secret: str = ""):
-    """Generate a new product key (admin only)."""
-    if admin_secret != os.environ.get("ADMIN_SECRET", "ctppo-admin-2026"):
-        raise HTTPException(403, "Invalid admin credentials")
-    
-    key_data = create_product_key(subscription_type, validity_days)
-    return {"success": True, "product_key": key_data["key"], "validity_days": validity_days}
+# --- Admin endpoints (gated by ADMIN_SECRET) --------------------------------------
+def _require_admin(secret: Optional[str]) -> None:
+    if secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
 
-
-# Generate demo keys on startup
-_demo_keys = [
-    create_product_key("individual", 30),
-    create_product_key("individual", 365),
-    create_product_key("enterprise", 365),
-]
-# print("=" * 60)
-# print("CTPPO - Demo Product Keys Generated:")
-# print("=" * 60)
-# for k in _demo_keys:
-#     print(f"  {k['key']} ({k['subscription_type']}, {k['validity_days']} days)")
-# print("=" * 60)
-# # ============================================================================
-# ADMIN ENDPOINTS - Add these to server_secure.py before the last lines
-# ============================================================================
-
-import os
-
-# Add this near the top with other configs
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
-
-# Add these endpoints after the subscription endpoints
 
 @app.post("/api/admin/verify")
 async def verify_admin(request: dict):
-    """Verify admin secret"""
-    if request.get("admin_secret") != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    _require_admin(request.get("admin_secret"))
     return {"success": True}
-
-
-@app.get("/api/admin/keys")
-async def get_all_keys(admin_secret: str):
-    """Get all product keys"""
-    if admin_secret != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
-    
-    keys = []
-    for key, data in PRODUCT_KEYS_DB.items():
-        # Check if key is used
-        used_by = None
-        for email, activation in ACTIVATED_KEYS_DB.items():
-            if activation.get("product_key") == key:
-                used_by = email
-                break
-        
-        keys.append({
-            "key": key,
-            "subscription_type": data["subscription_type"],
-            "validity_days": data["validity_days"],
-            "created_at": data["created_at"],
-            "used": used_by is not None,
-            "used_by": used_by
-        })
-    
-    return {"keys": keys}
-
-
-@app.get("/api/admin/activations")
-async def get_all_activations(admin_secret: str):
-    """Get all activated subscriptions"""
-    if admin_secret != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
-    
-    activations = []
-    for email, data in ACTIVATED_KEYS_DB.items():
-        activations.append({
-            "email": email,
-            "subscription_type": data["subscription_type"],
-            "activated_at": data["activated_at"],
-            "expires_at": data["expires_at"]
-        })
-    
-    return {"activations": activations}
 
 
 @app.post("/api/admin/generate-key")
 async def admin_generate_key(request: dict):
-    """Generate a new product key"""
-    if request.get("admin_secret") != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
-    
-    subscription_type = request.get("subscription_type", "individual")
-    validity_days = request.get("validity_days", 365)
-    
-    key = create_product_key(subscription_type, validity_days)
-    
-    return {
-        "key": key,
-        "subscription_type": subscription_type,
-        "validity_days": validity_days
-    }
+    _require_admin(request.get("admin_secret"))
+    kd = subscriptions.create_product_key(
+        request.get("subscription_type", "individual"), int(request.get("validity_days", 365)))
+    return {"success": True, "product_key": kd["key"],
+            "subscription_type": kd["subscription_type"], "validity_days": kd["validity_days"]}
+
+
+@app.get("/api/admin/keys")
+async def get_all_keys(admin_secret: str):
+    _require_admin(admin_secret)
+    return {"keys": subscriptions.list_keys()}
+
+
+@app.get("/api/admin/activations")
+async def get_all_activations(admin_secret: str):
+    _require_admin(admin_secret)
+    return {"activations": subscriptions.list_activations()}
 
 
 @app.post("/api/admin/revoke-key")
 async def revoke_key(request: dict):
-    """Revoke a product key"""
-    if request.get("admin_secret") != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
-    
-    product_key = request.get("product_key")
-    
-    if product_key in PRODUCT_KEYS_DB:
-        del PRODUCT_KEYS_DB[product_key]
-    
-    # Also remove from activated keys if used
-    to_remove = None
-    for email, data in ACTIVATED_KEYS_DB.items():
-        if data.get("product_key") == product_key:
-            to_remove = email
-            break
-    
-    if to_remove:
-        del ACTIVATED_KEYS_DB[to_remove]
-    
-    return {"success": True, "message": "Key revoked successfully"}
+    _require_admin(request.get("admin_secret"))
+    return {"success": subscriptions.revoke_key(request.get("product_key")), "message": "Key revoked"}
+
+
+# Seed a few demo product keys for local dev (retrievable via /api/admin/keys).
+for _demo_type, _demo_days in (("individual", 30), ("individual", 365), ("enterprise", 365)):
+    subscriptions.create_product_key(_demo_type, _demo_days)
