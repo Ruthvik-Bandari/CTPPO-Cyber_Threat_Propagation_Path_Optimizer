@@ -1,0 +1,20 @@
+# CTPPO - Development & Testing Dependencies
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+hypothesis>=6.82.0
+pytest-mock>=3.0.0
+
+# Jupyter Support (for research notebooks)
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+ipywidgets>=8.0.0
+
+# Type Checking
+mypy>=1.4.0
+
+# Code Quality
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.1.0

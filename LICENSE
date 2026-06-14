@@ -1,0 +1,217 @@
+CTPPO - CYBER THREAT PROPAGATION PATH OPTIMIZER
+PROPRIETARY SOFTWARE LICENSE AGREEMENT
+
+Copyright (c) 2024-2026 Ruthvik Bandari. All Rights Reserved.
+
+================================================================================
+                          IMPORTANT - READ CAREFULLY
+================================================================================
+
+This Proprietary Software License Agreement ("Agreement") is a legal agreement 
+between you ("Licensee" or "User") and Ruthvik Bandari ("Licensor", "Owner", 
+"Developer") for the CTPPO - Cyber Threat Propagation Path Optimizer software, 
+including all associated documentation, source code, object code, algorithms, 
+machine learning models, and related materials (collectively, the "Software").
+
+BY INSTALLING, COPYING, OR OTHERWISE USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT 
+YOU HAVE READ, UNDERSTOOD, AND AGREE TO BE BOUND BY THE TERMS OF THIS AGREEMENT. 
+IF YOU DO NOT AGREE TO THESE TERMS, DO NOT INSTALL OR USE THE SOFTWARE.
+
+================================================================================
+                              1. GRANT OF LICENSE
+================================================================================
+
+1.1 SUBSCRIPTION LICENSE
+Subject to your payment of applicable subscription fees and compliance with this 
+Agreement, Licensor grants you a limited, non-exclusive, non-transferable, 
+revocable license to use the Software solely for your internal purposes during 
+the subscription period.
+
+1.2 PRODUCT KEY REQUIREMENT
+Use of this Software requires a valid product key ("License Key") issued by the 
+Licensor. Each License Key:
+  (a) Is unique and may only be used by one registered user
+  (b) Is linked to a specific email address
+  (c) May not be shared, sold, or transferred to any third party
+  (d) May be revoked at Licensor's sole discretion for violation of this Agreement
+
+1.3 LICENSE RESTRICTIONS
+You may NOT:
+  (a) Copy, modify, adapt, translate, or create derivative works of the Software
+  (b) Reverse engineer, disassemble, decompile, or attempt to derive source code
+  (c) Rent, lease, loan, sell, sublicense, or distribute the Software
+  (d) Remove or alter any proprietary notices, labels, or marks
+  (e) Use the Software to develop competing products or services
+  (f) Use the Software for any unlawful purpose
+  (g) Share your License Key or account credentials with any third party
+  (h) Circumvent or attempt to circumvent any license validation mechanisms
+  (i) Use the Software after your subscription has expired or been terminated
+  (j) Use the Software for commercial purposes without an enterprise license
+
+================================================================================
+                           2. INTELLECTUAL PROPERTY
+================================================================================
+
+2.1 OWNERSHIP
+The Software, including but not limited to all code, algorithms, machine learning 
+models, documentation, designs, and all intellectual property rights therein, is 
+and shall remain the sole and exclusive property of Ruthvik Bandari. This 
+Agreement does not transfer any ownership rights to you.
+
+2.2 PROTECTED ELEMENTS
+The following elements are specifically protected intellectual property:
+  (a) NAMOA* multi-objective optimization algorithm implementation
+  (b) CVE Severity Classification machine learning models
+  (c) Graph Neural Network attack path prediction models
+  (d) Attack graph construction methodologies
+  (e) Pareto optimization techniques for cybersecurity
+  (f) All source code, object code, and compiled binaries
+  (g) User interface designs and user experience workflows
+  (h) Documentation and technical specifications
+
+2.3 NO IMPLIED RIGHTS
+No rights or licenses are granted by implication, estoppel, or otherwise, except 
+for the limited license expressly set forth in this Agreement.
+
+================================================================================
+                              3. SUBSCRIPTION TERMS
+================================================================================
+
+3.1 SUBSCRIPTION TYPES
+  (a) Individual License: For personal or educational use by a single user
+  (b) Enterprise License: For commercial use, requires separate agreement
+
+3.2 SUBSCRIPTION PERIOD
+Subscriptions are valid for the period specified at time of purchase. Access to 
+the Software will be terminated at the end of the subscription period unless 
+renewed.
+
+3.3 PAYMENT
+All subscription fees are non-refundable except as required by applicable law.
+
+================================================================================
+                            4. USAGE RESTRICTIONS
+================================================================================
+
+4.1 AUTHORIZED USE ONLY
+The Software may only be used for legitimate security testing purposes on:
+  (a) Systems owned by the Licensee
+  (b) Systems for which the Licensee has explicit written authorization
+  (c) Designated test environments and honeypots
+
+4.2 PROHIBITED ACTIVITIES
+You shall NOT use the Software for:
+  (a) Unauthorized access to computer systems
+  (b) Any illegal or malicious activities
+  (c) Attacking systems without proper authorization
+  (d) Developing malware or exploit code
+  (e) Any activity that violates applicable laws or regulations
+
+================================================================================
+                               5. TERMINATION
+================================================================================
+
+5.1 TERMINATION BY LICENSOR
+Licensor may terminate this Agreement immediately if you:
+  (a) Breach any term of this Agreement
+  (b) Fail to pay applicable subscription fees
+  (c) Use the Software for unauthorized purposes
+  (d) Share or transfer your License Key
+
+5.2 EFFECT OF TERMINATION
+Upon termination:
+  (a) All rights granted under this Agreement shall immediately cease
+  (b) You must immediately cease all use of the Software
+  (c) You must destroy all copies of the Software in your possession
+  (d) You must certify in writing that you have complied with these requirements
+
+================================================================================
+                           6. DISCLAIMER OF WARRANTIES
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+THE LICENSOR DOES NOT WARRANT THAT:
+  (a) THE SOFTWARE WILL MEET YOUR REQUIREMENTS
+  (b) THE SOFTWARE WILL BE UNINTERRUPTED, TIMELY, SECURE, OR ERROR-FREE
+  (c) THE RESULTS OBTAINED FROM THE SOFTWARE WILL BE ACCURATE OR RELIABLE
+  (d) ANY ERRORS IN THE SOFTWARE WILL BE CORRECTED
+
+================================================================================
+                          7. LIMITATION OF LIABILITY
+================================================================================
+
+IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, 
+CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, 
+DATA, OR USE, ARISING OUT OF OR IN CONNECTION WITH THIS AGREEMENT OR THE USE OF 
+THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+THE LICENSOR'S TOTAL LIABILITY SHALL NOT EXCEED THE AMOUNT PAID BY YOU FOR THE 
+SOFTWARE DURING THE TWELVE (12) MONTHS PRECEDING THE CLAIM.
+
+================================================================================
+                              8. INDEMNIFICATION
+================================================================================
+
+You agree to indemnify, defend, and hold harmless the Licensor from and against 
+any and all claims, damages, losses, liabilities, costs, and expenses (including 
+reasonable attorneys' fees) arising out of or relating to:
+  (a) Your use of the Software
+  (b) Your violation of this Agreement
+  (c) Your violation of any applicable laws or regulations
+  (d) Your infringement of any third-party rights
+
+================================================================================
+                               9. GENERAL TERMS
+================================================================================
+
+9.1 GOVERNING LAW
+This Agreement shall be governed by the laws of the Commonwealth of Massachusetts, 
+United States, without regard to its conflict of law provisions.
+
+9.2 DISPUTE RESOLUTION
+Any disputes arising under this Agreement shall be resolved through binding 
+arbitration in Boston, Massachusetts.
+
+9.3 ENTIRE AGREEMENT
+This Agreement constitutes the entire agreement between the parties and supersedes 
+all prior agreements or understandings.
+
+9.4 SEVERABILITY
+If any provision of this Agreement is found to be unenforceable, the remaining 
+provisions shall continue in full force and effect.
+
+9.5 NO WAIVER
+The failure of the Licensor to enforce any right or provision shall not constitute 
+a waiver of such right or provision.
+
+9.6 ASSIGNMENT
+You may not assign or transfer this Agreement without the Licensor's prior written 
+consent. The Licensor may assign this Agreement without restriction.
+
+================================================================================
+                                10. CONTACT
+================================================================================
+
+For licensing inquiries, support, or questions about this Agreement:
+
+Ruthvik Bandari
+Email: bandari.ru@northeastern.edu
+Location: Boston, Massachusetts, USA
+
+================================================================================
+                          ACKNOWLEDGMENT OF TERMS
+================================================================================
+
+BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS AGREEMENT, 
+UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS AND CONDITIONS.
+
+================================================================================
+
+© 2024-2026 Ruthvik Bandari. All Rights Reserved.
+
+CTPPO - Cyber Threat Propagation Path Optimizer is a trademark of Ruthvik Bandari.
+
+Last Updated: January 2026
