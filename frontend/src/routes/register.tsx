@@ -50,7 +50,7 @@ function RegisterPage() {
       const { user } = await authApi.signup(values.email, values.password, values.name)
       setUser(user)
       await refreshSubscription()
-      navigate({ to: '/' })
+      navigate({ to: '/dashboard' })
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.')
     }

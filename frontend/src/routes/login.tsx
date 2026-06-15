@@ -43,7 +43,7 @@ function LoginPage() {
       const { user } = await authApi.login(values.email, values.password)
       setUser(user)
       await refreshSubscription()
-      navigate({ to: '/' })
+      navigate({ to: '/dashboard' })
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : 'Something went wrong. Please try again.')
     }

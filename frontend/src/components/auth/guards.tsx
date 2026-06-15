@@ -23,7 +23,20 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 export function RedirectIfAuthed({ children }: { children: ReactNode }) {
   const status = useAuthStore((s) => s.status)
   if (status === 'loading') return <FullScreenLoader />
-  // Target switches to /dashboard in B6.3 once that route exists.
-  if (status === 'authenticated') return <Navigate to="/" />
+  if (status === 'authenticated') return <Navigate to="/dashboard" />
+  return <>{children}</>
+}
+
+/**
+ * Gate a feature route on an active subscription (owners always pass). Unsubscribed users
+ * are sent to the dashboard overview, which hosts the product-key activation panel.
+ */
+export function RequireSubscription({ children }: { children: ReactNode }) {
+  const status = useAuthStore((s) => s.status)
+  const subscription = useAuthStore((s) => s.subscription)
+  if (status === 'loading') return <FullScreenLoader />
+  if (status === 'unauthenticated') return <Navigate to="/login" />
+  if (subscription === null) return <FullScreenLoader />
+  if (!subscription.has_subscription) return <Navigate to="/dashboard" />
   return <>{children}</>
 }
