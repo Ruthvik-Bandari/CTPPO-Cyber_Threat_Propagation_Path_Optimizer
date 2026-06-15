@@ -39,19 +39,19 @@ The cybersecurity landscape faces critical challenges:
 ### 1.2 Solution
 
 CTPPO addresses these challenges through:
-- **AI-Powered CVE Classification:** 97.5% F1 score on severity prediction
+- **AI-Powered CVE Classification:** text-only DistilBERT, **0.73 held-out macro-F1** (see `docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`)
 - **NAMOA* Multi-Objective Optimization:** Find all Pareto-optimal attack paths
 - **Graph Neural Networks:** Predict attack propagation through network topology
 - **Interactive Visualization:** Understand complex attack scenarios visually
 
-### 1.3 Key Achievements
+### 1.3 Key Achievements (measured)
 
 | Metric | Value |
 |--------|-------|
-| CVE Classification F1 Score | 97.50% |
-| Attack Path Detection Accuracy | 94.2% |
-| Real-time Scan Speed | < 30 seconds |
-| CVE Database Coverage | 200,000+ |
+| CVE severity macro-F1 (held-out, text-only; vs 0.10 majority baseline) | **0.73** |
+| EPSS scores (live snapshot) | 341,309 |
+| CISA KEV CVEs tracked | 1,619 |
+| PIGNN attack-path ROC-AUC (external AD dataset, message passing) | 0.956 |
 
 ---
 
@@ -60,7 +60,7 @@ CTPPO addresses these challenges through:
 ```
 October 2024     - Project inception, research phase
 November 2024    - ML pipeline development begins
-December 2024    - CVE Classifier training (97.5% F1 achieved)
+December 2024    - CVE Classifier training (text-only; 0.73 held-out macro-F1)
 January 2025     - NAMOA* algorithm implementation
 February 2025    - Backend API development
 March 2025       - Frontend development begins
@@ -262,14 +262,15 @@ print(classification_report(test_labels, pred_labels,
       target_names=['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']))
 ```
 
-**Results:**
+**Results** (held-out, dedup'd / leakage-free split — see `docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`):
 
 | Metric | Score |
 |--------|-------|
-| Weighted F1 | 97.50% |
-| Precision | 97.2% |
-| Recall | 97.8% |
-| Accuracy | 97.5% |
+| Macro-F1 (held-out) | 0.73 |
+| Majority-class baseline macro-F1 | 0.10 |
+
+> Earlier drafts of this doc reported ~97.5% — that came from a model fed the CVSS score as an
+> input, which is circular (severity is a threshold on CVSS). The honest text-only number is 0.73.
 
 ---
 
@@ -764,11 +765,13 @@ jobs:
 
 ### ML Model Performance
 
-| Model | F1 Score | Precision | Recall | Inference Time |
-|-------|----------|-----------|--------|----------------|
-| DistilBERT (ours) | 97.50% | 97.2% | 97.8% | 15ms |
-| Random Forest | 82.3% | 81.5% | 83.1% | 5ms |
-| Naive Bayes | 74.6% | 73.8% | 75.4% | 2ms |
+| Model | Held-out macro-F1 | Notes |
+|-------|-------------------|-------|
+| DistilBERT (text-only, ours) | 0.73 | description → severity; no CVSS inputs (see A4) |
+| Majority-class baseline | 0.10 | reference |
+
+> The previous cross-model comparison table here used fabricated numbers and was removed.
+> Only the measured text-only result above is real.
 
 ### System Performance
 

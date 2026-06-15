@@ -8,7 +8,7 @@
 **CTPPO (Cyber Threat Prioritization and Path Optimization)** is an enterprise security platform that helps organizations:
 
 1. **Discover** vulnerabilities in their infrastructure
-2. **Classify** CVE severity using AI (97.5% accuracy)
+2. **Classify** CVE severity using AI (text-only model, 0.73 held-out macro-F1)
 3. **Visualize** attack paths through the network
 4. **Prioritize** remediation based on actual risk
 
@@ -67,10 +67,9 @@ Scans any URL or IP address to discover:
 ### Feature 2: AI CVE Classifier (`/classify`)
 
 #### What It Does
-Uses machine learning (97.5% F1 score) to:
-- Predict CVE severity before NVD publishes scores
+Uses a text-only DistilBERT model (0.73 held-out macro-F1) to:
+- Predict CVE severity from the description alone (no CVSS inputs — that would be circular)
 - Analyze CVE descriptions using DistilBERT
-- Correlate with CVSS metrics and CWE patterns
 - Provide instant severity classification
 
 #### Enterprise Workflow

@@ -4,11 +4,11 @@ A modern, secure React dashboard for CVE severity classification and network att
 
 ## ✨ Features
 
-- 🔐 **Secure Authentication** - JWT with 2FA (TOTP) support
-- 🎯 **CVE Classification** - AI-powered severity prediction (97.5% accuracy)
-- 🗺️ **3D Attack Paths** - Three.js network visualization
+- 🔐 **Secure Authentication** - server-side session cookies (HttpOnly), no tokens in JS
+- 🎯 **CVE Classification** - text-only severity prediction (0.73 held-out macro-F1)
+- 🗺️ **Attack Paths** - Pareto-front visualization (react-three-fiber background)
 - 📊 **Real-time Analytics** - TanStack Query for data fetching
-- 🎨 **Modern UI** - Tailwind CSS + Framer Motion animations
+- 🎨 **Modern UI** - Tailwind v4 + Motion animations
 
 ## 🛠️ Tech Stack
 
