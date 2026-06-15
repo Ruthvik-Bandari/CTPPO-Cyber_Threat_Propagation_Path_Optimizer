@@ -17,6 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardScanRouteImport } from './routes/dashboard.scan'
 import { Route as DashboardKeysRouteImport } from './routes/dashboard.keys'
 import { Route as DashboardInstancesRouteImport } from './routes/dashboard.instances'
 import { Route as DashboardEnterpriseRouteImport } from './routes/dashboard.enterprise'
@@ -64,6 +65,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardScanRoute = DashboardScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardKeysRoute = DashboardKeysRouteImport.update({
   id: '/keys',
   path: '/keys',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/keys': typeof DashboardKeysRoute
+  '/dashboard/scan': typeof DashboardScanRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -124,6 +131,7 @@ export interface FileRoutesByTo {
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/keys': typeof DashboardKeysRoute
+  '/dashboard/scan': typeof DashboardScanRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -141,6 +149,7 @@ export interface FileRoutesById {
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/keys': typeof DashboardKeysRoute
+  '/dashboard/scan': typeof DashboardScanRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
     | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard/keys'
+    | '/dashboard/scan'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
   fileRoutesByTo: FileRoutesByTo
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard/keys'
+    | '/dashboard/scan'
     | '/dashboard'
     | '/dashboard/instances/$instanceId'
   id:
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard/keys'
+    | '/dashboard/scan'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
   fileRoutesById: FileRoutesById
@@ -262,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/scan': {
+      id: '/dashboard/scan'
+      path: '/scan'
+      fullPath: '/dashboard/scan'
+      preLoaderRoute: typeof DashboardScanRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/keys': {
       id: '/dashboard/keys'
       path: '/keys'
@@ -324,6 +343,7 @@ interface DashboardRouteChildren {
   DashboardEnterpriseRoute: typeof DashboardEnterpriseRoute
   DashboardInstancesRoute: typeof DashboardInstancesRouteWithChildren
   DashboardKeysRoute: typeof DashboardKeysRoute
+  DashboardScanRoute: typeof DashboardScanRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -333,6 +353,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardEnterpriseRoute: DashboardEnterpriseRoute,
   DashboardInstancesRoute: DashboardInstancesRouteWithChildren,
   DashboardKeysRoute: DashboardKeysRoute,
+  DashboardScanRoute: DashboardScanRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 

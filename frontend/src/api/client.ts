@@ -245,6 +245,76 @@ export const attackPathApi = {
   sample: () => get<SampleAttackPathResponse>('/attack-paths/sample'),
 }
 
+// ---- Scanning (SimpleScanner always available; nmap/zap optional, degrade gracefully) ----
+
+export interface ScanCapabilities {
+  scanner_available: boolean
+  nmap_available: boolean
+  zap_available: boolean
+  simple_scanner: boolean
+}
+
+export interface ScanRequest {
+  target: string
+  scan_type: 'quick' | 'full' | 'vuln'
+  include_web_scan: boolean
+}
+
+export interface ScanVuln {
+  severity?: string
+  name?: string
+  alert?: string
+  description?: string
+  recommendation?: string
+  solution?: string
+  url?: string
+  [k: string]: unknown
+}
+
+export interface ScanPort {
+  number?: number
+  port?: number
+  service?: string
+  state?: string
+  product?: string
+  version?: string
+  [k: string]: unknown
+}
+
+export interface ScanHost {
+  ip?: string
+  hostname?: string
+  os_guess?: string
+  ports?: ScanPort[]
+  is_cloud_hosted?: boolean
+  [k: string]: unknown
+}
+
+export interface ScanResult {
+  target: string
+  scan_type: string
+  started_at?: string
+  completed_at?: string
+  hosts?: ScanHost[]
+  web_vulnerabilities?: ScanVuln[]
+  risk_summary: {
+    risk_level?: string
+    total_hosts?: number
+    total_open_ports?: number
+    vulnerabilities?: { critical: number; high: number; medium: number; low: number; info?: number; total: number }
+    recommendation?: string
+    [k: string]: unknown
+  }
+  processing_time_ms?: number
+  scanner_used?: string
+  cloud_provider?: { detected?: boolean; name?: string; note?: string; warning?: string }
+}
+
+export const scanApi = {
+  capabilities: () => get<ScanCapabilities>('/scan/capabilities'),
+  scan: (req: ScanRequest) => post<ScanResult>('/scan/target', req),
+}
+
 export const healthApi = {
   check: () => get<{ status?: string }>('/health'),
 }
