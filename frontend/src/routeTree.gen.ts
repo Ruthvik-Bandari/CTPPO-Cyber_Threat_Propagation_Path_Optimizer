@@ -18,6 +18,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardInstancesRouteImport } from './routes/dashboard.instances'
+import { Route as DashboardEnterpriseRouteImport } from './routes/dashboard.enterprise'
 import { Route as DashboardClassifyRouteImport } from './routes/dashboard.classify'
 import { Route as DashboardAttackPathsRouteImport } from './routes/dashboard.attack-paths'
 import { Route as DashboardInstancesInstanceIdRouteImport } from './routes/dashboard.instances.$instanceId'
@@ -67,6 +68,11 @@ const DashboardInstancesRoute = DashboardInstancesRouteImport.update({
   path: '/instances',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardEnterpriseRoute = DashboardEnterpriseRouteImport.update({
+  id: '/enterprise',
+  path: '/enterprise',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardClassifyRoute = DashboardClassifyRouteImport.update({
   id: '/classify',
   path: '/classify',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
   '/dashboard/classify': typeof DashboardClassifyRoute
+  '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
   '/dashboard/classify': typeof DashboardClassifyRoute
+  '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
   '/dashboard/classify': typeof DashboardClassifyRoute
+  '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/dashboard/attack-paths'
     | '/dashboard/classify'
+    | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/dashboard/attack-paths'
     | '/dashboard/classify'
+    | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard'
     | '/dashboard/instances/$instanceId'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/dashboard/attack-paths'
     | '/dashboard/classify'
+    | '/dashboard/enterprise'
     | '/dashboard/instances'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
@@ -245,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardInstancesRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/enterprise': {
+      id: '/dashboard/enterprise'
+      path: '/enterprise'
+      fullPath: '/dashboard/enterprise'
+      preLoaderRoute: typeof DashboardEnterpriseRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/classify': {
       id: '/dashboard/classify'
       path: '/classify'
@@ -283,6 +302,7 @@ const DashboardInstancesRouteWithChildren =
 interface DashboardRouteChildren {
   DashboardAttackPathsRoute: typeof DashboardAttackPathsRoute
   DashboardClassifyRoute: typeof DashboardClassifyRoute
+  DashboardEnterpriseRoute: typeof DashboardEnterpriseRoute
   DashboardInstancesRoute: typeof DashboardInstancesRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -290,6 +310,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAttackPathsRoute: DashboardAttackPathsRoute,
   DashboardClassifyRoute: DashboardClassifyRoute,
+  DashboardEnterpriseRoute: DashboardEnterpriseRoute,
   DashboardInstancesRoute: DashboardInstancesRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
 }
