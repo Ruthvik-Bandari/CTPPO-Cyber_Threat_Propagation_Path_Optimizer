@@ -378,13 +378,38 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="CTPPO API", description="Cyber Threat Prioritization & Path Optimization", version="3.0.0", lifespan=lifespan)
 
+# CORS: an explicit origin allowlist, not "*". Browsers reject `Access-Control-Allow-Origin: *`
+# together with credentials, so the wildcard would silently break the session cookie on any
+# cross-origin frontend. Configure prod origins via CORS_ORIGINS (comma-separated); the default
+# covers local dev (the Vite dev server / common localhost ports).
+_DEFAULT_CORS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", _DEFAULT_CORS).split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Defensive HTTP response headers on every response. (No restrictive CSP here: this app also
+# serves FastAPI's interactive /docs, which a `default-src 'none'` policy would break; the SPA
+# host applies its own CSP. These headers are safe for a JSON API + docs.)
+_HSTS_ENABLED = os.environ.get("COOKIE_SECURE", "false").lower() == "true" or \
+    os.environ.get("HSTS", "false").lower() == "true"
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    if _HSTS_ENABLED:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+    return response
 
 # B1: session-based auth (signup / login / logout / forgot-password / reset-password).
 # Replaces the old stateless-JWT register/login below; shares the canonical USERS_DB and

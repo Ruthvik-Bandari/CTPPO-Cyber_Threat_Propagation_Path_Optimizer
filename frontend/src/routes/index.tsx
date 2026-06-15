@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'motion/react'
 import {
@@ -12,11 +13,15 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CyberBackground } from '@/components/effects/CyberBackground'
 import { ScrollReveal } from '@/components/effects/ScrollReveal'
 import { AppleCarousel, type CarouselCard } from '@/components/effects/AppleCarousel'
 import { Nav } from '@/components/marketing/Nav'
 import { Footer } from '@/components/marketing/Footer'
+
+// three.js is heavy — keep it out of the landing's critical path; the CSS marble wash shows first.
+const CyberBackground = lazy(() =>
+  import('@/components/effects/CyberBackground').then((m) => ({ default: m.CyberBackground })),
+)
 
 export const Route = createFileRoute('/')({
   component: Landing,
@@ -181,7 +186,11 @@ function Landing() {
 
   return (
     <div className="relative overflow-x-hidden">
-      <CyberBackground />
+      {/* CSS marble fallback shows until the WebGL chunk loads */}
+      <div aria-hidden className="marble pointer-events-none fixed inset-0 -z-10" />
+      <Suspense fallback={null}>
+        <CyberBackground />
+      </Suspense>
       <Nav />
 
       {/* Hero */}

@@ -28,8 +28,8 @@ export function Footer() {
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-medium uppercase tracking-widest text-faint">Platform</span>
             <Link to="/about" className="text-sm text-muted hover:text-fg">About</Link>
-            <a href="/login" className="text-sm text-muted hover:text-fg">Sign in</a>
-            <a href="/register" className="text-sm text-muted hover:text-fg">Get started</a>
+            <Link to="/login" className="text-sm text-muted hover:text-fg">Sign in</Link>
+            <Link to="/register" className="text-sm text-muted hover:text-fg">Get started</Link>
           </div>
         </div>
       </div>

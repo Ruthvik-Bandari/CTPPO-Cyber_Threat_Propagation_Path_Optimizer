@@ -27,6 +27,14 @@ from user_store import UserStore, public_view
 
 SESSION_COOKIE = "ctppo_session"
 _COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+# SameSite for the session cookie. Default "lax" (good for same-origin / Vite-proxy dev). A
+# cross-origin prod frontend must set COOKIE_SAMESITE=none, which browsers only honour on a
+# Secure cookie — so we force Secure on in that case.
+_COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "lax").lower()
+if _COOKIE_SAMESITE not in ("lax", "strict", "none"):
+    _COOKIE_SAMESITE = "lax"
+if _COOKIE_SAMESITE == "none":
+    _COOKIE_SECURE = True
 # In dev (no mailer) we surface the reset token in the response so the flow is testable.
 _EXPOSE_RESET_TOKEN = os.environ.get("EXPOSE_RESET_TOKEN", "true").lower() == "true"
 
@@ -57,7 +65,7 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
         value=session_id,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
-        samesite="lax",
+        samesite=_COOKIE_SAMESITE,
         secure=_COOKIE_SECURE,
         path="/",
     )

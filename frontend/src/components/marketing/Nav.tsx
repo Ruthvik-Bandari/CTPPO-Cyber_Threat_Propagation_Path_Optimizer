@@ -47,21 +47,22 @@ export function Nav() {
         <div className="hidden items-center gap-2 md:flex">
           {authed ? (
             <Button asChild size="sm">
-              <a href="/dashboard">Dashboard</a>
+              <Link to="/dashboard">Dashboard</Link>
             </Button>
           ) : (
             <>
               <Button asChild variant="ghost" size="sm">
-                <a href="/login">Sign in</a>
+                <Link to="/login">Sign in</Link>
               </Button>
               <Button asChild size="sm">
-                <a href="/register">Get started</a>
+                <Link to="/register">Get started</Link>
               </Button>
             </>
           )}
         </div>
 
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
           aria-label="Toggle menu"
           aria-expanded={open}
@@ -98,16 +99,20 @@ export function Nav() {
             </Link>
             <div className="my-1 hairline" />
             {authed ? (
-              <a href="/dashboard" className="rounded-lg px-3 py-2.5 text-sm font-medium text-cyber">
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2.5 text-sm font-medium text-cyber"
+              >
                 Dashboard
-              </a>
+              </Link>
             ) : (
               <div className="flex gap-2 px-1 pt-1">
                 <Button asChild variant="outline" size="sm" className="flex-1">
-                  <a href="/login">Sign in</a>
+                  <Link to="/login" onClick={() => setOpen(false)}>Sign in</Link>
                 </Button>
                 <Button asChild size="sm" className="flex-1">
-                  <a href="/register">Get started</a>
+                  <Link to="/register" onClick={() => setOpen(false)}>Get started</Link>
                 </Button>
               </div>
             )}
