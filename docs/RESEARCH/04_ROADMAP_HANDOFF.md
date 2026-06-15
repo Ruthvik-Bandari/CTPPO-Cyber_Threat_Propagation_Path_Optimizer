@@ -1,9 +1,10 @@
 # CTPPO — Roadmap & Handoff
 
 **Updated:** 2026-06-14 · Read this first when resuming work. It is the single source of
-truth for *what's built, what's left, and the product/frontend plan.* **Phases A and B DONE
-(incl. B6 frontend rebuild). Phase C core thesis test + Phase D (cleanup/tests/paper draft)
-DONE; only C2 — the container/VM testbed — remains (infra). See §2.**
+truth for *what's built, what's left, and the product/frontend plan.* **Phases A, B, C, D
+DONE — incl. the frontend rebuild, store persistence, and live (real-server + browser)
+verification. Only a live container/VM testbed and running the LLM reviewer (needs a key)
+remain — both external. See §2.**
 
 Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 [`01_NOVELTY.md`](01_NOVELTY.md) (research gap), [`02_COST_MODEL_SPEC.md`](02_COST_MODEL_SPEC.md)
@@ -32,7 +33,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **132 tests passing** (23 files, run each with `python3 <file>`).
+· clean git `main` · **141 tests passing** (25 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
 **Phase B COMPLETE: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client) + B6 (frontend rebuild) all DONE** — see §2.
 
@@ -281,9 +282,14 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   **94.7%**. Tests: `tests/evaluation/test_phase_c_eval.py` (3). B1 (CVSS-ranking) + Proposed
   (Pareto-critical) + oracle implemented; B2 (shortest-path) + GNN+NAMOA* arms still to fold in
   (GNN per-node result is in A3).
-- **C2. Data/testbed — REMAINING (infra).** Emulated multi-host network (containers/VMs) for
-  ground-truth paths + public datasets; enables the deferred path precision/recall metric and a
-  generalization claim beyond the synthetic distribution.
+- **C2. Path recovery on real data ✅ DONE; live container/VM emulation REMAINING (infra).**
+  `evaluation/pignn_path_recovery.py` + [`C2_PATH_RECOVERY.md`](C2_PATH_RECOVERY.md): the
+  deferred **path precision/recall vs ground truth** metric, measured on the real PIGNN
+  Active-Directory dataset (edge-level ground truth). Node-on-path P/R/F1 = 0.36/0.59/0.45,
+  node ROC-AUC 0.936; edge-on-path (path-set, endpoint-product heuristic) 0.08/0.29/0.13 —
+  all well above the ~1.3% base rate. Tests: `tests/evaluation/test_pignn_path_recovery.py`
+  (3). Still remaining: a live container/VM emulation for a generalization claim, and folding
+  B2 (shortest-path) + GNN+NAMOA* into the §C1 aggregate.
 
 ### Phase D — Finish (clean → test → paper)
 - **D1 ✅ DONE.** Removed 17 dead ml/ scripts (old numbered pipeline, duplicate trainers, demos,
@@ -292,9 +298,11 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
 - **D2 ✅ DONE.** Replaced residual `97.5%`/`94.2%` fabrications with measured numbers (0.73
   macro-F1, 341k EPSS, 1,619 KEV, 0.956 PIGNN) in DEVELOPMENT.md / ENTERPRISE_GUIDE.md /
   frontend/README.md; kept honest-history mentions.
-- **D3 ✅ DONE.** Full pass green: **132 backend tests (23 files)** + frontend `bun run build`
-  + `tsc --noEmit`; an end-to-end API contract smoke (signup→cookie→CRUD→keys→orgs→logout) was
-  driven against the real app. Remaining: a human browser click-through (acceptance).
+- **D3 ✅ DONE.** Full pass green: **141 backend tests (25 files)** + frontend `bun run build`
+  + `tsc --noEmit`. Verified live against the **real uvicorn server**: a curl cookie-flow e2e
+  (incl. CORS correctly refusing a disallowed origin) and a **real-browser render** pass
+  (Playwright/Chromium: landing → login → dashboard → attack-paths Pareto result → classify),
+  no React runtime errors. (3 non-canonical tests stay excluded — pytest/nltk not installed.)
 - **D4 ✅ DRAFT.** [`PAPER_DRAFT.md`](PAPER_DRAFT.md) written from the real measured results
   (anchored on 01_NOVELTY + 02_COST_MODEL_SPEC + Phase-C/A3/A4 numbers). Target: thesis chapter /
   AISec-MLSec workshop.
@@ -327,15 +335,17 @@ A licensed cybersecurity platform. **Built in Phase B**, after the engine/ML is 
 
 ## 4. How to resume (starter prompt for a new chat)
 
-**Current resume point: C2 only — a container/VM testbed + external datasets for a generalization
-claim (path precision/recall). Everything else is done.** Phase A (A1–A5 + NAMOA* fix), Phase B
-(B1–B6, incl. the frontend rebuild + the deferred Scan UI/enterprise-gate/reset-email/CLI-git
-items), Phase C core thesis test (synthetic, measured — see C_EVALUATION.md), and Phase D (D1
-cleanup, D2 honesty sweep, D3 full pass, D4 PAPER_DRAFT.md) are COMPLETE. **132 backend tests
-pass** (23 files, `python3 <file>`); frontend verifies with `cd frontend && bun run build &&
-bun run typecheck`. A human browser click-through (auth→dashboard→tools) is the remaining
-acceptance step. Remaining infra/cred-gated stubs (not bugs): Postgres/Redis backing for the
-in-memory stores; the LLM reviewer needs `anthropic` + `ANTHROPIC_API_KEY`.
+**Current resume point: essentially feature-complete.** Only two genuinely external items
+remain: a **live container/VM testbed** for a Phase-C generalization claim (real-dataset path
+recovery is already done — see C2_PATH_RECOVERY.md), and **running** the LLM reviewer (needs
+`anthropic` + `ANTHROPIC_API_KEY` — code is correct + on the current model id `claude-opus-4-8`
+and degrades honestly without a key). Done: Phase A (A1–A5 + NAMOA* fix); Phase B (B1–B6 +
+deferred Scan UI/enterprise-gate/reset-email/CLI-git); Phase C (core thesis test +
+real-data path recovery); Phase D (cleanup, honesty sweep, full pass, PAPER_DRAFT.md);
+**store persistence** (optional SQLAlchemy write-through behind CTPPO_DB_URL, verified across a
+restart; sessions persist via Redis); **live verification** (real uvicorn curl e2e + a
+Playwright/Chromium browser render pass). **141 backend tests pass** (25 files, `python3 <file>`);
+frontend verifies with `cd frontend && bun run build && bun run typecheck`.
 
 When resuming:
 1. Read this doc + the memory index (`ctppo-status-handoff`, `ctppo-product-architecture`,
