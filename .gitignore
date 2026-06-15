@@ -40,3 +40,6 @@ logs/
 dist/
 build/
 frontend/dist/
+
+# Phase 4 continuous-eval timeseries (local runtime state)
+evaluation/history/

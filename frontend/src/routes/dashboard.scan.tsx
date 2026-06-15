@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Radar, Loader2, Play, ServerCog, Cloud, ShieldAlert, CircleCheck } from 'lucide-react'
-import { RequireSubscription } from '@/components/auth/guards'
 import { Button } from '@/components/ui/button'
 import { Badge, severityVariant } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -12,11 +11,7 @@ import { scanApi, ApiError, type ScanResult, type ScanVuln } from '@/api/client'
 import { formatTime, cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/dashboard/scan')({
-  component: () => (
-    <RequireSubscription>
-      <ScanPage />
-    </RequireSubscription>
-  ),
+  component: ScanPage,
 })
 
 const selectCls = 'h-11 rounded-xl border border-line bg-base-2/60 px-3 text-sm text-fg outline-none focus:border-cyber/60'

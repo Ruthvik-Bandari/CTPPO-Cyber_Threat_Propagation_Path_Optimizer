@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Representative Nessus .nessus export. web01 (DMZ, 443, Heartbleed) ->
+     files01 (internal, 445, SMBGhost goal). The second host's CVSS vector intentionally
+     omits the 'CVSS:3.1/' prefix to exercise vector normalization. -->
+<NessusClientData_v2>
+  <Report name="CTPPO Sample Scan">
+    <ReportHost name="10.0.1.10">
+      <HostProperties>
+        <tag name="host-ip">10.0.1.10</tag>
+        <tag name="host-fqdn">web01.corp.local</tag>
+        <tag name="operating-system">Linux Kernel 5.4</tag>
+      </HostProperties>
+      <ReportItem port="443" svc_name="www" protocol="tcp" severity="4"
+                  pluginID="73412" pluginName="OpenSSL Heartbeat (Heartbleed)">
+        <cve>CVE-2014-0160</cve>
+        <cvss3_base_score>7.5</cvss3_base_score>
+        <cvss3_vector>CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N</cvss3_vector>
+        <description>The remote service is affected by Heartbleed.</description>
+      </ReportItem>
+    </ReportHost>
+    <ReportHost name="10.0.10.20">
+      <HostProperties>
+        <tag name="host-ip">10.0.10.20</tag>
+        <tag name="host-fqdn">files01.corp.local</tag>
+      </HostProperties>
+      <ReportItem port="445" svc_name="cifs" protocol="tcp" severity="4"
+                  pluginID="135568" pluginName="SMBv3 Compression (SMBGhost)">
+        <cve>CVE-2020-0796</cve>
+        <cvss3_base_score>10.0</cvss3_base_score>
+        <cvss_vector>AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</cvss_vector>
+        <description>The remote Windows host is affected by SMBGhost.</description>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

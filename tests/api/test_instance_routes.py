@@ -2,8 +2,8 @@
 HTTP tests for the B3 instance CRUD router.
 
 Most tests mount the router in isolation with a fake header-driven user dependency
-(no auth/subscription machinery needed) to exercise CRUD + owner-scoping. A final test
-boots the real server_secure app to confirm the router is mounted and subscription-gated.
+to exercise CRUD + owner-scoping. A final test boots the real server_secure app to
+confirm the router is mounted (no auth — local-first).
 
 Run with: python3 tests/api/test_instance_routes.py
 """
@@ -85,16 +85,11 @@ def test_create_with_file_metadata():
     assert f["ext"] == "json" and f["scanned_at"]
 
 
-def test_real_app_instances_are_mounted_and_gated():
+def test_real_app_instances_are_mounted_no_auth():
     import server_secure
     rc = TestClient(server_secure.app)
-    # unauthenticated -> 401
-    assert rc.get("/api/instances").status_code == 401
-    # subscribed user: signup + activate, then full CRUD works on the real app
-    email = "b3int@example.com"
-    rc.post("/api/auth/signup", json={"email": email, "password": "password123", "name": "B3"})
-    key = server_secure.subscriptions.create_product_key("individual", 365)["key"]
-    assert rc.post("/api/subscription/activate", json={"product_key": key}).status_code == 200
+    # Local-first: no auth — listing and CRUD work without any credential.
+    assert rc.get("/api/instances").status_code == 200
     created = rc.post("/api/instances", json={"name": "real", "prompt": "go"})
     assert created.status_code == 200
     assert any(i["id"] == created.json()["id"] for i in rc.get("/api/instances").json()["instances"])

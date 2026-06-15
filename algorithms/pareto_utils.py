@@ -179,13 +179,24 @@ class ParetoSet(Generic[T]):
     def __init__(
         self,
         objective_senses: Optional[List[ObjectiveSense]] = None,
-        logger: Optional[ResearchLogger] = None
+        logger: Optional[ResearchLogger] = None,
+        epsilon: float = 0.0
     ):
         self.solutions: List[LabeledSolution[T]] = []
         self.objective_senses = objective_senses
         self.logger = logger or get_default_logger()
         self.dominated_count = 0
         self.total_insertions = 0
+        # When epsilon > 0 the set keeps an ε-Pareto (bounded approximation) front: a new
+        # solution is pruned if an existing one ε-dominates it (within a (1+ε) factor on every
+        # objective). Default 0.0 → exact dominance (unchanged). Roadmap D1.
+        self.epsilon = epsilon
+
+    def _dominates(self, a: CostVector, b: CostVector) -> bool:
+        """Dominance test honoring ``epsilon``: exact when epsilon == 0, else ε-dominance."""
+        if self.epsilon > 0.0:
+            return epsilon_dominance(a, b, self.epsilon)
+        return a.dominates(b)
     
     def add(self, solution: LabeledSolution[T]) -> bool:
         """
@@ -201,27 +212,27 @@ class ParetoSet(Generic[T]):
         
         # Check if dominated by existing solutions
         for existing in self.solutions:
-            if existing.cost.dominates(solution.cost):
+            if self._dominates(existing.cost, solution.cost):
                 self.dominated_count += 1
                 return False
             if existing.cost.weakly_dominates(solution.cost) and not solution.cost.dominates(existing.cost):
                 # Equal in all objectives - could be duplicate
                 if np.allclose(existing.cost.values, solution.cost.values):
                     return False
-        
+
         # Remove any solutions dominated by the new one
         self.solutions = [
             s for s in self.solutions
-            if not solution.cost.dominates(s.cost)
+            if not self._dominates(solution.cost, s.cost)
         ]
-        
+
         self.solutions.append(solution)
         return True
-    
+
     def is_dominated(self, cost: CostVector) -> bool:
         """Check if a cost vector is dominated by any solution in the set"""
         for solution in self.solutions:
-            if solution.cost.dominates(cost):
+            if self._dominates(solution.cost, cost):
                 return True
         return False
     

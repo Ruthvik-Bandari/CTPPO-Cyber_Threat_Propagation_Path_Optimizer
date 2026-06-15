@@ -4,7 +4,7 @@ A modern, secure React dashboard for CVE severity classification and network att
 
 ## ✨ Features
 
-- 🔐 **Secure Authentication** - server-side session cookies (HttpOnly), no tokens in JS
+- 🔓 **Open-source, local-first** - no login, no accounts, opens straight into the dashboard
 - 🎯 **CVE Classification** - text-only severity prediction (0.73 held-out macro-F1)
 - 🗺️ **Attack Paths** - Pareto-front visualization (react-three-fiber background)
 - 📊 **Real-time Analytics** - TanStack Query for data fetching
@@ -51,16 +51,13 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ### Backend Setup
 
-Make sure the backend is running with auth support:
+Make sure the local API is running on port 8000:
 
 ```bash
 cd ~/Downloads/ctppo
 
-# Install auth dependencies
-pip install PyJWT pyotp "qrcode[pil]"
-
-# Start secure API server
-python -m uvicorn api.server_secure:app --reload --port 8000
+# Start the API server
+python -m uvicorn api.server:app --reload --port 8000
 ```
 
 ## 📁 Project Structure
@@ -74,14 +71,12 @@ frontend/
 │   │   └── layout/
 │   │       └── RootLayout.tsx
 │   ├── routes/
-│   │   ├── login.tsx       # Login with 2FA
-│   │   ├── register.tsx    # Registration
-│   │   ├── dashboard.tsx   # Main dashboard
-│   │   ├── classify.tsx    # CVE classification
-│   │   ├── attack-paths.tsx # 3D network viz
-│   │   └── settings.tsx    # 2FA management
-│   ├── stores/
-│   │   └── auth.ts         # Zustand auth store
+│   │   ├── index.tsx       # Redirects to /dashboard
+│   │   ├── dashboard.tsx   # Dashboard shell
+│   │   ├── dashboard.classify.tsx     # CVE classification
+│   │   ├── dashboard.attack-paths.tsx # Pareto-front viz
+│   │   ├── dashboard.scan.tsx         # Scanning
+│   │   └── dashboard.instances.tsx    # Instances CRUD
 │   ├── lib/
 │   │   └── utils.ts        # Utility functions
 │   ├── routeTree.gen.ts    # Router configuration
@@ -93,50 +88,36 @@ frontend/
 └── tsconfig.json
 ```
 
-## 🔐 Authentication Flow
-
-1. **Register** → Create account (email, password, name)
-2. **Login** → Enter credentials
-3. **Setup 2FA** → Scan QR code with authenticator app
-4. **Verify 2FA** → Enter 6-digit code to complete login
-
-### Demo Account
-
-```
-Email: demo@ctppo.ai
-Password: demo123
-```
-
 ## 🎯 Pages
 
+The app is open-source and local-first — `/` redirects straight to `/dashboard`, no account required.
+
 ### Dashboard (`/dashboard`)
-- System health status
-- Quick actions
-- Model performance metrics
+- Quick links to each tool
 
-### CVE Classification (`/classify`)
-- Enter CVE description
-- Configure CVSS vector
-- Get severity prediction with confidence
+### CVE Classification (`/dashboard/classify`)
+- Enter a CVE description
+- Get a severity prediction with confidence (text-only, no CVSS input)
 
-### Attack Paths (`/attack-paths`)
-- 3D network visualization
+### Attack Paths (`/dashboard/attack-paths`)
 - Pareto-optimal path discovery
 - Risk assessment
 
-### Settings (`/settings`)
-- Account management
-- 2FA setup/disable
-- Security settings
+### Scan (`/dashboard/scan`)
+- Probe a host or URL for exposure issues
+
+### Instances (`/dashboard/instances`)
+- Create scan and analysis workspaces (full CRUD)
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-Create `.env.local` for custom configuration:
+Create `.env.local` for custom configuration. `VITE_API_BASE` sets the API base URL
+(defaults to the same-origin `/api`, which the dev server proxies to the local backend):
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_BASE=http://localhost:8000/api
 ```
 
 ### Proxy Configuration

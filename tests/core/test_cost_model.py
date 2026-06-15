@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.cost_model import (  # noqa: E402
     parse_cvss31_vector, exploitability_subscore, impact_subscore,
     success_probability, time_to_exploit_relative,
-    build_edge_cost, EdgeCostInputs,
+    build_edge_cost, EdgeCostInputs, SuccessParams,
 )
 from core.edge_costs import CostType  # noqa: E402
 from core.threat_data import ThreatDataProvider  # noqa: E402
@@ -58,6 +58,36 @@ def test_success_probability_records_fallbacks():
     assert 0.0 <= p <= 1.0
     assert any("epss_missing" in f for f in flags)
     assert any("ac_unknown" in f for f in flags)
+
+
+def test_success_params_default_reproduces_shipped():
+    # Default SuccessParams must reproduce the historical hard-coded constants exactly.
+    assert success_probability(0.01, True, "L", [], SuccessParams()) == \
+        success_probability(0.01, True, "L", [])
+
+
+def test_success_params_override_changes_output():
+    # Each knob, varied, must change the result (B6 sensitivity hook).
+    base = success_probability(None, True, "L", [])                       # floor binds, prior moot
+    no_floor = success_probability(None, True, "L", [],
+                                   SuccessParams(kev_exist_floor=0.0))     # prior=0.05 now governs
+    assert base > no_floor
+    hi_prior = success_probability(None, False, "L", [],
+                                   SuccessParams(epss_missing_prior=0.5))
+    assert hi_prior > success_probability(None, False, "L", [])
+    flat = success_probability(0.9, False, "H", [],
+                               SuccessParams(p_exec_by_ac={"L": 0.7, "H": 0.7}))
+    assert flat != success_probability(0.9, False, "H", [])               # AC:H factor differs
+
+
+def test_build_edge_cost_threads_success_params():
+    # A no-EPSS edge's success must track the missing-prior override end-to-end.
+    inp = EdgeCostInputs(cve_id="CVE-2099-90001",
+                         cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+    lo = build_edge_cost(inp, success_params=SuccessParams(epss_missing_prior=0.005))
+    hi = build_edge_cost(inp, success_params=SuccessParams(epss_missing_prior=0.50))
+    assert hi.expected_values()[CostType.SUCCESS_PROBABILITY] > \
+        lo.expected_values()[CostType.SUCCESS_PROBABILITY]
 
 
 def test_time_kev_is_faster_than_non_kev():

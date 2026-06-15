@@ -40,21 +40,24 @@ cases excluded).
 
 ## 4. Results (300 networks)
 
+_(Recomputed 2026-06-15 after the NAMOA\* parallel-edge completeness fix — METRICS §1/§6; figures
+shifted < 1 pp, now on the complete Pareto front.)_
+
 | Metric | CVSS fix (B1) | Pareto fix (proposed) | Oracle |
 |--------|:---:|:---:|:---:|
-| Mean reachability reduction | **0.022** | **0.078** | 0.084 |
-| Oracle reduction recovered | **25.0%** | **84.6%** | 100% |
+| Mean reachability reduction | **0.021** | **0.083** | 0.094 |
+| Oracle reduction recovered | **24.0%** | **84.1%** | 100% |
 
-- Mean baseline reachability (best-path success prob): **0.091**
-- **Top-fix divergence** (CVSS-top ≠ Pareto-top): **92.3%**
-- Pareto fix reduces reachability **more** than CVSS fix: **73.3%** of networks
-- Pareto fix **≥** CVSS fix: **94.7%** of networks
+- Mean baseline reachability (best-path success prob): **0.103**
+- **Top-fix divergence** (CVSS-top ≠ Pareto-top): **92.0%**
+- Pareto fix reduces reachability **more** than CVSS fix: **73.0%** of networks
+- Pareto fix **≥** CVSS fix: **94.0%** of networks
 
 ## 5. Interpretation
 
-On this testbed the Pareto-critical remediation recovers **84.6%** of the maximum achievable
-reachability reduction, versus **25.0%** for CVSS ranking — and it never does worse than CVSS
-in 94.7% of networks. The mechanism is exactly the one in `baseline_comparison.illustrative_scenario`:
+On this testbed the Pareto-critical remediation recovers **84.1%** of the maximum achievable
+reachability reduction, versus **24.0%** for CVSS ranking — and it never does worse than CVSS
+in 94.0% of networks. The mechanism is exactly the one in `baseline_comparison.illustrative_scenario`:
 a high-CVSS vulnerability that sits off every path to the crown jewel is a wasted fix, while the
 path-critical vulnerability that CVSS ranks lower is what actually shrinks the attack surface.
 

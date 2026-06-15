@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Representative OpenVAS / Greenbone GVM report. web01 (DMZ, 443, Shellshock) ->
+     dc01 (internal, 445, BlueKeep goal). CVE refs given as <ref type="cve" id=...>. -->
+<report id="abcd-1234" format_id="a994b278">
+  <results start="1" max="100">
+    <result id="r1">
+      <name>Bash Environment Variable Code Injection (Shellshock)</name>
+      <host>10.0.1.10<asset asset_id="h1"/></host>
+      <port>443/tcp</port>
+      <nvt oid="1.3.6.1.4.1.25623.1.0.802067">
+        <name>Shellshock</name>
+        <cvss_base>9.8</cvss_base>
+        <refs>
+          <ref type="cve" id="CVE-2014-6271"/>
+          <ref type="url" id="https://example.com/shellshock"/>
+        </refs>
+      </nvt>
+      <severity>9.8</severity>
+    </result>
+    <result id="r2">
+      <name>Microsoft RDP RCE (BlueKeep)</name>
+      <host>10.0.10.40<asset asset_id="h2"/></host>
+      <port>445/tcp</port>
+      <nvt oid="1.3.6.1.4.1.25623.1.0.108652">
+        <name>BlueKeep</name>
+        <cvss_base>9.8</cvss_base>
+        <refs>
+          <ref type="cve" id="CVE-2019-0708"/>
+        </refs>
+      </nvt>
+      <severity>10.0</severity>
+    </result>
+  </results>
+</report>

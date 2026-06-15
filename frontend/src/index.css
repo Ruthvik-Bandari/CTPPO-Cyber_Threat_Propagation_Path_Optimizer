@@ -102,9 +102,11 @@
 
 /* Frosted marble panel */
 .glass {
+  background: var(--color-surface); /* fallback for browsers without color-mix (Chrome < 111) */
   background: color-mix(in srgb, var(--color-surface) 72%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--color-line); /* fallback for browsers without color-mix */
   border: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
 }
 

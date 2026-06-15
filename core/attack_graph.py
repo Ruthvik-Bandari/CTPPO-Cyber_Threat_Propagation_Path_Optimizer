@@ -144,6 +144,13 @@ class AttackGraph:
         self.edges: Dict[str, Edge] = {}
         self.adjacency: Dict[str, Dict[str, str]] = {}  # source_id -> {target_id -> edge_id}
         self.reverse_adjacency: Dict[str, Dict[str, str]] = {}  # target_id -> {source_id -> edge_id}
+        # Parallel-safe edge indices for traversal. ``adjacency`` keeps a single representative
+        # edge per (source,target) pair (fine for existence / neighbour / GNN-matrix queries), but
+        # multiple edges CAN exist between the same pair (e.g. two CVEs on one host link). These
+        # lists keep ALL of them so traversal (NAMOA*) sees every parallel edge — otherwise the
+        # second edge is orphaned in ``self.edges`` and its paths become unreachable.
+        self._out_edge_ids: Dict[str, List[str]] = {}   # source_id -> [edge_id, ...]
+        self._in_edge_ids: Dict[str, List[str]] = {}    # target_id -> [edge_id, ...]
         
         # NetworkX graph for algorithm integration
         self._nx_graph: Optional[nx.DiGraph] = None
@@ -218,26 +225,24 @@ class AttackGraph:
         
         node = self.nodes[node_id]
         
-        # Remove all connected edges
-        edges_to_remove = []
-        for target_id, edge_id in self.adjacency.get(node_id, {}).items():
-            edges_to_remove.append(edge_id)
-        for source_id, edge_id in self.reverse_adjacency.get(node_id, {}).items():
-            edges_to_remove.append(edge_id)
-        
+        # Remove all connected edges (parallel-safe: collect from the full edge-id lists).
+        edges_to_remove = list(self._out_edge_ids.get(node_id, [])) + \
+            list(self._in_edge_ids.get(node_id, []))
         for edge_id in edges_to_remove:
             self.remove_edge(edge_id)
-        
+
         # Remove node
         del self.nodes[node_id]
         self.nodes_by_type[node.node_type].discard(node_id)
         self.entry_points.discard(node_id)
         self.goal_nodes.discard(node_id)
-        
+
         if node_id in self.adjacency:
             del self.adjacency[node_id]
         if node_id in self.reverse_adjacency:
             del self.reverse_adjacency[node_id]
+        self._out_edge_ids.pop(node_id, None)
+        self._in_edge_ids.pop(node_id, None)
         
         self._nx_dirty = True
         
@@ -296,14 +301,18 @@ class AttackGraph:
         
         self.edges[edge.id] = edge
         
-        # Update adjacency lists
+        # Update adjacency lists (single representative per pair) ...
         if source_id not in self.adjacency:
             self.adjacency[source_id] = {}
         self.adjacency[source_id][target_id] = edge.id
-        
+
         if target_id not in self.reverse_adjacency:
             self.reverse_adjacency[target_id] = {}
         self.reverse_adjacency[target_id][source_id] = edge.id
+
+        # ... and the parallel-safe lists (every edge, including parallels) for traversal.
+        self._out_edge_ids.setdefault(source_id, []).append(edge.id)
+        self._in_edge_ids.setdefault(target_id, []).append(edge.id)
         
         self._nx_dirty = True
         
@@ -326,16 +335,28 @@ class AttackGraph:
             return False
         
         edge = self.edges[edge_id]
-        
-        # Update adjacency
-        if edge.source_id in self.adjacency:
-            self.adjacency[edge.source_id].pop(edge.target_id, None)
-        if edge.target_id in self.reverse_adjacency:
-            self.reverse_adjacency[edge.target_id].pop(edge.source_id, None)
-        
+        s, t = edge.source_id, edge.target_id
+
+        # Remove from the parallel-safe edge lists.
+        if edge_id in self._out_edge_ids.get(s, []):
+            self._out_edge_ids[s].remove(edge_id)
+        if edge_id in self._in_edge_ids.get(t, []):
+            self._in_edge_ids[t].remove(edge_id)
+
+        # Repoint (or drop) the single-representative adjacency entry: if a parallel s->t edge
+        # remains, point at it; otherwise remove the pair so existence queries stay correct.
+        remaining = [eid for eid in self._out_edge_ids.get(s, [])
+                     if eid in self.edges and self.edges[eid].target_id == t]
+        if remaining:
+            self.adjacency.setdefault(s, {})[t] = remaining[0]
+            self.reverse_adjacency.setdefault(t, {})[s] = remaining[0]
+        else:
+            self.adjacency.get(s, {}).pop(t, None)
+            self.reverse_adjacency.get(t, {}).pop(s, None)
+
         del self.edges[edge_id]
         self._nx_dirty = True
-        
+
         return True
     
     def get_edge(self, source_id: str, target_id: str) -> Optional[Edge]:
@@ -346,17 +367,19 @@ class AttackGraph:
         return None
     
     def get_outgoing_edges(self, node_id: str) -> List[Edge]:
-        """Get all outgoing edges from a node"""
+        """Get all outgoing edges from a node (including parallel edges to the same target)."""
         return [
             self.edges[edge_id]
-            for edge_id in self.adjacency.get(node_id, {}).values()
+            for edge_id in self._out_edge_ids.get(node_id, [])
+            if edge_id in self.edges
         ]
-    
+
     def get_incoming_edges(self, node_id: str) -> List[Edge]:
-        """Get all incoming edges to a node"""
+        """Get all incoming edges to a node (including parallel edges from the same source)."""
         return [
             self.edges[edge_id]
-            for edge_id in self.reverse_adjacency.get(node_id, {}).values()
+            for edge_id in self._in_edge_ids.get(node_id, [])
+            if edge_id in self.edges
         ]
     
     def get_successors(self, node_id: str) -> List[str]:

@@ -320,22 +320,44 @@ def cmd_review_code(args):
 
 
 def cmd_threat_data(args):
-    """Download/refresh real EPSS + CISA KEV data and report what's cached."""
+    """Refresh/inspect the EPSS + CISA KEV (+ optional NVD) feeds with provenance + staleness."""
     from core.threat_data import ThreatDataProvider
     provider = ThreatDataProvider()
+
     if args.refresh:
-        console.print("[bold cyan]Refreshing[/bold cyan] EPSS + CISA KEV feeds...")
-        provider.refresh()
+        from core.threat_feeds import refresh_feeds
+        sources = "EPSS + CISA KEV" + (" + NVD recent window" if args.nvd else "")
+        console.print(f"[bold cyan]Refreshing[/bold cyan] {sources}...")
+        refresh_feeds(provider=provider, include_nvd=args.nvd, nvd_days=args.nvd_days)
+
     stats = provider.stats()
-    console.print(Panel(
-        f"EPSS scores: [yellow]{stats['epss_cves']:,}[/yellow]   "
-        f"KEV CVEs: [red]{stats['kev_cves']:,}[/red]\n"
-        f"Cache: [dim]{stats['cache_dir']}[/dim]",
-        title="Threat data (EPSS / CISA KEV)", border_style="cyan"))
     if stats["epss_cves"] == 0 and stats["kev_cves"] == 0:
         console.print("[yellow]No data cached.[/yellow] Run with --refresh while online "
                       "to download (needs network + certifi CA bundle).")
         return
+
+    # Provenance + staleness table (the 3a deliverable: every source carries its as-of date).
+    staleness = provider.staleness()
+    table = Table(title="Threat-feed provenance & staleness", show_header=True)
+    for col in ("Source", "Records", "Source as-of", "Version", "Fetched (age)", "Status"):
+        table.add_column(col)
+    color = {"fresh": "green", "stale": "yellow", "unknown": "dim"}
+    for src in ("epss", "kev", "nvd"):
+        s = staleness.get(src)
+        if not s:
+            continue
+        age = f"{s['age_hours']:.1f}h" if s.get("age_hours") is not None else "?"
+        status = s.get("status", "unknown")
+        table.add_row(
+            src.upper(),
+            f"{s.get('record_count') or 0:,}",
+            (s.get("source_as_of") or "—")[:19],
+            str(s.get("source_version") or "—"),
+            age,
+            f"[{color.get(status, 'dim')}]{status}[/{color.get(status, 'dim')}]")
+    console.print(table)
+    console.print(f"[dim]Cache: {stats['cache_dir']}[/dim]")
+
     for cve in args.cve:
         epss = provider.epss(cve)
         console.print(f"  {cve}: epss={epss if epss is not None else 'n/a'}  "
@@ -374,6 +396,45 @@ def cmd_analyze_network(args):
         console.print(f"  {i}. [green]{' → '.join(host_hops(path))}[/green]  "
                       f"[dim]time={cost.values[0]:.2f} success={cost.values[1]:.3f} "
                       f"impact={cost.values[2]:.2f}[/dim]")
+
+
+def cmd_import_scan(args):
+    """Import a Nessus/Qualys/OpenVAS/nmap scan file → multi-host attack graph → Pareto paths."""
+    from core.logging_system import ResearchLogger
+    from core.threat_data import ThreatDataProvider
+    from core.node_types import NodeType
+    from scanners.scan_import import import_scan_file
+    from algorithms.namoa_star import run_namoa_star
+
+    logger = ResearchLogger("ImportScan", console_output=False)
+    provider = None if args.no_threat_data else ThreatDataProvider()
+    graph, spec, findings, fmt = import_scan_file(
+        args.file, fmt=args.format, provider=provider, logger_=logger,
+        reachability=args.reachability)
+
+    vulns = [v for h in spec.hosts for v in h.vulnerabilities]
+    grounded = sum(1 for v in vulns if provider and provider.epss(v.cve_id) is not None)
+    result = run_namoa_star(graph, logger=logger)
+
+    console.print(Panel(
+        f"Format: [cyan]{fmt}[/cyan]   Hosts: [cyan]{len(spec.hosts)}[/cyan]   "
+        f"Vulns: [cyan]{len(vulns)}[/cyan]   "
+        f"EPSS-grounded: [green]{grounded}/{len(vulns)}[/green]\n"
+        f"Graph: [cyan]{graph.num_nodes}[/cyan] nodes / [cyan]{graph.num_edges}[/cyan] edges   "
+        f"Pareto attack paths: [magenta]{len(result.pareto_paths)}[/magenta]",
+        title=f"Imported scan: {args.file}", border_style="cyan"))
+
+    def host_hops(path):
+        return [graph.get_node(nid).name for nid in path
+                if graph.get_node(nid) and graph.get_node(nid).node_type == NodeType.ASSET]
+
+    for i, (path, cost) in enumerate(result.pareto_paths[:10], 1):
+        console.print(f"  {i}. [green]{' → '.join(host_hops(path))}[/green]  "
+                      f"[dim]time={cost.values[0]:.2f} success={cost.values[1]:.3f} "
+                      f"impact={cost.values[2]:.2f}[/dim]")
+    console.print("[yellow]Note:[/yellow] [dim]host vulnerabilities are from the scan (data-grounded); "
+                  "reachability/zones/entry/goal are INFERRED heuristics (not in any scan file) — "
+                  "override with ground truth for production use.[/dim]")
 
 
 def cmd_compare_baselines(args):
@@ -419,11 +480,28 @@ if __name__ == "__main__":
                        help="run NAMOA* on GNN-refined costs (rule-vs-GNN ablation)")
     p_net.set_defaults(func=cmd_analyze_network)
 
+    p_imp = sub.add_parser("import-scan",
+                           help="import a Nessus/Qualys/OpenVAS/nmap scan file → attack paths")
+    p_imp.add_argument("file", help="path to the scanner output file (.nessus/.xml)")
+    p_imp.add_argument("--format", default="auto",
+                       choices=["auto", "nessus", "qualys", "openvas", "nmap"],
+                       help="scan format (default: auto-detect)")
+    p_imp.add_argument("--reachability", default="subnet", choices=["subnet", "full_mesh"],
+                       help="INFERRED host-to-host reachability policy (default: subnet)")
+    p_imp.add_argument("--no-threat-data", action="store_true",
+                       help="skip EPSS/KEV lookup (CVSS-only costs)")
+    p_imp.set_defaults(func=cmd_import_scan)
+
     p_cmp = sub.add_parser("compare-baselines", help="CVSS-ranking vs NAMOA* Pareto (offline)")
     p_cmp.set_defaults(func=cmd_compare_baselines)
 
-    p_td = sub.add_parser("threat-data", help="download/inspect real EPSS + CISA KEV data")
+    p_td = sub.add_parser("threat-data",
+                          help="refresh/inspect EPSS + CISA KEV (+ NVD) with provenance & staleness")
     p_td.add_argument("--refresh", action="store_true", help="force re-download (ignores TTL)")
+    p_td.add_argument("--nvd", action="store_true",
+                      help="also refresh the NVD recent-changes window (per-CVE CVSS)")
+    p_td.add_argument("--nvd-days", type=int, default=1,
+                      help="NVD recent-changes window in days (default 1)")
     p_td.add_argument("--cve", nargs="*", default=["CVE-2021-44228", "CVE-2017-0144"],
                       help="CVEs to look up after loading")
     p_td.set_defaults(func=cmd_threat_data)

@@ -65,6 +65,17 @@ _LATERAL_TIME_CROSS_ZONE = 5.0
 
 
 @dataclass
+class LateralPrior:
+    """The (heuristic) lateral-movement prior, made explicit so it can be VARIED for a
+    sensitivity study (roadmap B3) rather than baked into module constants. Defaults
+    reproduce the historical behavior exactly."""
+    same_zone_success: float = _LATERAL_SUCCESS_SAME_ZONE
+    cross_zone_success: float = _LATERAL_SUCCESS_CROSS_ZONE
+    same_zone_time: float = _LATERAL_TIME_SAME_ZONE
+    cross_zone_time: float = _LATERAL_TIME_CROSS_ZONE
+
+
+@dataclass
 class VulnSpec:
     """One vulnerability present on a host. EPSS/KEV are looked up from the threat
     provider by ``cve_id`` at build time; ``cvss_vector`` drives the CVSS sub-scores."""
@@ -118,14 +129,15 @@ def _discovery_cost() -> EdgeCostVector:
     return cost
 
 
-def _lateral_cost(same_zone: bool) -> EdgeCostVector:
+def _lateral_cost(same_zone: bool, prior: Optional["LateralPrior"] = None) -> EdgeCostVector:
     """Heuristic cost of pivoting from a compromised host to an adjacent one.
 
     Same-zone pivots are easier/faster than cross-zone (segmentation). Flagged as a
     heuristic prior in metadata — NOT data-grounded (see module note)."""
+    prior = prior or LateralPrior()
     cost = EdgeCostVector.create_default()
-    t = _LATERAL_TIME_SAME_ZONE if same_zone else _LATERAL_TIME_CROSS_ZONE
-    p = _LATERAL_SUCCESS_SAME_ZONE if same_zone else _LATERAL_SUCCESS_CROSS_ZONE
+    t = prior.same_zone_time if same_zone else prior.cross_zone_time
+    p = prior.same_zone_success if same_zone else prior.cross_zone_success
     cost.components[CostType.TIME_TO_EXPLOIT] = create_time_cost(t)
     cost.components[CostType.SUCCESS_PROBABILITY] = create_probability_cost(p)
     cost.components[CostType.BUSINESS_IMPACT] = create_impact_cost(0, 0, 1)
@@ -142,6 +154,9 @@ def build_network(
     spec: NetworkSpec,
     provider=None,
     logger: Optional[ResearchLogger] = None,
+    lateral_prior: Optional["LateralPrior"] = None,
+    success_params=None,
+    max_lateral_per_host: Optional[int] = None,
 ) -> AttackGraph:
     """Build the canonical multi-host ``AttackGraph`` from ``spec``.
 
@@ -150,12 +165,21 @@ def build_network(
         provider: optional ``ThreatDataProvider`` for EPSS/KEV lookups; passed to the
             data cost model. ``None`` => cost model falls back to CVSS-only (recorded).
         logger: research logger.
+        success_params: optional ``core.cost_model.SuccessParams`` override for the
+            success-probability heuristic multipliers (roadmap B6 sensitivity); passed
+            through to the data cost model. ``None`` => shipped defaults.
+        max_lateral_per_host: optional cap on the number of lateral pivot targets kept per
+            source host (roadmap D3 density-explosion handling). ``None`` => keep all (the
+            shipped behavior). When set, the K most-accessible targets are kept (same-zone
+            before cross-zone, deterministic tie-break), bounding lateral edges to O(H·K)
+            instead of O(H²) on densely-reachable networks.
 
     Returns:
         An ``AttackGraph`` with entry points and goal nodes set, ready for
         ``run_namoa_star`` and ``refine_graph_costs``.
     """
     logger = logger or get_default_logger()
+    prior = lateral_prior or LateralPrior()
     graph = AttackGraph(name=spec.name, logger=logger)
 
     entry = EntryPointNode(
@@ -210,6 +234,7 @@ def build_network(
                     asset_criticality=host.criticality,
                 ),
                 provider=provider,
+                success_params=success_params,
             )
             graph.add_edge(vuln.id, exploit.id, EdgeType.VULN_ENABLES_EXPLOIT, exploit_cost)
             exploits_of[host.host_id].append(exploit)
@@ -228,18 +253,27 @@ def build_network(
     # Lateral movement: compromising a host (reaching one of its exploits) lets the
     # attacker pivot to any host reachable from it.
     zone_of = {h.host_id: h.network_zone for h in spec.hosts}
-    lateral_edges = 0
+    targets_by_src: Dict[str, List[Tuple[str, bool]]] = {}
     for from_id, to_id in spec.reachability:
         if from_id not in asset_of or to_id not in asset_of:
             logger.warning("GRAPH", f"reachability {from_id}->{to_id} references unknown host")
             continue
         same_zone = zone_of.get(from_id) == zone_of.get(to_id)
-        for exploit in exploits_of.get(from_id, []):
-            graph.add_edge(
-                exploit.id, asset_of[to_id].id,
-                EdgeType.ASSET_REACHES_ASSET, _lateral_cost(same_zone),
-            )
-            lateral_edges += 1
+        targets_by_src.setdefault(from_id, []).append((to_id, same_zone))
+
+    lateral_edges = 0
+    for from_id, targets in targets_by_src.items():
+        if max_lateral_per_host is not None and len(targets) > max_lateral_per_host:
+            # Keep the most-accessible pivots: same-zone (cheaper / higher-success) before
+            # cross-zone, deterministic tie-break by target id. Bounds lateral edges to O(H·K).
+            targets = sorted(targets, key=lambda t: (not t[1], t[0]))[:max_lateral_per_host]
+        for to_id, same_zone in targets:
+            for exploit in exploits_of.get(from_id, []):
+                graph.add_edge(
+                    exploit.id, asset_of[to_id].id,
+                    EdgeType.ASSET_REACHES_ASSET, _lateral_cost(same_zone, prior),
+                )
+                lateral_edges += 1
 
     logger.info(
         "GRAPH",

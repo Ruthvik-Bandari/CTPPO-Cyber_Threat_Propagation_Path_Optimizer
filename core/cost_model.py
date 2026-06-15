@@ -53,9 +53,31 @@ _P_EXEC_UNKNOWN = 0.70                       # AC not available
 _KEV_TIME_FACTOR = 0.5                       # mature tooling exists -> faster
 _AC_HIGH_TIME_FACTOR = 1.5                   # high complexity -> slower
 _KEV_EXIST_FLOOR = 0.90                      # KEV => exploit demonstrably exists/used
+_EPSS_MISSING_PRIOR = 0.05                   # conservative P(exists) when no EPSS data
 _TIME_BASE = 10.0                            # numerator for relative time
 _GNN_BLEND_WEIGHT = 0.5                      # GNN-refined exploitability vs rule prior
                                              #   (CALIBRATION TARGET, set by the A3 ablation)
+
+
+@dataclass
+class SuccessParams:
+    """The (heuristic) success-probability multipliers, made explicit so they can be VARIED
+    for a sensitivity study (roadmap B6) rather than baked into module constants. Defaults
+    reproduce the historical behavior exactly. All are calibration targets, not empirical:
+
+    - ``p_exec_by_ac``     P(execution succeeds | access), keyed by CVSS Attack Complexity.
+    - ``p_exec_unknown``   P(execution succeeds) when Attack Complexity is unavailable.
+    - ``kev_exist_floor``  floor on P(exploit exists & used) for CISA-KEV CVEs.
+    - ``epss_missing_prior`` P(exists) prior when no EPSS score is available.
+    """
+    p_exec_by_ac: Dict[str, float] = field(
+        default_factory=lambda: dict(_P_EXEC_BY_AC))
+    p_exec_unknown: float = _P_EXEC_UNKNOWN
+    kev_exist_floor: float = _KEV_EXIST_FLOOR
+    epss_missing_prior: float = _EPSS_MISSING_PRIOR
+
+
+DEFAULT_SUCCESS_PARAMS = SuccessParams()
 
 
 def parse_cvss31_vector(vector: str) -> Dict[str, str]:
@@ -112,20 +134,26 @@ def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 
 def success_probability(epss: Optional[float], is_kev: bool, ac: Optional[str],
-                        flags: List[str]) -> float:
-    """P(exploit exists & used) x P(execution succeeds). See spec 2.1."""
+                        flags: List[str],
+                        params: "SuccessParams" = DEFAULT_SUCCESS_PARAMS) -> float:
+    """P(exploit exists & used) x P(execution succeeds). See spec 2.1.
+
+    ``params`` exposes the heuristic multipliers (AC execution factors, KEV exist-floor,
+    EPSS-missing prior) so they can be varied for the B6 sensitivity study; the default
+    reproduces the shipped constants.
+    """
     if epss is not None:
         p_exists = epss
     else:
-        p_exists = 0.05          # conservative prior when no EPSS data
-        flags.append("epss_missing->prior_0.05")
+        p_exists = params.epss_missing_prior     # conservative prior when no EPSS data
+        flags.append(f"epss_missing->prior_{params.epss_missing_prior}")
     if is_kev:
-        p_exists = max(p_exists, _KEV_EXIST_FLOOR)
-    if ac in _P_EXEC_BY_AC:
-        p_exec = _P_EXEC_BY_AC[ac]
+        p_exists = max(p_exists, params.kev_exist_floor)
+    if ac in params.p_exec_by_ac:
+        p_exec = params.p_exec_by_ac[ac]
     else:
-        p_exec = _P_EXEC_UNKNOWN
-        flags.append("ac_unknown->p_exec_0.70")
+        p_exec = params.p_exec_unknown
+        flags.append(f"ac_unknown->p_exec_{params.p_exec_unknown}")
     return _clamp(p_exists * p_exec)
 
 
@@ -172,13 +200,17 @@ def business_impact(impact_sub: Optional[float], cvss_score: Optional[float],
     return round(max(0.0, min(10.0, impact * (0.5 + 0.5 * crit_factor))), 4)
 
 
-def build_edge_cost(inputs: EdgeCostInputs, provider=None) -> EdgeCostVector:
+def build_edge_cost(inputs: EdgeCostInputs, provider=None,
+                    success_params: Optional["SuccessParams"] = None) -> EdgeCostVector:
     """Build a data-grounded ``EdgeCostVector`` for one exploit step.
 
     Args:
         inputs: the vulnerability data.
         provider: optional ``ThreatDataProvider`` to look up EPSS/KEV when not supplied.
+        success_params: optional override for the success-probability heuristic multipliers
+            (roadmap B6 sensitivity); defaults to the shipped constants.
     """
+    success_params = success_params or DEFAULT_SUCCESS_PARAMS
     flags: List[str] = []
     grounded: Dict[str, bool] = {}
 
@@ -199,7 +231,7 @@ def build_edge_cost(inputs: EdgeCostInputs, provider=None) -> EdgeCostVector:
     impact_sub = impact_subscore(metrics)
     grounded["cvss_vector"] = bool(metrics)
 
-    p_success = success_probability(epss, is_kev, ac, flags)
+    p_success = success_probability(epss, is_kev, ac, flags, success_params)
     t_rel = time_to_exploit_relative(expl, is_kev, ac, flags)
     impact = business_impact(impact_sub, inputs.cvss_score, inputs.asset_criticality, flags)
 

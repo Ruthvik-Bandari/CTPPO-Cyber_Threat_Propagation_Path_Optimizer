@@ -1,6 +1,5 @@
-"""CTPPO distributable CLI client (Phase B / B5b).
+"""CTPPO local-first CLI client (open-source, no-auth).
 
-A subscription-tied command-line client that talks to the CTPPO API with an API key
-(issued via B5a). Commands: configure, login/whoami, scan. Run as `ctppo-cli ...`
-(console entry point) or `python3 -m cli ...`.
+A command-line client that talks to the local CTPPO API with no credentials. Command:
+`scan`. Run as `ctppo-cli ...` (console entry point) or `python3 -m cli ...`.
 """

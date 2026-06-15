@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Representative Qualys VM scan results. web01 (DMZ, 443, EternalBlue-era) ->
+     db01 (DB zone, 1433, Log4Shell goal). Qualys reports no CVSS vector, only a base
+     score + CVE list, so the success edge is grounded by EPSS/KEV (vector absent). -->
+<SCAN value="scan/123">
+  <IP value="10.0.1.10" name="web01">
+    <VULNS>
+      <CAT value="Web Server" port="443" protocol="tcp">
+        <VULN number="86476" severity="4">
+          <TITLE>Microsoft Windows SMB Remote Code Execution (MS17-010)</TITLE>
+          <CVSS_BASE>8.1</CVSS_BASE>
+          <CVE_ID_LIST>
+            <CVE_ID><ID>CVE-2017-0144</ID><URL>https://cve.mitre.org/CVE-2017-0144</URL></CVE_ID>
+          </CVE_ID_LIST>
+        </VULN>
+      </CAT>
+    </VULNS>
+  </IP>
+  <IP value="10.0.10.30" name="db01">
+    <VULNS>
+      <CAT value="Database" port="1433" protocol="tcp">
+        <VULN number="376160" severity="5">
+          <TITLE>Apache Log4j Remote Code Execution (Log4Shell)</TITLE>
+          <CVSS3_BASE>10.0</CVSS3_BASE>
+          <CVE_ID_LIST>
+            <CVE_ID><ID>CVE-2021-44228</ID></CVE_ID>
+          </CVE_ID_LIST>
+        </VULN>
+      </CAT>
+    </VULNS>
+  </IP>
+</SCAN>

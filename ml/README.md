@@ -1,84 +1,25 @@
-# CTPPO Complete ML Integration
+# CTPPO — ML components
 
-## 🎯 Quick Start
+The engine's ML is intentionally small and honest. Two pieces, both **optional** to the core
+exact NAMOA\* search. Canonical numbers live in `docs/RESEARCH/METRICS.md`.
 
-### 1. Copy to your CTPPO project
-```bash
-cp -r ml ~/Desktop/cyber_threat_optimizer/
-```
+## 1. Severity classifier (text-only) — `cve_classifier.py`
+DistilBERT over the CVE **description** → {CRITICAL, HIGH, MEDIUM, LOW}. It deliberately does
+**not** take the CVSS score/vector as input — that would be circular (the label is a threshold on
+that score). Honest held-out **macro-F1 = 0.729** (majority baseline 0.102). See
+`docs/RESEARCH/A4_SEVERITY_CLASSIFIER.md`. Train with `ml/train_severity.py`.
 
-### 2. Copy your trained models
-```bash
-cp ~/Desktop/ctppo_ml_training/training/checkpoints/gnn_predictor/best_gnn_model.pt \
-   ~/Desktop/cyber_threat_optimizer/ml/trained_models/
+## 2. GNN exploitability refiner — `ml/gnn/` + `evaluation/pignn_path_recovery.py`
+A small GCN that refines per-edge success probability from graph structure, blended with the
+rule-based EPSS/KEV/CVSS cost.
+- Real PIGNN Active-Directory dataset: **0.956 ROC-AUC** for attack-path structure (vs 0.883
+  without message passing).
+- On our own synthetic graphs it only **matches** EPSS ranking on per-node AUC (honest mixed
+  result). See `A3_PIGNN_VALIDATION.md` / `A3_GNN_ABLATION.md`.
 
-cp ~/Desktop/ctppo_ml_training/training/checkpoints/rl_defender/best_rl_model.pt \
-   ~/Desktop/cyber_threat_optimizer/ml/trained_models/
-```
-
-### 3. Test
-```bash
-cd ~/Desktop/cyber_threat_optimizer
-python3 ml/ctppo_ml.py
-```
-
-### 4. Use in your code
-```python
-from ml.ctppo_ml import CTPPOPipeline
-
-pipeline = CTPPOPipeline()
-results = pipeline.analyze(your_scan_results)
-
-print(f"Risk: {results['risk_score']}/10")
-print(f"Top Action: {results['recommendations'][0]['action']}")
-```
-
-## 📁 Structure
-
-```
-ml/
-├── ctppo_ml.py              # Main integration (use this!)
-├── trained_models/          # Your trained .pt files go here
-│   ├── best_gnn_model.pt
-│   └── best_rl_model.pt
-└── models/                  # Model architectures
-    ├── gnn_predictor/
-    ├── rl_defender/
-    └── severity_classifier/
-```
-
-## 📊 Components
-
-| Component | Method | Status |
-|-----------|--------|--------|
-| Severity | CVSS Rules | Always works |
-| GNN Risk | ML Model | Needs best_gnn_model.pt |
-| RL Defense | ML Model | Needs best_rl_model.pt |
-
-## 🔧 API
-
-```python
-from ml.ctppo_ml import CTPPOPipeline
-
-pipeline = CTPPOPipeline()
-
-# Full analysis
-results = pipeline.analyze({"vulnerabilities": [...]})
-
-# Quick severity
-severity = pipeline.get_severity(9.5)  # "CRITICAL"
-
-# Quick risk score
-score = pipeline.quick_score(vulnerabilities)  # 7.8
-```
-
-## 📈 Training Results
-
-| Model | Performance |
-|-------|-------------|
-| Severity | 100% (rule-based) |
-| GNN | 97.6% accuracy |
-| RL | 5000 episodes |
-
----
-**Author:** Ruthvik Bandari | Northeastern University
+## Removed legacy prototype
+An earlier prototype (`ctppo_ml.py` `CTPPOPipeline` + a DuelingDQN defender + an nltk-based
+`data_preprocessor`) has been **removed** — it was never used by the engine or API. The shipping
+system uses **exact NAMOA\* search (no RL)** plus the two components above. Earlier "GNN 97.6%
+accuracy on 276K CVEs" / "RL 5000 episodes" claims referred to that prototype — see
+`docs/RESEARCH/METRICS.md` §4.

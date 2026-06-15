@@ -29,6 +29,8 @@ Everything we build serves proving or disproving that sentence against baselines
 | GRAIN (Comput. & Secur., 2024) | GNN+RL reconstructs multi-step attack scenarios | single | alert causality | no |
 | RL-GNN fusion (Sci. Rep., 2025) | RL optimizes GNN risk prioritization (+15.7% AUROC) | single | CVSS impact | no |
 | EPSS (Jacobs et al., FIRST) | ML probability a CVE is exploited in 30 days | n/a | **real exploit data** | n/a |
+| **XM Cyber** (commercial APM / CTEM) | choke-point analysis: "fix the issue on the most attack paths"; identity/AD-centric | single (path count) | exploitability + identity | heuristic (not exact Pareto) |
+| **BAS** (Horizon3 NodeZero, Pentera, Cymulate, SafeBreach) | autonomously *validate* exploitability by chaining real exploits/credentials | n/a (validation) | real (executes) | n/a |
 
 **Reading of the field:**
 - GNN-for-attack-path *identification* is solved and crowded (SPGNN-API, MDPI, GRAIN).
@@ -36,6 +38,11 @@ Everything we build serves proving or disproving that sentence against baselines
   off attacker *time vs. probability vs. stealth/impact*.
 - They ground costs in **CVSS severity**, not EPSS exploit-likelihood.
 - None couple learned costs with a **classical exact multi-objective optimizer (NAMOA*)**.
+- A large **commercial** category (XM Cyber APM/CTEM; Horizon3/Pentera/Cymulate/SafeBreach BAS)
+  already prioritizes by attack paths — XM Cyber's pitch is literally "fix the vuln on the most
+  paths" (choke-point analysis). So **choke-point prioritization is prior art, not our novelty**;
+  and BAS tools *validate* exploitability by execution while CTPPO *estimates* probability — we
+  are a **model, not a validator**.
 
 ## 3. The gap we claim (precise)
 
@@ -49,7 +56,10 @@ The intersection is open:
    GNN actually beats the rule-based prior (ablation), instead of asserting a GNN exists.
 
 The defensible novelty is the **combination (1)+(2)+(3) with an honest ablation**, not any
-single piece. If a reviewer asks "why not just EPSS-rank the CVEs?", the answer is the
+single piece — and explicitly **not** choke-point prioritization itself (XM Cyber's commercial
+APM already does "fix the vuln on the most paths"). What is unoccupied: an *exact multi-objective
+Pareto front* (effort vs probability vs impact trade-offs, not a single path count) over
+**EPSS/KEV-grounded** costs with an **openly-reproducible** honest learned-refiner ablation. If a reviewer asks "why not just EPSS-rank the CVEs?", the answer is the
 Pareto front exposes trade-offs a scalar ranking hides (e.g., a slow-but-certain path vs. a
 fast-but-noisy one) — and we must *show* that this matters empirically.
 
@@ -88,3 +98,6 @@ changes a remediation decision vs. EPSS-ranking.
 - RL-GNN fusion: <https://www.nature.com/articles/s41598-025-25200-3>
 - EPSS: <https://arxiv.org/abs/1908.04856> · <https://dl.acm.org/doi/10.1145/3436242> · <https://www.first.org/epss/>
 - CISA KEV catalog: <https://www.cisa.gov/known-exploited-vulnerabilities-catalog>
+- XM Cyber (attack-path management / choke-points): <https://www.xmcyber.com/>
+- Horizon3 NodeZero (autonomous pentest / BAS): <https://www.horizon3.ai/>
+- Breach-and-attack-simulation category: Cymulate · Pentera · SafeBreach.

@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-CTPPO v3.0 - Secure FastAPI Backend
+CTPPO — Cyber Threat Propagation Path Optimizer (open-source, local-first API)
 ====================================
 
-Production-ready API with:
-- JWT Authentication
-- 2FA (TOTP) Support  
-- Secure Password Hashing
+Local-first: no authentication, accounts, or subscription — every request runs as a
+single implicit local user. Serves the attack-path engine + scanning + reports.
 
 Author: Ruthvik Bandari
 Date: January 2026
@@ -14,53 +12,24 @@ Date: January 2026
 
 import os
 import sys
-import asyncio
 import time
-import secrets
 import urllib.parse
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
 import torch
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # transformers is imported lazily inside the severity-classifier load path
 # (ml/cve_classifier.py) so the API imports/runs even when transformers is absent.
 
-# JWT and 2FA
-
-# Database
-from database import (
-    init_db, is_db_available, db_create_user, db_get_user, db_update_user, db_user_exists,
-    db_create_product_key, db_get_product_key, db_get_all_product_keys, db_mark_key_used, db_delete_product_key,
-    db_create_subscription, db_get_subscription, db_get_all_subscriptions, db_delete_subscription
-)
-# B1: canonical user store + server-side Redis sessions + session-auth router
-from user_store import UserStore, public_view
-from persistence import default_persistence
-from passwords import hash_password, verify_password
-from session_store import SessionStore
-from auth_routes import create_auth_router, SESSION_COOKIE
-# B2: one canonical subscription + product-key store (replaces the duplicated copies)
-from subscription_store import subscriptions, is_owner, OWNER_EMAILS
-# B3: instances (scan/analysis workspaces) with CRUD
+# Instances (scan/analysis workspaces) — the one platform piece kept for local-first,
+# open-source use (single local user, no auth / subscription).
 from instance_store import instances as instance_store
 from instance_routes import create_instance_router
-# B4: enterprise organizations + RBAC
-from org_store import orgs as org_store
-from org_routes import create_org_router
-# B5a: subscription-tied API keys for the CLI / CI
-from api_key_store import api_keys, KEY_PREFIX
-from api_key_routes import create_api_key_router
-import jwt
-import pyotp
-import qrcode
-from io import BytesIO
-import base64
 
 # Add ml directory
 sys.path.insert(0, str(Path(__file__).parent.parent / "ml"))
@@ -75,42 +44,14 @@ from algorithms.namoa_star import run_namoa_star
 # CONFIGURATION
 # ============================================================================
 
-SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_urlsafe(32))
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
-TOTP_ISSUER = "CTPPO Security"
-
-
-# ============================================================================
-# USER STORE + SESSIONS (B1)
-# ============================================================================
-
-# Admin Configuration
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
-
-# Canonical user store (B1). It is dict-like, so the existing server code keeps using
-# USERS_DB[email] / email in USERS_DB unchanged, while the session-auth router shares
-# the same object. Passwords are salted (bcrypt/PBKDF2), not the old unsalted sha256.
-USERS_DB = UserStore(persistence=default_persistence("users"))
-USERS_DB["admin@ctppo.io"] = {
-    "id": "usr_001",
-    "email": "admin@ctppo.io",
-    "name": "Admin User",
-    "password_hash": hash_password("admin123"),
-    "totp_secret": None,
-    "is_2fa_enabled": False,
-    "role": "admin",
-    "created_at": "2026-01-01T00:00:00Z",
+# Local-first, open-source: no auth, accounts, or subscription. Every request runs as a
+# single implicit local user (see get_current_user below).
+LOCAL_USER = {
+    "id": "local",
+    "email": "local@ctppo",
+    "name": "Local User",
+    "role": "owner",
 }
-
-# Server-side session store: Redis when REDIS_URL is set, else a labeled in-memory
-# fallback for local dev (see api/session_store.py).
-sessions = SessionStore()
-
-
-# Subscription + product-key logic now lives in api/subscription_store.py (imported as
-# `subscriptions` + is_owner above). The dashboard gate is enforced in get_current_user.
 
 # ============================================================================
 # MODEL CONFIG
@@ -141,46 +82,11 @@ class AppState:
     val_f1: float = 0.0
 
 state = AppState()
-# auto_error=False so requests authenticated by session cookie (no Authorization
-# header) are not rejected before get_current_user can check the cookie.
-security = HTTPBearer(auto_error=False)
 
 
 # ============================================================================
 # PYDANTIC MODELS
 # ============================================================================
-
-# Signup/login request models now live with the session-auth router (api/auth_routes.py).
-# LoginResponse is still used by the 2FA endpoints below.
-
-class LoginResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    requires_2fa: bool = False
-    temp_token: Optional[str] = None
-    user: Optional[Dict] = None
-
-
-class Verify2FARequest(BaseModel):
-    temp_token: str
-    code: str
-
-
-class Setup2FAResponse(BaseModel):
-    secret: str
-    qr_code: str
-    uri: str
-
-
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    name: str
-    role: str
-    is_2fa_enabled: bool
-    created_at: str
-
 
 class CVEClassifyRequest(BaseModel):
     description: str                       # the model predicts severity from this text
@@ -234,93 +140,14 @@ class AttackPathResponse(BaseModel):
 
 
 # ============================================================================
-# AUTH HELPERS
+# LOCAL USER (no auth — open-source local-first)
 # ============================================================================
 
-def create_token(data: dict, expires_delta: timedelta) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + expires_delta
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-def verify_token(token: str) -> Optional[dict]:
-    try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except jwt.PyJWTError:
-        return None
-
-
-def generate_qr_code(email: str, secret: str) -> tuple[str, str]:
-    totp = pyotp.TOTP(secret)
-    uri = totp.provisioning_uri(name=email, issuer_name=TOTP_ISSUER)
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(uri)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buffer = BytesIO()
-    img.save(buffer, format='PNG')
-    return f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode()}", uri
-
-
-async def get_authenticated_user(
-    request: Request,
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> dict:
-    """Resolve the current user from the B1 session cookie or a JWT bearer token.
-
-    Does NOT enforce a subscription — use this for endpoints a signed-in but
-    not-yet-subscribed user must still reach (e.g. activating a product key).
-    """
-    email = None
-    # 1. Server-side session cookie (B1) — the primary mechanism (browsers).
-    sid = request.cookies.get(SESSION_COOKIE)
-    if sid:
-        session = sessions.get_session(sid)
-        if session:
-            email = session.get("email")
-    # 2. API key (B5a) — for the CLI / CI. Via X-API-Key, or a `ctppo_`-prefixed bearer.
-    if email is None:
-        api_key = request.headers.get("X-API-Key")
-        if not api_key and creds is not None and creds.credentials.startswith(KEY_PREFIX):
-            api_key = creds.credentials
-        if api_key:
-            email = api_keys.resolve(api_key)
-    # 3. Fall back to a JWT bearer token (legacy / non-browser API clients).
-    if email is None and creds is not None and not creds.credentials.startswith(KEY_PREFIX):
-        payload = verify_token(creds.credentials)
-        if payload:
-            email = payload.get("sub")
-            jwt_user = USERS_DB.get(email)
-            if jwt_user and jwt_user["is_2fa_enabled"] and not payload.get("2fa_ok"):
-                raise HTTPException(status_code=401, detail="2FA required")
-    if email is None or email not in USERS_DB:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return USERS_DB[email]
-
-
-async def get_current_user(user: dict = Depends(get_authenticated_user)) -> dict:
-    """Authenticated AND subscription-gated (B2). Owners bypass. Used by every product
-    endpoint — the dashboard/features are unlocked only with an active subscription."""
-    if not is_owner(user["email"]):
-        sub = subscriptions.check_subscription(user["email"])
-        if not sub["has_subscription"]:
-            raise HTTPException(status_code=403, detail="No active subscription. Please activate a product key.")
-    return user
-
-
-async def get_enterprise_user(user: dict = Depends(get_current_user)) -> dict:
-    """Authenticated + active subscription AND specifically the enterprise tier (owners
-    bypass). Gates organization creation on an enterprise plan (B4 deferred item)."""
-    if is_owner(user["email"]):
-        return user
-    sub = subscriptions.check_subscription(user["email"])
-    if sub.get("subscription_type") != "enterprise":
-        raise HTTPException(
-            status_code=403,
-            detail="An enterprise subscription is required to create an organization.",
-        )
-    return user
+async def get_current_user() -> dict:
+    """There is no authentication. Every request runs as the single local user. Kept as a
+    FastAPI dependency so route signatures (and the instance router) are unchanged from
+    when this was a multi-user app."""
+    return LOCAL_USER
 
 
 # ============================================================================
@@ -378,16 +205,7 @@ def classify_cve(req: CVEClassifyRequest) -> CVEClassifyResponse:
 
 
 async def lifespan(app: FastAPI):
-    # Initialize database (with error handling)
-    try:
-        init_db()
-    except Exception as e:
-        print(f"⚠️ Database init failed: {e}")
-    # Load model in background (non-blocking)
-    async def load_model_bg():
-        await asyncio.sleep(1)  # Let server start first
-        load_model(os.environ.get("MODEL_DIR", DEFAULT_MODEL_DIR))
-    # asyncio.create_task(load_model_bg())  # Disabled - causes OOM on free tier
+    # The severity classifier loads lazily on first /api/classify call. Nothing to init.
     yield
 
 
@@ -426,93 +244,11 @@ async def security_headers(request: Request, call_next):
         response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 
-# B1: session-based auth (signup / login / logout / forgot-password / reset-password).
-# Replaces the old stateless-JWT register/login below; shares the canonical USERS_DB and
-# the server-side session store so logout is a real revocation.
-app.include_router(create_auth_router(USERS_DB, sessions))
-# B3: instance CRUD, gated by get_current_user (auth + active subscription) and owner-scoped.
+# Instance CRUD (local scan/analysis workspaces). The current-user dependency is the local
+# no-auth stub, so all instances belong to the single local user.
 app.include_router(create_instance_router(instance_store, get_current_user))
-# B4: enterprise orgs + RBAC, subscription-gated; org *creation* additionally requires the
-# enterprise tier (get_enterprise_user); per-org admin/member enforced in the store.
-app.include_router(create_org_router(org_store, get_current_user, create_user=get_enterprise_user))
-# B5a: API-key management (issue/list/revoke), session-authenticated + subscription-gated.
-app.include_router(create_api_key_router(api_keys, get_current_user))
 
 
-@app.get("/api/auth/whoami")
-async def whoami(user: dict = Depends(get_authenticated_user)):
-    """Identity for the current credential — session cookie, API key, or JWT. Used by the
-    B5 CLI to validate a key. No subscription gate here (see /api/subscription/status)."""
-    return {"user": public_view(user)}
-
-
-# ============================================================================
-# AUTH ENDPOINTS
-# ============================================================================
-# signup / login / logout / forgot-password / reset-password are provided by the
-# session-auth router mounted above (api/auth_routes.py). The 2FA endpoints below remain
-# JWT-flavoured for now; reconciling 2FA with sessions is a later Phase-B step.
-
-@app.post("/api/auth/verify-2fa", response_model=LoginResponse)
-async def verify_2fa(req: Verify2FARequest):
-    payload = verify_token(req.temp_token)
-    if not payload or payload.get("type") != "2fa_pending":
-        raise HTTPException(401, "Invalid token")
-    
-    email = payload["sub"]
-    user = USERS_DB.get(email)
-    if not user or not user["totp_secret"]:
-        raise HTTPException(401, "2FA not configured")
-    
-    if not pyotp.TOTP(user["totp_secret"]).verify(req.code, valid_window=1):
-        raise HTTPException(401, "Invalid 2FA code")
-    
-    access_token = create_token({"sub": email, "2fa_ok": True}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    refresh_token = create_token({"sub": email, "type": "refresh"}, timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
-    
-    return LoginResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user={"id": user["id"], "email": user["email"], "name": user["name"], "role": user["role"], "is_2fa_enabled": True}
-    )
-
-
-@app.post("/api/auth/setup-2fa", response_model=Setup2FAResponse)
-async def setup_2fa(user: dict = Depends(get_current_user)):
-    secret = pyotp.random_base32()
-    qr_code, uri = generate_qr_code(user["email"], secret)
-    USERS_DB[user["email"]]["totp_secret"] = secret
-    return Setup2FAResponse(secret=secret, qr_code=qr_code, uri=uri)
-
-
-@app.post("/api/auth/enable-2fa")
-async def enable_2fa(request: dict, user: dict = Depends(get_current_user)):
-    code = request.get("code") or request.get("totp_code")
-    if not code:
-        raise HTTPException(400, "Code is required")
-    secret = USERS_DB[user["email"]].get("totp_secret")
-    if not secret:
-        raise HTTPException(400, "Setup 2FA first")
-    if not pyotp.TOTP(secret).verify(code, valid_window=1):
-        raise HTTPException(401, "Invalid code")
-    USERS_DB[user["email"]]["is_2fa_enabled"] = True
-    return {"message": "2FA enabled"}
-
-
-@app.post("/api/auth/disable-2fa")
-async def disable_2fa(request: dict, user: dict = Depends(get_current_user)):
-    code = request.get("code") or request.get("totp_code")
-    if not code:
-        raise HTTPException(400, "Code is required")
-    secret = USERS_DB[user["email"]].get("totp_secret")
-    if not secret or not pyotp.TOTP(secret).verify(code, valid_window=1):
-        raise HTTPException(401, "Invalid code")
-    USERS_DB[user["email"]]["is_2fa_enabled"] = False
-    USERS_DB[user["email"]]["totp_secret"] = None
-    return {"message": "2FA disabled"}
-
-
-# /api/auth/me is provided by the session-auth router (api/auth_routes.py).
 
 
 # ============================================================================
@@ -561,6 +297,20 @@ def _get_threat_provider():
     if _threat_provider is None:
         _threat_provider = ThreatDataProvider()
     return _threat_provider
+
+
+@app.get("/api/threat-data/status")
+async def threat_data_status(user: dict = Depends(get_current_user)):
+    """Provenance + staleness of the cached threat feeds (EPSS / KEV / NVD) so a consumer
+    can see how fresh the grounding behind an attack-path analysis is. Honest by design:
+    a feed older than its TTL is reported ``stale`` (run the refresh job to update)."""
+    provider = _get_threat_provider()
+    staleness = provider.staleness()
+    return {
+        "provenance": provider.provenance(),
+        "staleness": staleness,
+        "any_stale": any(not s.get("fresh") for s in staleness.values()),
+    }
 
 
 def _format_pareto(graph, result):
@@ -640,6 +390,48 @@ async def sample_attack_paths(user: dict = Depends(get_current_user)):
     return {"paths": out["paths"], "risk_summary": out["risk_summary"],
             "network": {"nodes": graph.num_nodes, "edges": graph.num_edges},
             "processing_time_ms": round((time.time() - start) * 1000, 2)}
+
+
+class ScanImportRequest(BaseModel):
+    """Raw scanner-output XML to import into an attack graph (Phase 3b)."""
+    xml: str = Field(..., description="Nessus/Qualys/OpenVAS/nmap scan file contents")
+    format: str = Field("auto", description="auto | nessus | qualys | openvas | nmap")
+    reachability: str = Field("subnet", description="inferred topology policy: subnet | full_mesh")
+
+
+@app.post("/api/scan/import")
+async def import_scan(req: ScanImportRequest, user: dict = Depends(get_current_user)):
+    """Import a vulnerability-scanner output file and return Pareto attack paths.
+
+    Host vulnerabilities are data-grounded (from the scan + EPSS/KEV); the topology
+    (reachability/zones/entry/goal) is inferred and flagged — see `scan.topology_inferred`.
+    """
+    from scanners.scan_import import parse_scan, findings_to_network_spec
+    from core.network_builder import build_network
+    start = time.time()
+    try:
+        fmt, findings = parse_scan(req.xml, fmt=req.format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    spec = findings_to_network_spec(findings, name="api_scan_import",
+                                    reachability=req.reachability)
+    if not spec.hosts:
+        raise HTTPException(status_code=422, detail="no hosts/vulnerabilities found in scan")
+    graph = build_network(spec, provider=_get_threat_provider())
+    result = run_namoa_star(graph)
+    out = _format_pareto(graph, result)
+    vulns = [v for h in spec.hosts for v in h.vulnerabilities]
+    out["scan"] = {
+        "format": fmt,
+        "hosts": len(spec.hosts),
+        "vulnerabilities": len(vulns),
+        "findings": len(findings),
+        "topology_inferred": True,
+        "note": "host vulnerabilities are from the scan; reachability/zones/entry/goal are "
+                "inferred heuristics, not in the scan file",
+    }
+    out["processing_time_ms"] = round((time.time() - start) * 1000, 2)
+    return out
 
 
 # Store scan results for attack path generation
@@ -1545,113 +1337,5 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-# ============================================================================
-# REFRESH TOKEN ENDPOINT (Missing)
-# ============================================================================
-
-@app.post("/api/auth/refresh")
-async def refresh_token(request: dict):
-    """Refresh access token using refresh token."""
-    refresh_token = request.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(400, "Refresh token required")
-    
-    try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("type") != "refresh":
-            raise HTTPException(401, "Invalid token type")
-        
-        email = payload.get("sub")
-        if email not in USERS_DB:
-            raise HTTPException(401, "User not found")
-        
-        # Generate new access token
-        user = USERS_DB[email]
-        access_token = jwt.encode({
-            "sub": email,
-            "type": "access",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        }, SECRET_KEY, algorithm=ALGORITHM)
-        
-        return {
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "Refresh token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(401, "Invalid refresh token")
 
 
-# ============================================================================
-# SUBSCRIPTION + PRODUCT-KEY GATING (B2)
-# ============================================================================
-# All product-key / subscription logic lives in api/subscription_store.py (imported as
-# `subscriptions`). Activation and status are tied to the logged-in session user — no
-# email is trusted from the request body. Owners bypass the gate. Product endpoints
-# enforce the gate via Depends(get_current_user); the two endpoints here use
-# get_authenticated_user so a signed-in user with no subscription can still activate one.
-
-class ActivateRequest(BaseModel):
-    product_key: str
-
-
-@app.post("/api/subscription/activate")
-async def activate_subscription(req: ActivateRequest, user: dict = Depends(get_authenticated_user)):
-    """Activate a product key for the current session user."""
-    result = subscriptions.activate(req.product_key, user["email"])
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Activation failed"))
-    return result
-
-
-@app.get("/api/subscription/status")
-async def subscription_status(user: dict = Depends(get_authenticated_user)):
-    """Subscription status for the current user — drives dashboard gating."""
-    return subscriptions.check_subscription(user["email"])
-
-
-# --- Admin endpoints (gated by ADMIN_SECRET) --------------------------------------
-def _require_admin(secret: Optional[str]) -> None:
-    if secret != ADMIN_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid admin secret")
-
-
-@app.post("/api/admin/verify")
-async def verify_admin(request: dict):
-    _require_admin(request.get("admin_secret"))
-    return {"success": True}
-
-
-@app.post("/api/admin/generate-key")
-async def admin_generate_key(request: dict):
-    _require_admin(request.get("admin_secret"))
-    kd = subscriptions.create_product_key(
-        request.get("subscription_type", "individual"), int(request.get("validity_days", 365)))
-    return {"success": True, "product_key": kd["key"],
-            "subscription_type": kd["subscription_type"], "validity_days": kd["validity_days"]}
-
-
-@app.get("/api/admin/keys")
-async def get_all_keys(admin_secret: str):
-    _require_admin(admin_secret)
-    return {"keys": subscriptions.list_keys()}
-
-
-@app.get("/api/admin/activations")
-async def get_all_activations(admin_secret: str):
-    _require_admin(admin_secret)
-    return {"activations": subscriptions.list_activations()}
-
-
-@app.post("/api/admin/revoke-key")
-async def revoke_key(request: dict):
-    _require_admin(request.get("admin_secret"))
-    return {"success": subscriptions.revoke_key(request.get("product_key")), "message": "Key revoked"}
-
-
-# Seed a few demo product keys for local dev (retrievable via /api/admin/keys). Skip when a DB
-# is configured — otherwise every boot would persist three more demo keys and bloat the table.
-if not (os.environ.get("CTPPO_DB_URL") or os.environ.get("DATABASE_URL")):
-    for _demo_type, _demo_days in (("individual", 30), ("individual", 365), ("enterprise", 365)):
-        subscriptions.create_product_key(_demo_type, _demo_days)

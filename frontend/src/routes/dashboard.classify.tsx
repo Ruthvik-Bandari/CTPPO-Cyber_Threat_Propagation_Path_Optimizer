@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Loader2, BrainCircuit, Sparkles } from 'lucide-react'
-import { RequireSubscription } from '@/components/auth/guards'
 import { Button } from '@/components/ui/button'
 import { Badge, severityVariant } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -12,11 +11,7 @@ import { classifyApi, ApiError, type ClassifyResponse } from '@/api/client'
 import { formatTime } from '@/lib/utils'
 
 export const Route = createFileRoute('/dashboard/classify')({
-  component: () => (
-    <RequireSubscription>
-      <ClassifyPage />
-    </RequireSubscription>
-  ),
+  component: ClassifyPage,
 })
 
 function ClassifyPage() {

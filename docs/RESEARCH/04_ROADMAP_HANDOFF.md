@@ -279,7 +279,9 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   [`C_EVALUATION.md`](C_EVALUATION.md): 300 seeded multi-host networks, real EPSS-grounded
   costs. Measured: **top-fix divergence 92.3%** (CVSS-top ≠ Pareto-top); Pareto remediation
   recovers **84.6%** of oracle reachability-reduction vs **25.0%** for CVSS; Pareto ≥ CVSS in
-  **94.7%**. Tests: `tests/evaluation/test_phase_c_eval.py` (3). B1 (CVSS-ranking) + Proposed
+  **94.7%**. _(Refined 2026-06-15 to 92.0% / 84.1% / 24.0% / 94.0% after the Phase-2 NAMOA\*
+  parallel-edge completeness fix — < 1 pp; see METRICS.md §1/§6, the source of truth.)_
+  Tests: `tests/evaluation/test_phase_c_eval.py` (3). B1 (CVSS-ranking) + Proposed
   (Pareto-critical) + oracle implemented; B2 (shortest-path) + GNN+NAMOA* arms still to fold in
   (GNN per-node result is in A3).
 - **C2. Real-data path recovery + emulated testbed ✅ DONE; LIVE container/VM emulation

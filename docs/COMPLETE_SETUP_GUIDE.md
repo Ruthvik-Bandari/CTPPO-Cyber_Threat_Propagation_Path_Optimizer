@@ -1,3 +1,5 @@
+> ⚠️ **Historical / superseded.** This document predates the open-source, local-first conversion and may reference retired features (RL, subscriptions, enterprise, the "276K CVEs / 97.6%" prototype). Authoritative sources: `README.md`, `OVERVIEW.md`, `docs/RESEARCH/METRICS.md`.
+
 # CTPPO v2.0 - Complete Setup and Training Guide
 
 ## 📁 What You Downloaded vs What's In The Project

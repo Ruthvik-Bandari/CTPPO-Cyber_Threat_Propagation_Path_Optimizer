@@ -2,7 +2,6 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Boxes, Plus, FileText, Trash2, ArrowUpRight, Loader2 } from 'lucide-react'
-import { RequireSubscription } from '@/components/auth/guards'
 import { Button } from '@/components/ui/button'
 import { Badge, severityVariant } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/dialog'
@@ -12,11 +11,7 @@ import { instanceApi, ApiError, type Instance } from '@/api/client'
 import { formatDate } from '@/lib/utils'
 
 export const Route = createFileRoute('/dashboard/instances')({
-  component: () => (
-    <RequireSubscription>
-      <InstancesPage />
-    </RequireSubscription>
-  ),
+  component: InstancesPage,
 })
 
 function buildPayload(v: InstanceFormValues) {

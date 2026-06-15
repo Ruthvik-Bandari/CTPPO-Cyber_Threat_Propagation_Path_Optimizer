@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'motion/react'
 import { ShieldHalf, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAuthStore } from '@/stores/auth'
 
 const SECTIONS = [
   { href: '/#capabilities', label: 'Capabilities' },
@@ -12,9 +11,7 @@ const SECTIONS = [
 ]
 
 export function Nav() {
-  const status = useAuthStore((s) => s.status)
   const [open, setOpen] = useState(false)
-  const authed = status === 'authenticated'
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
@@ -45,20 +42,9 @@ export function Nav() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          {authed ? (
-            <Button asChild size="sm">
-              <Link to="/dashboard">Dashboard</Link>
-            </Button>
-          ) : (
-            <>
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/login">Sign in</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link to="/register">Get started</Link>
-              </Button>
-            </>
-          )}
+          <Button asChild size="sm">
+            <Link to="/dashboard">Open app</Link>
+          </Button>
         </div>
 
         <button
@@ -98,24 +84,13 @@ export function Nav() {
               About
             </Link>
             <div className="my-1 hairline" />
-            {authed ? (
-              <Link
-                to="/dashboard"
-                onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-2.5 text-sm font-medium text-cyber"
-              >
-                Dashboard
-              </Link>
-            ) : (
-              <div className="flex gap-2 px-1 pt-1">
-                <Button asChild variant="outline" size="sm" className="flex-1">
-                  <Link to="/login" onClick={() => setOpen(false)}>Sign in</Link>
-                </Button>
-                <Button asChild size="sm" className="flex-1">
-                  <Link to="/register" onClick={() => setOpen(false)}>Get started</Link>
-                </Button>
-              </div>
-            )}
+            <Link
+              to="/dashboard"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2.5 text-sm font-medium text-cyber"
+            >
+              Open app
+            </Link>
           </motion.div>
         )}
       </AnimatePresence>

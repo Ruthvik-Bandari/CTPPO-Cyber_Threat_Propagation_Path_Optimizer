@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Waypoints, Play, Loader2, Route as RouteIcon } from 'lucide-react'
-import { RequireSubscription } from '@/components/auth/guards'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ErrorState, EmptyState } from '@/components/dashboard/states'
@@ -13,11 +12,7 @@ import { attackPathApi, ApiError, type AttackPathResponse, type AttackPathNode, 
 import { formatTime, cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/dashboard/attack-paths')({
-  component: () => (
-    <RequireSubscription>
-      <AttackPathsPage />
-    </RequireSubscription>
-  ),
+  component: AttackPathsPage,
 })
 
 type Tab = 'sample' | 'custom'

@@ -18,8 +18,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Same-origin proxy in dev so the HttpOnly session cookie is sent without
-    // cross-origin CORS. Prod is served same-origin or behind the CORS allowlist.
+    // Same-origin proxy in dev so the frontend can call the local API at /api without CORS.
+    // Override the base URL in other setups with VITE_API_BASE.
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

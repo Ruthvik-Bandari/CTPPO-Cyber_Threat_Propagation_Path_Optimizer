@@ -244,10 +244,26 @@ class NAMOAStar:
         graph: AttackGraph,
         objective_types: Optional[List[CostType]] = None,
         objective_senses: Optional[List[ObjectiveSense]] = None,
-        logger: Optional[ResearchLogger] = None
+        logger: Optional[ResearchLogger] = None,
+        combine_impact: str = "max",
+        epsilon: float = 0.0,
     ):
         self.graph = graph
         self.logger = logger or get_default_logger()
+        # ε-Pareto / bounded-approximation fallback (roadmap D1): 0.0 = exact NAMOA*
+        # (default, complete Pareto set); epsilon > 0 keeps a smaller (1+ε)-approximate
+        # front by ε-dominance pruning. Sound here because every objective accumulates
+        # monotonically (time = sum, success surprisal = sum, impact = max, all ≥ 0), so
+        # ε-dominance on partial paths is preserved under extension to full paths.
+        if epsilon < 0.0:
+            raise ValueError(f"epsilon must be >= 0, got {epsilon}")
+        self.epsilon = epsilon
+        # How BUSINESS_IMPACT accumulates along a path: "max" (worst single host on
+        # the path, the shipped default) or "sum" (cumulative damage across hosts).
+        # Exposed for the B7 cost-combination sensitivity study. (See _combine_costs.)
+        if combine_impact not in ("max", "sum"):
+            raise ValueError(f"combine_impact must be 'max' or 'sum', got {combine_impact!r}")
+        self.combine_impact = combine_impact
         
         # Default objectives for cyber attack paths
         self.objective_types = objective_types or [
@@ -306,8 +322,10 @@ class NAMOAStar:
                 # Surprisal is additive: -log(∏ pᵢ) = Σ -log(pᵢ).
                 new_values.append(g_val + e_val)
             elif ct == CostType.BUSINESS_IMPACT:
-                # Impact takes maximum
-                new_values.append(max(g_val, e_val))
+                # Impact: worst single host on the path (default), or cumulative damage
+                # across hosts ("sum") — the B7 alternative.
+                new_values.append(g_val + e_val if self.combine_impact == "sum"
+                                  else max(g_val, e_val))
             elif ct == CostType.DETECTION_PROBABILITY:
                 # Detection probability compounds
                 p_g = g_val
@@ -371,14 +389,14 @@ class NAMOAStar:
         
         # Closed labels at each node - G_op(n) in NAMOA* terminology
         # Maps node_id -> set of non-dominated g-costs that have been expanded
-        closed_labels: Dict[str, ParetoSet] = {nid: ParetoSet() for nid in self.graph.nodes}
-        
+        closed_labels: Dict[str, ParetoSet] = {nid: ParetoSet(epsilon=self.epsilon) for nid in self.graph.nodes}
+
         # Open labels at each node - G_cl(n)
         # Maps node_id -> set of non-dominated g-costs in open list
-        open_labels: Dict[str, ParetoSet] = {nid: ParetoSet() for nid in self.graph.nodes}
-        
+        open_labels: Dict[str, ParetoSet] = {nid: ParetoSet(epsilon=self.epsilon) for nid in self.graph.nodes}
+
         # Goal labels - non-dominated paths that reached goals
-        goal_labels: ParetoSet = ParetoSet(self.objective_senses)
+        goal_labels: ParetoSet = ParetoSet(self.objective_senses, epsilon=self.epsilon)
         
         # Initialize with source labels. All objectives start at 0; for the success
         # surprisal -log(p) that means cumulative success = exp(-0) = 1.0 before any
@@ -571,27 +589,34 @@ def run_namoa_star(
     graph: AttackGraph,
     source_ids: Optional[Set[str]] = None,
     goal_ids: Optional[Set[str]] = None,
-    logger: Optional[ResearchLogger] = None
+    logger: Optional[ResearchLogger] = None,
+    combine_impact: str = "max",
+    use_heuristic: bool = True,
+    epsilon: float = 0.0,
 ) -> NAMOAStarResult:
     """
     Convenience function to run NAMOA* on an attack graph.
-    
-    Uses graph's entry points and goal nodes if not specified.
+
+    Uses graph's entry points and goal nodes if not specified. ``combine_impact``
+    selects how BUSINESS_IMPACT accumulates ("max" default, or "sum"); ``use_heuristic``
+    toggles A* pruning (set False to keep the exact Pareto set when using a non-default
+    combination rule whose admissible heuristic is not specialised). ``epsilon`` > 0 runs
+    the ε-Pareto bounded-approximation fallback (roadmap D1; 0.0 = exact, the default).
     """
     logger = logger or get_default_logger()
-    
+
     if source_ids is None:
         source_ids = graph.entry_points
     if goal_ids is None:
         goal_ids = graph.goal_nodes
-    
+
     if not source_ids:
         raise ValueError("No source nodes specified and graph has no entry points")
     if not goal_ids:
         raise ValueError("No goal nodes specified and graph has no goal nodes")
-    
-    namoa = NAMOAStar(graph, logger=logger)
-    return namoa.search(source_ids, goal_ids)
+
+    namoa = NAMOAStar(graph, logger=logger, combine_impact=combine_impact, epsilon=epsilon)
+    return namoa.search(source_ids, goal_ids, use_heuristic=use_heuristic)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Trash2, Loader2, FileText } from 'lucide-react'
-import { RequireSubscription } from '@/components/auth/guards'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -13,11 +12,7 @@ import { instanceApi, ApiError } from '@/api/client'
 import { formatDate } from '@/lib/utils'
 
 export const Route = createFileRoute('/dashboard/instances/$instanceId')({
-  component: () => (
-    <RequireSubscription>
-      <InstanceDetailPage />
-    </RequireSubscription>
-  ),
+  component: InstanceDetailPage,
 })
 
 function InstanceDetailPage() {

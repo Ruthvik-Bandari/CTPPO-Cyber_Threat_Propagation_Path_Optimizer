@@ -4,8 +4,7 @@ import {
   Database,
   BrainCircuit,
   Layers,
-  Building2,
-  KeyRound,
+  Radar,
   Terminal,
   CircleAlert,
 } from 'lucide-react'
@@ -50,30 +49,23 @@ const ENGINE: Capability[] = [
 
 const PLATFORM: Capability[] = [
   {
-    Icon: KeyRound,
-    title: 'Accounts & subscriptions',
-    body: 'Server-side session authentication with an HttpOnly cookie (revocable logout), salted password hashing, and password reset. The dashboard unlocks only when a product key is activated and the subscription is active.',
-  },
-  {
     Icon: Layers,
     title: 'Instances (workspaces)',
-    body: 'Each scan or analysis lives in an owner-scoped instance with full CRUD — a prompt, a target spec and file metadata. You only ever see your own.',
+    body: 'Each scan or analysis lives in an instance with full CRUD — a prompt, a target spec and file metadata. Open-source and local-first, with no account required.',
   },
   {
-    Icon: Building2,
-    title: 'Enterprise tier',
-    body: 'Organizations with a seat allotment and role-based access control: the creator is the first admin, admins manage membership and roles, the last admin is protected, and members can view the roster.',
+    Icon: Radar,
+    title: 'Scanning',
+    body: 'Probe a host or URL for security-header, TLS and exposure issues. A built-in scanner is always available; nmap and ZAP are used when installed, and the platform degrades gracefully when they are not.',
   },
   {
     Icon: Terminal,
-    title: 'API keys & CI/CD client',
-    body: 'Issue subscription-tied API keys (shown once, stored only as a hash) and drive the platform from a distributable pip client — walk a repository, run the model-assisted reviewer, and submit results as an instance. Built for pipelines.',
+    title: 'CI/CD client',
+    body: 'Drive the platform from a distributable pip client — walk a repository, run the model-assisted reviewer, and submit results as an instance. Built for pipelines.',
   },
 ]
 
 const STUBS = [
-  'In-memory stores (subscriptions, instances, orgs, API keys) are not yet backed by Postgres/Redis.',
-  'Password-reset email delivery is stubbed in development — the reset token is returned in the response rather than emailed.',
   'The CLI scans local paths only; SSH login and remote Git clone/verification are not implemented yet.',
   'The LLM code reviewer needs the anthropic package and an API key to produce findings; otherwise it degrades to metadata only.',
 ]

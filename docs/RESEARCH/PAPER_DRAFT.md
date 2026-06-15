@@ -14,10 +14,12 @@ vulnerability is often irrelevant to an attacker's path to a crown-jewel asset. 
 **CTPPO**, a system that (a) grounds attack-graph edge costs in real exploit-likelihood data
 (EPSS, CISA KEV) and CVSS sub-scores rather than CVSS severity alone, and (b) surfaces attacks
 as the **multi-objective Pareto front** over *attacker effort*, *success probability*, and
-*business impact*, computed exactly with NAMOA\*. On 300 seeded synthetic multi-host networks
-with real EPSS-grounded costs, the Pareto-critical remediation recovers **84.6%** of the
-maximum achievable attacker-reachability reduction, versus **25.0%** for CVSS-severity ranking;
-the two methods recommend a *different* top fix in **92.3%** of networks. We also report an
+*business impact*, computed exactly with NAMOA\*. On 300 synthetic multi-host networks **deliberately seeded with
+the high-CVSS-off-path dead ends that CVSS ranking gets wrong** (a *mechanism* result, not a
+base-rate claim for production networks — see §4.1 and §5), the Pareto-critical remediation
+recovers **84.1%** of the maximum achievable attacker-reachability reduction, versus **24.0%**
+for CVSS-severity ranking;
+the two methods recommend a *different* top fix in **92.0%** of networks. We also report an
 honest ablation of a GNN cost-refiner (it improves calibration but only matches EPSS ranking
 on per-node AUC) and an external validation on a real Active-Directory dataset (ROC-AUC
 **0.956** with message passing vs 0.883 without). A deliberately text-only CVE-severity
@@ -59,11 +61,22 @@ probability vs. business impact) computed with NAMOA\*, rather than as a single 
 | GRAIN (Comput. & Secur., 2024) | multi-step scenario reconstruction | single | alert causality | no |
 | RL-GNN fusion (Sci. Rep., 2025) | risk prioritization | single | CVSS impact | no |
 | EPSS (Jacobs et al., FIRST) | 30-day exploit probability | — | **real exploit data** | — |
+| XM Cyber (commercial APM / CTEM) | choke-point "fix the issue on most paths" | single (path count) | exploitability + identity | no |
+| BAS (Horizon3 NodeZero, Pentera, Cymulate, SafeBreach) | *validates* exploitability by executing chains | — | real (executes) | — |
 
 GNN-based attack-path *identification* is crowded, but those systems emit a **single** score
 and ground costs in **CVSS severity**. None produce a Pareto front trading attacker
 time/probability/impact, and none couple learned costs with a classical exact multi-objective
 optimizer. CTPPO targets exactly that intersection.
+
+A large **commercial** category (attack-path management / breach-and-attack-simulation / CTEM)
+also prioritizes by attack paths: XM Cyber's pitch is literally "fix the vulnerability on the
+most paths" (choke-point analysis), and BAS tools such as Horizon3's NodeZero *prove*
+exploitability by chaining real exploits and credentials. CTPPO is therefore **not** novel for
+choke-point prioritization itself; it differs by computing an **exact multi-objective Pareto
+front** (effort vs probability vs impact, not a single path count) over **EPSS/KEV-grounded**
+costs with an **openly-reproducible honest ablation** — and by being a **model** (estimates path
+probability), not a **validator** (executes exploits).
 
 ## 3. Method
 
@@ -115,9 +128,9 @@ removal).
 | | CVSS fix | **Pareto fix** | Oracle |
 |---|:---:|:---:|:---:|
 | Mean reachability reduction | 0.022 | **0.078** | 0.084 |
-| Oracle reduction recovered | 25.0% | **84.6%** | 100% |
+| Oracle reduction recovered | 24.0% | **84.1%** | 100% |
 
-Top-fix divergence (CVSS-top ≠ Pareto-top): **92.3%**; Pareto fix ≥ CVSS fix in **94.7%** of
+Top-fix divergence (CVSS-top ≠ Pareto-top): **92.0%**; Pareto fix ≥ CVSS fix in **94.0%** of
 networks. *Honesty:* the generator biases extra edges to high CVSS (the realistic failure mode),
 so these are a **mechanism/existence** result on a synthetic distribution, not a base-rate claim
 for production networks.
@@ -151,7 +164,7 @@ macro-F1 (dedup'd, leakage-free split) vs **0.10** majority baseline.
 ## 6. Conclusion
 Grounding attack-graph costs in real exploit-likelihood data and surfacing Pareto-optimal paths
 with NAMOA\* changes *which* remediation a defender should pick — and, on a synthetic testbed,
-the change recovers far more attacker-reachability reduction than CVSS ranking (84.6% vs 25.0% of
+the change recovers far more attacker-reachability reduction than CVSS ranking (84.1% vs 24.0% of
 the oracle). The contribution is the intersection no prior system occupies: EPSS/KEV-grounded
 costs + exact multi-objective Pareto search + an honestly-ablated learned refiner.
 
@@ -173,4 +186,5 @@ python3 ml/train_severity.py                  # §4.4 severity classifier
 Ou et al., *MulVAL*, USENIX Security 2005 · Mandow & Pérez de la Cruz, *NAMOA\**, IJCAI 2005 ·
 SPGNN-API, arXiv:2305.19487 · Physics-Informed GNN for attack paths, MDPI 2025 · GRAIN,
 Computers & Security 2024 · RL-GNN fusion, Scientific Reports 2025 · Jacobs et al., *EPSS*,
-FIRST · CISA Known Exploited Vulnerabilities Catalog · CVSS v3.1 Specification, FIRST.
+FIRST · CISA Known Exploited Vulnerabilities Catalog · CVSS v3.1 Specification, FIRST ·
+XM Cyber (attack-path management) · Horizon3 NodeZero, Pentera, Cymulate, SafeBreach (BAS).

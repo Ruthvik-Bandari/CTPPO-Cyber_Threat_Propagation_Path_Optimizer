@@ -1,188 +1,84 @@
-# CTPPO - Cyber Threat Propagation Path Optimizer
+# CTPPO — Cyber Threat Propagation Path Optimizer
 
-## Enterprise Cybersecurity Platform | AI-Powered Attack Path Analysis
+> Models your network as an *attack graph*, grounds every step in real exploit-likelihood data
+> (EPSS · CISA KEV · CVSS), and finds the **Pareto-optimal attack paths** an attacker would
+> actually take — so you fix the vulnerabilities that shrink real risk, not just the scariest CVSS.
 
-**Version 3.0.0** | **Proprietary Software** | **All Rights Reserved**
+**Open source (Apache-2.0) · local-first · no accounts, no login, no telemetry.**
 
----
+## What it does
 
-## Overview
+Vulnerability scanners hand you a flat list ranked by CVSS severity. But severity describes one
+CVE in isolation — it says nothing about whether that CVE sits on a path an attacker can actually
+walk to something that matters. CTPPO answers the question scanners don't: *given everything wrong
+with my network, which attack path matters most, and what single fix reduces my exposure most?*
 
-CTPPO (Cyber Threat Propagation Path Optimizer) is a research platform that uses the NAMOA* multi-objective optimization algorithm to identify and prioritize cyber attack paths in network infrastructures. Data-grounded cost modeling (EPSS / CISA KEV / CVSS) and Graph Neural Network cost-learning are under active development.
+The engine is a four-stage pipeline: **model** the network → **ground** each edge cost in
+EPSS/KEV/CVSS → **optimize** with exact multi-objective search (NAMOA\*) → **prioritize** the fix
+that lies on the most Pareto-optimal paths. Three objectives: success probability, attacker effort
+(time-to-exploit), business impact.
 
-This software is developed and owned by **Ruthvik Bandari** and requires a valid subscription license to operate.
+## Status (honest)
 
----
-
-## Project Status
-
-> **Research project under active development.** The table below reflects what is
-> actually implemented today. No performance metrics are published yet — they will be
-> added only after a documented evaluation against baselines.
+> Measured results live in **[`docs/RESEARCH/METRICS.md`](docs/RESEARCH/METRICS.md)** (the single
+> source of truth). The full story is in **[`OVERVIEW.md`](OVERVIEW.md)**; the forward plan is in
+> **[`docs/RESEARCH/05_OSS_REALTIME_PLAN.md`](docs/RESEARCH/05_OSS_REALTIME_PLAN.md)**.
 
 | Component | Status |
-|-----------|--------|
-| NAMOA* multi-objective path engine | Implemented |
-| Vulnerability scanners (headers, SSL, ports) | Implemented |
-| Attack-graph construction from scans | Implemented (heuristic edge costs) |
-| Data-grounded edge costs (EPSS / CISA KEV / CVSS) | In development |
-| GNN-based cost / exploitability learning | In development |
-| CVE severity classifier (trained model) | Not trained yet |
+|---|---|
+| NAMOA\* exact multi-objective Pareto engine | Implemented |
+| Data-grounded edge costs (EPSS / CISA KEV / CVSS) for vuln-exploit edges | Implemented |
+| Lateral-movement edge costs | **Heuristic prior** (segmentation-aware; calibration target — see roadmap B3) |
+| Scanners (security headers, TLS, ports) | Implemented (`nmap`/ZAP optional) |
+| CVE severity classifier (DistilBERT, text-only) | Implemented — 0.729 macro-F1 |
+| GNN exploitability refiner | Implemented (optional; honest mixed result) |
+| Live container/VM testbed · scanner import (Nessus/Qualys/nmap-XML) · identity/AD modeling | Planned (roadmap Phases 3 & 5) |
 
----
+There is **no reinforcement-learning component** — the engine is exact search. (An earlier RL
+prototype was retired; see `METRICS.md` §4.)
 
-## Core Features
-
-### AI-Powered Analysis
-- CVE severity classification via transformer models *(training pipeline present; no trained model or published metric yet)*
-- Graph Neural Network for attack-propagation cost learning *(planned — see Project Status)*
-- Reinforcement Learning for defensive resource allocation *(planned)*
-
-### Real-time Security Scanning
-- Port scanning and service discovery
-- Vulnerability detection (missing security headers, SSL issues, version disclosure)
-- Cloud provider detection (Vercel, Netlify, AWS, Cloudflare)
-
-### Advanced Visualization
-- Interactive 2D network graphs with multiple layout algorithms
-- Pareto Front analysis for multi-objective optimization
-- Attack path highlighting and tracing
-
-### Enterprise Features
-- JWT-based authentication with subscription validation
-- Product key licensing system
-- Professional PDF report generation
-- Full REST API for integration
-
----
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, TypeScript, TailwindCSS |
-| Backend | Python 3.10+, FastAPI, Pydantic |
-| ML/AI | PyTorch, Transformers, Scikit-learn, NetworkX |
-| Database | SQLite (dev), PostgreSQL (prod) |
-| DevOps | Docker, GitHub Actions |
-
----
-
-## Licensing
-
-**This software is proprietary and requires a valid subscription license.**
-
-- Personal/Educational use requires a valid product key
-- Commercial use requires enterprise licensing agreement
-- Unauthorized use, copying, or distribution is strictly prohibited
-
-To obtain a license, contact: **bandari.ru@northeastern.edu**
-
-See [LICENSE](LICENSE) for complete terms.
-
----
-
-## Installation (Licensed Users Only)
-
-### Prerequisites
-- Valid product key linked to your email
-- Python 3.10+
-- Node.js 18+ or Bun
-
-### Setup
+## Quick start
 
 ```bash
-# Clone repository (licensed users only)
-git clone https://github.com/Ruthvik-Bandari/CTPPO-Cyber_Threat_Propagation_Path_Optimizer.git
-cd CTPPO-Cyber_Threat_Propagation_Path_Optimizer
+pip install -r requirements.txt
 
-# Run setup
-chmod +x setup.sh
-./setup.sh
-
-# Start application
-./start.sh
+./scripts/run-api.sh        # API → http://localhost:8000/docs   (no login)
+./scripts/run-frontend.sh   # UI  → http://localhost:5173
 ```
 
-### Access Points
+Try the engine with no setup: `GET http://localhost:8000/api/attack-paths/sample`.
 
-| Service | URL |
-|---------|-----|
-| Application | http://localhost:5173 |
-| API Documentation | http://localhost:8000/docs |
+CLI (local, no auth): `ctppo-cli scan <path-or-git-url>` (or `python3 -m cli scan ...`).
 
----
-
-## Project Structure
-
-```
-CTPPO/
-├── api/                 # FastAPI backend with authentication
-├── frontend/            # React TypeScript frontend
-├── ml/                  # Machine Learning models and pipelines
-├── algorithms/          # NAMOA* and Pareto optimization
-├── scanners/            # Security scanning modules
-├── core/                # Attack graph and node types
-├── models/              # Trained ML models
-├── tests/               # Test suite
-└── docs/                # Documentation
-```
-
----
-
-## API Overview
-
-All API endpoints require valid authentication token.
+## API overview (no authentication)
 
 | Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/login` | POST | User authentication |
-| `/api/auth/activate` | POST | Activate product key |
-| `/api/cve/classify` | POST | Classify CVE severity |
-| `/api/scan` | POST | Scan target for vulnerabilities |
-| `/api/attack-paths/analyze` | POST | Analyze attack paths |
+|---|---|---|
+| `/api/attack-paths/analyze` | POST | Pareto front for a supplied network spec |
+| `/api/attack-paths/sample` | GET | Run the engine on a built-in sample graph |
+| `/api/attack-paths/from-scan` | POST | Scan a target, then build paths |
+| `/api/scan/target` | POST | Scan a host/URL (headers, TLS, ports) |
+| `/api/classify` | POST | CVE severity from description text |
+| `/api/instances` | CRUD | Local scan/analysis workspaces |
 
----
+## Project structure
 
-## Security Notice
+```
+api/         FastAPI backend (local-first, no auth)
+frontend/    React + Vite UI
+core/        attack graph, data-grounded cost model, threat data (EPSS/KEV)
+algorithms/  NAMOA* multi-objective search
+ml/          severity classifier + GNN refiner (see ml/README.md)
+evaluation/  baselines + synthetic / emulated testbeds
+cli/         local scan CLI
+docs/        OVERVIEW, RESEARCH/ (metrics, novelty, roadmap)
+```
 
-This tool is designed for **authorized security testing only**. Users must:
+## Security notice
 
-- Only scan systems they own or have explicit permission to test
-- Comply with all applicable laws and regulations
-- Not use this tool for malicious purposes
+For **authorized security testing only.** Scan only systems you own or have explicit permission
+to test, and comply with all applicable laws.
 
-Misuse of this software may result in license revocation and legal action.
+## License
 
----
-
-## About the Developer
-
-**Ruthvik Bandari**
-
-- MS in Applied Artificial Intelligence, Northeastern University (4.0 GPA)
-- Specialization: Machine Learning, Cybersecurity, Graph Neural Networks
-- Email: bandari.ru@northeastern.edu
-- LinkedIn: linkedin.com/in/ruthvik-bandari
-- GitHub: github.com/Ruthvik-Bandari
-
----
-
-## Support
-
-For technical support, licensing inquiries, or bug reports:
-
-- Email: bandari.ru@northeastern.edu
-- Subject line: [CTPPO Support] Your Issue
-
----
-
-## Disclaimer
-
-THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE DEVELOPER SHALL NOT BE LIABLE FOR ANY DAMAGES ARISING FROM THE USE OF THIS SOFTWARE. USERS ARE RESPONSIBLE FOR ENSURING THEY HAVE PROPER AUTHORIZATION BEFORE SCANNING ANY SYSTEMS.
-
----
-
-**© 2024-2026 Ruthvik Bandari. All Rights Reserved.**
-
-*Unauthorized copying, modification, distribution, or use of this software is strictly prohibited.*
+[Apache-2.0](LICENSE). Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).

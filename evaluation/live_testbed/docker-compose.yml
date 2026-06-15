@@ -1,0 +1,50 @@
+# CTPPO Phase 3c — LIVE vulnerable-service testbed.
+#
+# Two official, version-pinned Apache httpd images with REAL, KEV-listed CVEs, on a
+# segmented network. The `sed` in `command:` flips the stock `Require all denied` on the
+# filesystem root to `Require all granted` and enables mod_cgid — the documented
+# misconfiguration that makes the path-traversal CVEs live-exploitable (so the entry
+# vuln is genuinely poppable, not just version-fingerprinted).
+#
+#   web (httpd 2.4.49, CVE-2021-41773)  -- internet-facing entry   -> :18080
+#   app (httpd 2.4.50, CVE-2021-42013)  -- internal, the goal host -> :18081
+#
+# Ground-truth attack path: Internet -> web -> app(goal).
+# Both ports are published to localhost so the scanner can fingerprint them (an
+# authenticated/internal scan); the host-to-host topology is supplied by the driver.
+#
+# Bring up:  docker compose -f evaluation/live_testbed/docker-compose.yml up -d
+# Tear down: docker compose -f evaluation/live_testbed/docker-compose.yml down
+
+services:
+  web:
+    image: httpd:2.4.49
+    container_name: ctppo_testbed_web
+    command:
+      - /bin/sh
+      - -c
+      - >
+        sed -i 's/Require all denied/Require all granted/' conf/httpd.conf &&
+        httpd-foreground
+    ports:
+      - "18080:80"
+    networks: [edge, internal]
+
+  app:
+    image: httpd:2.4.50
+    container_name: ctppo_testbed_app
+    command:
+      - /bin/sh
+      - -c
+      - >
+        sed -i 's/Require all denied/Require all granted/' conf/httpd.conf &&
+        httpd-foreground
+    ports:
+      - "18081:80"
+    networks: [internal]
+
+networks:
+  edge:
+    name: ctppo_testbed_edge
+  internal:
+    name: ctppo_testbed_internal

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'motion/react'
 import {
   Waypoints,
@@ -23,7 +23,11 @@ const CyberBackground = lazy(() =>
   import('@/components/effects/CyberBackground').then((m) => ({ default: m.CyberBackground })),
 )
 
+// Open straight into the working dashboard — no auth, no landing gate.
 export const Route = createFileRoute('/')({
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard' })
+  },
   component: Landing,
 })
 
@@ -138,15 +142,15 @@ const CAPABILITIES: CarouselCard[] = [
   {
     category: 'Automation',
     title: 'Terminal & CI/CD client',
-    description: 'Scan a repository from the command line with a subscription-tied API key.',
+    description: 'Scan a repository from the command line.',
     stat: 'ctppo-cli',
     Icon: Terminal,
     details: (
       <div className="flex flex-col gap-3">
         <p>
-          A distributable pip client authenticates with an API key issued from your subscription,
-          walks a repository, runs the model-assisted reviewer when available, and submits the
-          results as a workspace — designed to drop into CI/CD pipelines.
+          A distributable pip client walks a repository, runs the model-assisted reviewer when
+          available, and submits the results as a workspace — designed to drop into CI/CD
+          pipelines.
         </p>
         <p className="font-mono text-sm text-cyber-bright">$ ctppo-cli scan ./repo</p>
       </div>
@@ -238,8 +242,8 @@ function Landing() {
             className="mt-9 flex flex-wrap items-center justify-center gap-3"
           >
             <Button asChild size="lg">
-              <a href="/register">
-                Get started <ArrowRight className="h-4 w-4" />
+              <a href="/dashboard">
+                Open app <ArrowRight className="h-4 w-4" />
               </a>
             </Button>
             <Button asChild variant="outline" size="lg">
@@ -313,20 +317,17 @@ function Landing() {
         <ScrollReveal>
           <div className="glow-cyber flex flex-col items-center gap-6 rounded-[2rem] border border-cyber/20 bg-surface/50 px-8 py-16 text-center backdrop-blur">
             <h2 className="max-w-2xl text-4xl font-bold sm:text-5xl">
-              Activate your license and start mapping risk
+              Start mapping risk
             </h2>
             <p className="max-w-xl text-muted">
-              Create an account, activate a product key, and unlock the full platform — instances,
-              attack-path analysis, the enterprise tier and the CI/CD client.
+              Open the app and get straight to work — instances, attack-path analysis, scanning and
+              the CI/CD client.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg">
-                <a href="/register">
-                  Create account <ArrowRight className="h-4 w-4" />
+                <a href="/dashboard">
+                  Open app <ArrowRight className="h-4 w-4" />
                 </a>
-              </Button>
-              <Button asChild variant="outline" size="lg">
-                <a href="/login">Sign in</a>
               </Button>
             </div>
           </div>

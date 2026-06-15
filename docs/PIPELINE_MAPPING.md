@@ -1,3 +1,5 @@
+> ⚠️ **Historical / superseded.** This document predates the open-source, local-first conversion and may reference retired features (RL, subscriptions, enterprise, the "276K CVEs / 97.6%" prototype). Authoritative sources: `README.md`, `OVERVIEW.md`, `docs/RESEARCH/METRICS.md`.
+
 # CTPPO Pipeline vs Standard ML Workflow - Complete Mapping
 
 ## ✅ Yes! We Follow The Standard Pattern!

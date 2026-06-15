@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Representative nmap XML output from a service + vulners NSE script scan. Real CVE ids so
+     EPSS/KEV ground the cost model. web01 (DMZ, 443, ProxyShell) then app01 (internal, 3306,
+     Log4Shell goal). -->
+<nmaprun scanner="nmap" args="nmap -sV --script vulners -oX out.xml 10.0.1.10 10.0.2.10" version="7.94">
+  <host>
+    <status state="up"/>
+    <address addr="10.0.1.10" addrtype="ipv4"/>
+    <hostnames><hostname name="web01.corp.local" type="PTR"/></hostnames>
+    <ports>
+      <port protocol="tcp" portid="443">
+        <state state="open" reason="syn-ack"/>
+        <service name="https" product="Microsoft Exchange" method="probed"/>
+        <script id="vulners" output="cpe:/a:microsoft:exchange_server: CVE-2021-34473 9.8 https://vulners.com/cve/CVE-2021-34473">
+          <table key="cpe:/a:microsoft:exchange_server">
+            <table>
+              <elem key="type">cve</elem>
+              <elem key="id">CVE-2021-34473</elem>
+              <elem key="cvss">9.8</elem>
+            </table>
+          </table>
+        </script>
+      </port>
+    </ports>
+  </host>
+  <host>
+    <status state="up"/>
+    <address addr="10.0.2.10" addrtype="ipv4"/>
+    <hostnames><hostname name="app01.corp.local" type="PTR"/></hostnames>
+    <ports>
+      <port protocol="tcp" portid="3306">
+        <state state="open" reason="syn-ack"/>
+        <service name="mysql" product="MySQL" method="probed"/>
+        <script id="vulners" output="CVE-2021-44228 10.0 https://vulners.com/cve/CVE-2021-44228">
+          <table key="cpe:/a:apache:log4j">
+            <table>
+              <elem key="type">cve</elem>
+              <elem key="id">CVE-2021-44228</elem>
+              <elem key="cvss">10.0</elem>
+            </table>
+          </table>
+        </script>
+      </port>
+    </ports>
+  </host>
+</nmaprun>
