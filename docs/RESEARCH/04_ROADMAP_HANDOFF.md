@@ -1,8 +1,9 @@
 # CTPPO — Roadmap & Handoff
 
 **Updated:** 2026-06-14 · Read this first when resuming work. It is the single source of
-truth for *what's built, what's left, and the product/frontend plan.* **Phase A (A1–A4)
-is DONE; A5 + Phase B remain — see §2.**
+truth for *what's built, what's left, and the product/frontend plan.* **Phases A and B are
+DONE — incl. B6, the frontend rebuild. Phase C (evaluation) + Phase D (cleanup/tests/paper)
+remain — see §2.**
 
 Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 [`01_NOVELTY.md`](01_NOVELTY.md) (research gap), [`02_COST_MODEL_SPEC.md`](02_COST_MODEL_SPEC.md)
@@ -33,7 +34,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
 · clean git `main` · **129 tests passing** (22 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
-**Phase B: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client, first cut) DONE; only B6 (frontend rework) remains** — see §2.
+**Phase B COMPLETE: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client) + B6 (frontend rebuild) all DONE** — see §2.
 
 | Area | File(s) | State |
 |------|---------|-------|
@@ -49,7 +50,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 | Evaluation | `evaluation/baseline_comparison.py`, `evaluation/pignn_validation.py` | CVSS-vs-Pareto illustrative; PIGNN real-data GCN validation (A3, ROC-AUC 0.956) |
 | CLI | `main.py` | `ctppo demo [--gnn] / scan-web / review-code / compare-baselines / threat-data` |
 | API | `api/server_secure.py` | canonical engine; text-only `/api/classify` (real test_f1); transformers lazy-imported; `render.yaml` deploys it |
-| Frontend | `frontend/` (React+TS+Tailwind) | fabricated 97.5%/94.2% metrics removed (A4 → real 0.73); full rework + classify-page CVSS-input removal still pending (B6) |
+| Frontend | `frontend/` (React 19 + Vite 8 + Tailwind v4 + TanStack Router) | **B6 done**: full rebuild, session-cookie API, all platform UIs (auth/dashboard/instances/attack-paths/classify/orgs/keys), classify CVSS inputs removed, security-hardened; honest copy only |
 
 **Environment notes:** Python **3.14** (use `python3`, NOT `python`); **torch 2.12.0 (CPU/MPS)**,
 **`transformers` 5.9 + `scikit-learn` 1.9 INSTALLED** (added in A4). Still NOT installed:
@@ -241,8 +242,22 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
     (labeled, not faked):** SSH login + remote Git clone/verification (`scan` is local-path only;
     `target_spec.remote_git="not_implemented"`); the reviewer needs `anthropic` + key to produce
     findings (else metadata-only).
-- **B6. Frontend rework (React+TS+Tailwind, `frontend/`). — REMAINING (the only Phase B item
-  left).** The backend now exposes a complete session-based API; wire the React app to it:
+- **B6. Frontend rebuild (`frontend/`). ✅ DONE.** Complete rebuild on latest majors
+  (React 19, Vite 8, Tailwind v4 CSS-first, TanStack Router 1.170, Motion 12,
+  react-three-fiber 9 / drei 10). Black / marble-dark-blue / cyber-green theme, flexbox-only
+  layouts (no CSS grid), Tailwind breakpoints, scroll animations, a lazy-loaded WebGL
+  background, and an Apple-style cards carousel. Session-cookie API client
+  (`credentials:'include'`, **no tokens in JS**); auth store rehydrates via `/api/auth/me`.
+  Surfaces: landing + honest About (real metrics only + a "what's still a stub" section);
+  auth pages (signup/login/logout/forgot/reset) with route guards; dashboard gated on the
+  subscription with product-key activation; instances CRUD; CVE-severity tool with the **CVSS
+  inputs removed** (text-only, per A4); attack-paths rebuilt to the **Pareto-front response
+  shape** (path list + recharts scatter + custom network builder); enterprise org/RBAC UI;
+  API-key management. Security: env-driven CORS allowlist + security-headers middleware +
+  env-configurable cookie SameSite/Secure (backend); CSP + security headers on the SPA host;
+  zod validation; no credentials in localStorage. Verified by `bun run build` + `tsc --noEmit`;
+  **129 backend tests still pass**. Commits B6.0–B6.8. The original wire-up targets below were
+  all met:
   - **Auth:** migrate from JWT/bearer → the **session cookie** (`fetch(..., {credentials:'include'})`);
     wire signup/login/logout/forgot-password/reset to
     `/api/auth/{signup,login,logout,forgot-password,reset-password}` and identity to `/api/auth/whoami`.
@@ -307,11 +322,13 @@ A licensed cybersecurity platform. **Built in Phase B**, after the engine/ML is 
 
 ## 4. How to resume (starter prompt for a new chat)
 
-**Current resume point: B6 (frontend rework) — the only remaining Phase B item; then Phase C
-(evaluation) and Phase D (cleanup → test → paper).** Everything else is DONE: Phase A (A1–A5 +
-the NAMOA* success-objective fix) and Phase B B1–B5 (session auth · subscription gating ·
-instances CRUD · enterprise orgs/RBAC · API keys + pip CLI). **129 tests pass** (22 files, run
-each with `python3 <file>`).
+**Current resume point: Phase C (evaluation), then Phase D (cleanup → test → paper).**
+Phases A and B are COMPLETE: Phase A (A1–A5 + the NAMOA* success-objective fix) and Phase B
+B1–B6 (session auth · subscription gating · instances CRUD · enterprise orgs/RBAC · API keys +
+pip CLI · **frontend rebuild**). **129 backend tests pass** (22 files, run each with
+`python3 <file>`); the frontend verifies with `cd frontend && bun run build && bun run typecheck`.
+A full browser end-to-end pass (boot API + Vite, click through auth→dashboard→tools) is folded
+into D3.
 
 When resuming:
 1. Read this doc + the memory index (`ctppo-status-handoff`, `ctppo-product-architecture`,
