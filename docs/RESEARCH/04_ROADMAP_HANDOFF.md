@@ -1,9 +1,9 @@
 # CTPPO — Roadmap & Handoff
 
 **Updated:** 2026-06-14 · Read this first when resuming work. It is the single source of
-truth for *what's built, what's left, and the product/frontend plan.* **Phases A and B are
-DONE — incl. B6, the frontend rebuild. Phase C (evaluation) + Phase D (cleanup/tests/paper)
-remain — see §2.**
+truth for *what's built, what's left, and the product/frontend plan.* **Phases A and B DONE
+(incl. B6 frontend rebuild). Phase C core thesis test + Phase D (cleanup/tests/paper draft)
+DONE; only C2 — the container/VM testbed — remains (infra). See §2.**
 
 Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 [`01_NOVELTY.md`](01_NOVELTY.md) (research gap), [`02_COST_MODEL_SPEC.md`](02_COST_MODEL_SPEC.md)
@@ -32,7 +32,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **129 tests passing** (22 files, run each with `python3 <file>`).
+· clean git `main` · **132 tests passing** (23 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
 **Phase B COMPLETE: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client) + B6 (frontend rebuild) all DONE** — see §2.
 
@@ -274,25 +274,30 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
     tooling) and propose a concrete B6 sub-plan before implementing.
 
 ### Phase C — Evaluation for the paper
-- **C1. Baselines:** B1 CVSS-ranking · B2 single-objective shortest path · B3 rule-cost +
-  NAMOA* · **Proposed** GNN + NAMOA*.
-- **C2. Data/testbed:** emulated multi-host network (containers/VMs) for ground-truth paths +
-  public datasets.
-- **C3. Metrics:** path precision/recall vs ground truth; attacker-reachability reduction per
-  remediation; **does the Pareto front change the top fix vs EPSS-ranking** (the core thesis
-  test — the mechanism is already demonstrated in `evaluation/baseline_comparison.py`).
-- **C4.** Run experiments; record honest numbers.
+- **C1/C3/C4 ✅ DONE (core thesis test, synthetic).** `evaluation/phase_c_eval.py` +
+  [`C_EVALUATION.md`](C_EVALUATION.md): 300 seeded multi-host networks, real EPSS-grounded
+  costs. Measured: **top-fix divergence 92.3%** (CVSS-top ≠ Pareto-top); Pareto remediation
+  recovers **84.6%** of oracle reachability-reduction vs **25.0%** for CVSS; Pareto ≥ CVSS in
+  **94.7%**. Tests: `tests/evaluation/test_phase_c_eval.py` (3). B1 (CVSS-ranking) + Proposed
+  (Pareto-critical) + oracle implemented; B2 (shortest-path) + GNN+NAMOA* arms still to fold in
+  (GNN per-node result is in A3).
+- **C2. Data/testbed — REMAINING (infra).** Emulated multi-host network (containers/VMs) for
+  ground-truth paths + public datasets; enables the deferred path precision/recall metric and a
+  generalization claim beyond the synthetic distribution.
 
 ### Phase D — Finish (clean → test → paper)
-- **D1.** ml/ duplicate-script triage: overlapping `01_*`/`02_*`/`03_*`, multiple trainers
-  (`train_severity_classifier`, `training_pipeline`, `train_full_dataset`), `offline_demo`,
-  `step_by_step_guide` — pick keepers, remove the rest (git makes it reversible).
-- **D2.** Frontend/doc marketing-copy sweep: remove residual `97.5%` / `94.2%` in
-  `docs/*.md` and `frontend/src/**` and the legacy `docs/STEP_BY_STEP_GUIDE.md` etc.
-- **D3.** Full test pass; CLI + API + frontend run end-to-end.
-- **D4.** Write the research paper from real measured results (anchor on `01_NOVELTY.md` +
-  `02_COST_MODEL_SPEC.md` + the Phase-C numbers). Target: thesis chapter / arXiv / AISec-MLSec
-  workshop.
+- **D1 ✅ DONE.** Removed 17 dead ml/ scripts (old numbered pipeline, duplicate trainers, demos,
+  stale helpers — all zero-inbound-import) + the stale unrunnable pytest `test_namoa_star.py`.
+  Canonical ML path unchanged (cve_classifier + train_severity + gnn/*).
+- **D2 ✅ DONE.** Replaced residual `97.5%`/`94.2%` fabrications with measured numbers (0.73
+  macro-F1, 341k EPSS, 1,619 KEV, 0.956 PIGNN) in DEVELOPMENT.md / ENTERPRISE_GUIDE.md /
+  frontend/README.md; kept honest-history mentions.
+- **D3 ✅ DONE.** Full pass green: **132 backend tests (23 files)** + frontend `bun run build`
+  + `tsc --noEmit`; an end-to-end API contract smoke (signup→cookie→CRUD→keys→orgs→logout) was
+  driven against the real app. Remaining: a human browser click-through (acceptance).
+- **D4 ✅ DRAFT.** [`PAPER_DRAFT.md`](PAPER_DRAFT.md) written from the real measured results
+  (anchored on 01_NOVELTY + 02_COST_MODEL_SPEC + Phase-C/A3/A4 numbers). Target: thesis chapter /
+  AISec-MLSec workshop.
 
 ---
 
@@ -322,13 +327,15 @@ A licensed cybersecurity platform. **Built in Phase B**, after the engine/ML is 
 
 ## 4. How to resume (starter prompt for a new chat)
 
-**Current resume point: Phase C (evaluation), then Phase D (cleanup → test → paper).**
-Phases A and B are COMPLETE: Phase A (A1–A5 + the NAMOA* success-objective fix) and Phase B
-B1–B6 (session auth · subscription gating · instances CRUD · enterprise orgs/RBAC · API keys +
-pip CLI · **frontend rebuild**). **129 backend tests pass** (22 files, run each with
-`python3 <file>`); the frontend verifies with `cd frontend && bun run build && bun run typecheck`.
-A full browser end-to-end pass (boot API + Vite, click through auth→dashboard→tools) is folded
-into D3.
+**Current resume point: C2 only — a container/VM testbed + external datasets for a generalization
+claim (path precision/recall). Everything else is done.** Phase A (A1–A5 + NAMOA* fix), Phase B
+(B1–B6, incl. the frontend rebuild + the deferred Scan UI/enterprise-gate/reset-email/CLI-git
+items), Phase C core thesis test (synthetic, measured — see C_EVALUATION.md), and Phase D (D1
+cleanup, D2 honesty sweep, D3 full pass, D4 PAPER_DRAFT.md) are COMPLETE. **132 backend tests
+pass** (23 files, `python3 <file>`); frontend verifies with `cd frontend && bun run build &&
+bun run typecheck`. A human browser click-through (auth→dashboard→tools) is the remaining
+acceptance step. Remaining infra/cred-gated stubs (not bugs): Postgres/Redis backing for the
+in-memory stores; the LLM reviewer needs `anthropic` + `ANTHROPIC_API_KEY`.
 
 When resuming:
 1. Read this doc + the memory index (`ctppo-status-handoff`, `ctppo-product-architecture`,
