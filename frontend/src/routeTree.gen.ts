@@ -17,6 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardKeysRouteImport } from './routes/dashboard.keys'
 import { Route as DashboardInstancesRouteImport } from './routes/dashboard.instances'
 import { Route as DashboardEnterpriseRouteImport } from './routes/dashboard.enterprise'
 import { Route as DashboardClassifyRouteImport } from './routes/dashboard.classify'
@@ -63,6 +64,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardKeysRoute = DashboardKeysRouteImport.update({
+  id: '/keys',
+  path: '/keys',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardInstancesRoute = DashboardInstancesRouteImport.update({
   id: '/instances',
   path: '/instances',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
+  '/dashboard/keys': typeof DashboardKeysRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
+  '/dashboard/keys': typeof DashboardKeysRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/enterprise': typeof DashboardEnterpriseRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
+  '/dashboard/keys': typeof DashboardKeysRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
 }
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/dashboard/classify'
     | '/dashboard/enterprise'
     | '/dashboard/instances'
+    | '/dashboard/keys'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
   fileRoutesByTo: FileRoutesByTo
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/dashboard/classify'
     | '/dashboard/enterprise'
     | '/dashboard/instances'
+    | '/dashboard/keys'
     | '/dashboard'
     | '/dashboard/instances/$instanceId'
   id:
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/dashboard/classify'
     | '/dashboard/enterprise'
     | '/dashboard/instances'
+    | '/dashboard/keys'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
   fileRoutesById: FileRoutesById
@@ -250,6 +262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/keys': {
+      id: '/dashboard/keys'
+      path: '/keys'
+      fullPath: '/dashboard/keys'
+      preLoaderRoute: typeof DashboardKeysRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/instances': {
       id: '/dashboard/instances'
       path: '/instances'
@@ -304,6 +323,7 @@ interface DashboardRouteChildren {
   DashboardClassifyRoute: typeof DashboardClassifyRoute
   DashboardEnterpriseRoute: typeof DashboardEnterpriseRoute
   DashboardInstancesRoute: typeof DashboardInstancesRouteWithChildren
+  DashboardKeysRoute: typeof DashboardKeysRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -312,6 +332,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardClassifyRoute: DashboardClassifyRoute,
   DashboardEnterpriseRoute: DashboardEnterpriseRoute,
   DashboardInstancesRoute: DashboardInstancesRouteWithChildren,
+  DashboardKeysRoute: DashboardKeysRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
