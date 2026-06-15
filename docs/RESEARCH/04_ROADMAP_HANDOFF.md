@@ -33,7 +33,7 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 ## 1. Current state (what's built)
 
 **Repo:** `/Users/ruthvikbandari/Desktop/cyber/CTPPO-Cyber_Threat_Propagation_Path_Optimizer`
-· clean git `main` · **141 tests passing** (25 files, run each with `python3 <file>`).
+· clean git `main` · **144 tests passing** (26 files, run each with `python3 <file>`).
 **Phase A (A1–A5) is COMPLETE** (incl. the NAMOA* success-objective fix below).
 **Phase B COMPLETE: B1 (session auth) + B2 (subscription gating) + B3 (instances CRUD) + B4 (enterprise orgs/RBAC) + B5 (API keys + pip CLI client) + B6 (frontend rebuild) all DONE** — see §2.
 
@@ -282,14 +282,19 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
   **94.7%**. Tests: `tests/evaluation/test_phase_c_eval.py` (3). B1 (CVSS-ranking) + Proposed
   (Pareto-critical) + oracle implemented; B2 (shortest-path) + GNN+NAMOA* arms still to fold in
   (GNN per-node result is in A3).
-- **C2. Path recovery on real data ✅ DONE; live container/VM emulation REMAINING (infra).**
-  `evaluation/pignn_path_recovery.py` + [`C2_PATH_RECOVERY.md`](C2_PATH_RECOVERY.md): the
-  deferred **path precision/recall vs ground truth** metric, measured on the real PIGNN
-  Active-Directory dataset (edge-level ground truth). Node-on-path P/R/F1 = 0.36/0.59/0.45,
-  node ROC-AUC 0.936; edge-on-path (path-set, endpoint-product heuristic) 0.08/0.29/0.13 —
-  all well above the ~1.3% base rate. Tests: `tests/evaluation/test_pignn_path_recovery.py`
-  (3). Still remaining: a live container/VM emulation for a generalization claim, and folding
-  B2 (shortest-path) + GNN+NAMOA* into the §C1 aggregate.
+- **C2. Real-data path recovery + emulated testbed ✅ DONE; LIVE container/VM emulation
+  REMAINING (infra).**
+  - Real data: `evaluation/pignn_path_recovery.py` + [`C2_PATH_RECOVERY.md`](C2_PATH_RECOVERY.md):
+    path precision/recall vs ground truth on the real PIGNN AD dataset. Node-on-path P/R/F1 =
+    0.36/0.59/0.45, ROC-AUC 0.936; edge-on-path 0.08/0.29/0.13 — all above the ~1.3% base rate.
+  - Emulated testbed (no Docker): `evaluation/emulated_testbed.py` +
+    [`C2_EMULATED_TESTBED.md`](C2_EMULATED_TESTBED.md): 5 hand-specified networks with known
+    ground-truth paths. NAMOA* front is **100% sound** (every path real) with ~1.7× compression;
+    honest finding — the global Pareto front can omit a dominated goal's path in multi-goal nets
+    (mitigation: per-goal queries).
+  - Tests: `tests/evaluation/test_pignn_path_recovery.py` (3) + `test_emulated_testbed.py` (3).
+  - Still remaining: a **live** container/VM emulation for an end-to-end generalization claim,
+    and folding B2 (shortest-path) + GNN+NAMOA* into the §C1 aggregate.
 
 ### Phase D — Finish (clean → test → paper)
 - **D1 ✅ DONE.** Removed 17 dead ml/ scripts (old numbered pipeline, duplicate trainers, demos,
@@ -298,7 +303,7 @@ ml/test_synth_graphs (4), ml/test_train_synth (3), ml/test_cve_classifier (3).
 - **D2 ✅ DONE.** Replaced residual `97.5%`/`94.2%` fabrications with measured numbers (0.73
   macro-F1, 341k EPSS, 1,619 KEV, 0.956 PIGNN) in DEVELOPMENT.md / ENTERPRISE_GUIDE.md /
   frontend/README.md; kept honest-history mentions.
-- **D3 ✅ DONE.** Full pass green: **141 backend tests (25 files)** + frontend `bun run build`
+- **D3 ✅ DONE.** Full pass green: **144 backend tests (26 files)** + frontend `bun run build`
   + `tsc --noEmit`. Verified live against the **real uvicorn server**: a curl cookie-flow e2e
   (incl. CORS correctly refusing a disallowed origin) and a **real-browser render** pass
   (Playwright/Chromium: landing → login → dashboard → attack-paths Pareto result → classify),
@@ -344,8 +349,12 @@ deferred Scan UI/enterprise-gate/reset-email/CLI-git); Phase C (core thesis test
 real-data path recovery); Phase D (cleanup, honesty sweep, full pass, PAPER_DRAFT.md);
 **store persistence** (optional SQLAlchemy write-through behind CTPPO_DB_URL, verified across a
 restart; sessions persist via Redis); **live verification** (real uvicorn curl e2e + a
-Playwright/Chromium browser render pass). **141 backend tests pass** (25 files, `python3 <file>`);
-frontend verifies with `cd frontend && bun run build && bun run typecheck`.
+Playwright/Chromium browser render pass); the **emulated testbed** (C2_EMULATED_TESTBED.md); and
+**local-run tooling** ([`RUNNING.md`](../../RUNNING.md), `scripts/run-api.sh` + `run-frontend.sh`,
+`docker-compose.yml` for Postgres/Redis; fixed the render.yaml start command). **144 backend
+tests pass** (26 files, `python3 <file>`); frontend verifies with `cd frontend && bun run build
+&& bun run typecheck`. **Run it locally: `./scripts/run-api.sh` + `./scripts/run-frontend.sh`,
+then sign up with an owner email for full access.**
 
 When resuming:
 1. Read this doc + the memory index (`ctppo-status-handoff`, `ctppo-product-architecture`,
