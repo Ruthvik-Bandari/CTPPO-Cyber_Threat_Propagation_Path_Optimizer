@@ -3,7 +3,9 @@ services:
     name: ctppo-api
     runtime: python
     buildCommand: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt
-    startCommand: cd api && python -m uvicorn server_secure:app --host 0.0.0.0 --port $PORT
+    # core/ is at the repo root and server_secure + siblings are in api/, so BOTH must be on
+    # PYTHONPATH (the old `cd api && …` broke `from core...`). Run from the repo root instead.
+    startCommand: PYTHONPATH=.:api python -m uvicorn server_secure:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0

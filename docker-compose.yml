@@ -1,0 +1,34 @@
+# Optional local infra for CTPPO: Postgres (store persistence) + Redis (server-side sessions).
+# The app runs fine WITHOUT these (in-memory / SQLite fallback) — this is for testing the
+# production-shaped backing locally.
+#
+#   docker compose up -d
+#   CTPPO_DB_URL=postgresql+psycopg2://ctppo:ctppo@localhost:5432/ctppo \
+#   REDIS_URL=redis://localhost:6379/0 \
+#     ./scripts/run-api.sh
+#
+# (Run the API + frontend natively via the scripts — far faster than building a torch image.)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ctppo
+      POSTGRES_PASSWORD: ctppo
+      POSTGRES_DB: ctppo
+    ports:
+      - "5432:5432"
+    volumes:
+      - ctppo_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctppo"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  ctppo_pg:
