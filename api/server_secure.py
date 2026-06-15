@@ -41,6 +41,7 @@ from database import (
 )
 # B1: canonical user store + server-side Redis sessions + session-auth router
 from user_store import UserStore, public_view
+from persistence import default_persistence
 from passwords import hash_password, verify_password
 from session_store import SessionStore
 from auth_routes import create_auth_router, SESSION_COOKIE
@@ -91,7 +92,7 @@ ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "ctppo-admin-2026")
 # Canonical user store (B1). It is dict-like, so the existing server code keeps using
 # USERS_DB[email] / email in USERS_DB unchanged, while the session-auth router shares
 # the same object. Passwords are salted (bcrypt/PBKDF2), not the old unsalted sha256.
-USERS_DB = UserStore()
+USERS_DB = UserStore(persistence=default_persistence("users"))
 USERS_DB["admin@ctppo.io"] = {
     "id": "usr_001",
     "email": "admin@ctppo.io",
@@ -1649,6 +1650,8 @@ async def revoke_key(request: dict):
     return {"success": subscriptions.revoke_key(request.get("product_key")), "message": "Key revoked"}
 
 
-# Seed a few demo product keys for local dev (retrievable via /api/admin/keys).
-for _demo_type, _demo_days in (("individual", 30), ("individual", 365), ("enterprise", 365)):
-    subscriptions.create_product_key(_demo_type, _demo_days)
+# Seed a few demo product keys for local dev (retrievable via /api/admin/keys). Skip when a DB
+# is configured — otherwise every boot would persist three more demo keys and bloat the table.
+if not (os.environ.get("CTPPO_DB_URL") or os.environ.get("DATABASE_URL")):
+    for _demo_type, _demo_days in (("individual", 30), ("individual", 365), ("enterprise", 365)):
+        subscriptions.create_product_key(_demo_type, _demo_days)

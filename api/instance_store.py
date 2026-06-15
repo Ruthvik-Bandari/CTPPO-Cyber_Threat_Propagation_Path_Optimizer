@@ -43,8 +43,11 @@ class InstanceStore:
 
     _MUTABLE = ("name", "prompt", "target_spec", "files", "status")
 
-    def __init__(self) -> None:
+    def __init__(self, persistence=None) -> None:
         self._by_id: Dict[str, dict] = {}
+        self._p = persistence
+        if self._p:
+            self._by_id = dict(self._p.load())
 
     def create(self, owner: str, name: str, prompt: str = "",
                target_spec: Optional[dict] = None, files: Optional[List[dict]] = None) -> dict:
@@ -62,6 +65,8 @@ class InstanceStore:
             "updated_at": now,
         }
         self._by_id[instance_id] = instance
+        if self._p:
+            self._p.upsert(instance_id, instance)
         return instance
 
     def get(self, instance_id: str, owner: str) -> Optional[dict]:
@@ -83,14 +88,19 @@ class InstanceStore:
             if fields.get(key) is not None:
                 instance[key] = fields[key]
         instance["updated_at"] = _now()
+        if self._p:
+            self._p.upsert(instance_id, instance)
         return instance
 
     def delete(self, instance_id: str, owner: str) -> bool:
         if self.get(instance_id, owner) is None:
             return False
         del self._by_id[instance_id]
+        if self._p:
+            self._p.delete(instance_id)
         return True
 
 
-# Default process-wide instance store shared by the API.
-instances = InstanceStore()
+# Default process-wide instance store shared by the API (persistent when CTPPO_DB_URL is set).
+from persistence import default_persistence  # noqa: E402
+instances = InstanceStore(persistence=default_persistence("instances"))

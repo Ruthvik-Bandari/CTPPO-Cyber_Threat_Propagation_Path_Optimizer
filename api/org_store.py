@@ -35,9 +35,15 @@ def _now() -> str:
 
 
 class OrgStore:
-    def __init__(self) -> None:
+    def __init__(self, persistence=None) -> None:
         self._orgs: Dict[str, dict] = {}          # org_id -> org
         self._user_org: Dict[str, str] = {}        # email -> org_id (one org per user)
+        self._p = persistence
+        if self._p:
+            self._orgs = dict(self._p.load())
+            for oid, org in self._orgs.items():
+                for email in org.get("members", {}):
+                    self._user_org[email] = oid
 
     # --- internals --------------------------------------------------------
     def _get(self, org_id: str) -> dict:
@@ -79,6 +85,8 @@ class OrgStore:
         }
         self._orgs[org_id] = org
         self._user_org[admin] = org_id
+        if self._p:
+            self._p.upsert(org_id, org)
         return org
 
     def org_for_user(self, email: str) -> Optional[dict]:
@@ -105,6 +113,8 @@ class OrgStore:
             raise OrgError(400, "Seat allotment exhausted")
         org["members"][member] = role
         self._user_org[member] = org_id
+        if self._p:
+            self._p.upsert(org_id, org)
         return org
 
     def set_role(self, org_id: str, actor: str, member_email: str, role: str) -> dict:
@@ -117,6 +127,8 @@ class OrgStore:
         if org["members"][member] == "admin" and role != "admin" and self._admin_count(org) == 1:
             raise OrgError(400, "Cannot demote the last admin")
         org["members"][member] = role
+        if self._p:
+            self._p.upsert(org_id, org)
         return org
 
     def remove_member(self, org_id: str, actor: str, member_email: str) -> dict:
@@ -128,8 +140,11 @@ class OrgStore:
             raise OrgError(400, "Cannot remove the last admin")
         del org["members"][member]
         self._user_org.pop(member, None)
+        if self._p:
+            self._p.upsert(org_id, org)
         return org
 
 
-# Default process-wide org store shared by the API.
-orgs = OrgStore()
+# Default process-wide org store shared by the API (persistent when CTPPO_DB_URL is set).
+from persistence import default_persistence  # noqa: E402
+orgs = OrgStore(persistence=default_persistence("orgs"))

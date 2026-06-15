@@ -43,9 +43,16 @@ def _parse_iso(ts: str) -> datetime:
 class SubscriptionStore:
     """Product keys + activations, keyed by lowercased email."""
 
-    def __init__(self) -> None:
+    def __init__(self, persistence=None) -> None:
         self._keys: Dict[str, dict] = {}
         self._activations: Dict[str, dict] = {}
+        self._p = persistence
+        if self._p:
+            for k, v in self._p.load().items():
+                if k.startswith("key:"):
+                    self._keys[k[4:]] = v
+                elif k.startswith("act:"):
+                    self._activations[k[4:]] = v
 
     # --- product keys -----------------------------------------------------
     def create_product_key(self, subscription_type: str = "individual",
@@ -63,6 +70,8 @@ class SubscriptionStore:
             "activated_by": None,
             "expires_at": None,
         }
+        if self._p:
+            self._p.upsert("key:" + key, self._keys[key])
         return self._keys[key]
 
     def validate_product_key(self, key: str) -> dict:
@@ -79,10 +88,14 @@ class SubscriptionStore:
         kd = self._keys.pop(key, None)
         if kd is None:
             return False
+        if self._p:
+            self._p.delete("key:" + key)
         # also drop any activation that used this key
         for email, act in list(self._activations.items()):
             if act.get("key") == key:
                 self._activations.pop(email, None)
+                if self._p:
+                    self._p.delete("act:" + email)
         return True
 
     def list_keys(self) -> List[dict]:
@@ -113,6 +126,9 @@ class SubscriptionStore:
             "activated_at": datetime.now(timezone.utc).isoformat(),
             "expires_at": expires_at.isoformat(),
         }
+        if self._p:
+            self._p.upsert("key:" + key, kd)
+            self._p.upsert("act:" + email.lower(), self._activations[email.lower()])
         return {"success": True, "subscription_type": kd["subscription_type"],
                 "expires_at": expires_at.isoformat(), "days_remaining": kd["validity_days"]}
 
@@ -143,5 +159,6 @@ class SubscriptionStore:
         ]
 
 
-# Default process-wide instance shared by the API.
-subscriptions = SubscriptionStore()
+# Default process-wide subscription store shared by the API (persistent when CTPPO_DB_URL is set).
+from persistence import default_persistence  # noqa: E402
+subscriptions = SubscriptionStore(persistence=default_persistence("subscriptions"))

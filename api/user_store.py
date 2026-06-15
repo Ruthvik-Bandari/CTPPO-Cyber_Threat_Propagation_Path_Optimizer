@@ -22,8 +22,11 @@ from typing import Dict, Optional
 class UserStore:
     """Dict-like store of user records keyed by lowercased email."""
 
-    def __init__(self) -> None:
+    def __init__(self, persistence=None) -> None:
         self._users: Dict[str, dict] = {}
+        self._p = persistence
+        if self._p:
+            self._users = dict(self._p.load())
 
     # --- dict-like surface (keeps existing server_secure code working) ----
     def __contains__(self, email: str) -> bool:
@@ -34,6 +37,8 @@ class UserStore:
 
     def __setitem__(self, email: str, value: dict) -> None:
         self._users[email.lower()] = value
+        if self._p:
+            self._p.upsert(email.lower(), value)
 
     def get(self, email: str, default=None):
         if not isinstance(email, str):
@@ -56,6 +61,8 @@ class UserStore:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self._users[key] = record
+        if self._p:
+            self._p.upsert(key, record)
         return record
 
     def set_password(self, email: str, password_hash: str) -> bool:
@@ -63,6 +70,8 @@ class UserStore:
         if not user:
             return False
         user["password_hash"] = password_hash
+        if self._p:
+            self._p.upsert(email.lower(), user)
         return True
 
 

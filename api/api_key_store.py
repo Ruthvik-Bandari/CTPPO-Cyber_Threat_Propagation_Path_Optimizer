@@ -31,9 +31,14 @@ def _hash_key(raw: str) -> str:
 
 
 class ApiKeyStore:
-    def __init__(self) -> None:
+    def __init__(self, persistence=None) -> None:
         self._by_hash: Dict[str, dict] = {}      # sha256(raw) -> record
         self._id_to_hash: Dict[str, str] = {}     # key_id -> sha256(raw)
+        self._p = persistence
+        if self._p:
+            for h, rec in self._p.load().items():
+                self._by_hash[h] = rec
+                self._id_to_hash[rec["id"]] = h
 
     def issue(self, owner: str, name: str = "default") -> Tuple[str, dict]:
         """Create a key for ``owner``. Returns (raw_key, record). The raw key is the only
@@ -48,18 +53,24 @@ class ApiKeyStore:
             "created_at": _now(),
             "last_used_at": None,
         }
-        self._by_hash[_hash_key(raw)] = record
-        self._id_to_hash[key_id] = _hash_key(raw)
+        key_hash = _hash_key(raw)
+        self._by_hash[key_hash] = record
+        self._id_to_hash[key_id] = key_hash
+        if self._p:
+            self._p.upsert(key_hash, record)
         return raw, record
 
     def resolve(self, raw: str) -> Optional[str]:
         """Validate a raw key; return the owner email (and stamp last_used) or None."""
         if not raw or not raw.startswith(KEY_PREFIX):
             return None
-        record = self._by_hash.get(_hash_key(raw))
+        key_hash = _hash_key(raw)
+        record = self._by_hash.get(key_hash)
         if not record:
             return None
         record["last_used_at"] = _now()
+        if self._p:
+            self._p.upsert(key_hash, record)
         return record["owner"]
 
     def list_for(self, owner: str) -> List[dict]:
@@ -80,8 +91,11 @@ class ApiKeyStore:
             return False
         del self._by_hash[key_hash]
         del self._id_to_hash[key_id]
+        if self._p:
+            self._p.delete(key_hash)
         return True
 
 
-# Default process-wide API-key store shared by the API.
-api_keys = ApiKeyStore()
+# Default process-wide API-key store shared by the API (persistent when CTPPO_DB_URL is set).
+from persistence import default_persistence  # noqa: E402
+api_keys = ApiKeyStore(persistence=default_persistence("api_keys"))
