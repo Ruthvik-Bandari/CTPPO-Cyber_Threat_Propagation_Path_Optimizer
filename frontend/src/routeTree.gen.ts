@@ -18,6 +18,8 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardInstancesRouteImport } from './routes/dashboard.instances'
+import { Route as DashboardClassifyRouteImport } from './routes/dashboard.classify'
+import { Route as DashboardAttackPathsRouteImport } from './routes/dashboard.attack-paths'
 import { Route as DashboardInstancesInstanceIdRouteImport } from './routes/dashboard.instances.$instanceId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -65,6 +67,16 @@ const DashboardInstancesRoute = DashboardInstancesRouteImport.update({
   path: '/instances',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardClassifyRoute = DashboardClassifyRouteImport.update({
+  id: '/classify',
+  path: '/classify',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAttackPathsRoute = DashboardAttackPathsRouteImport.update({
+  id: '/attack-paths',
+  path: '/attack-paths',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardInstancesInstanceIdRoute =
   DashboardInstancesInstanceIdRouteImport.update({
     id: '/$instanceId',
@@ -80,6 +92,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
+  '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -91,6 +105,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
+  '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -104,6 +120,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/dashboard/attack-paths': typeof DashboardAttackPathsRoute
+  '/dashboard/classify': typeof DashboardClassifyRoute
   '/dashboard/instances': typeof DashboardInstancesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/instances/$instanceId': typeof DashboardInstancesInstanceIdRoute
@@ -118,6 +136,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/dashboard/attack-paths'
+    | '/dashboard/classify'
     | '/dashboard/instances'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
@@ -129,6 +149,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/dashboard/attack-paths'
+    | '/dashboard/classify'
     | '/dashboard/instances'
     | '/dashboard'
     | '/dashboard/instances/$instanceId'
@@ -141,6 +163,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/dashboard/attack-paths'
+    | '/dashboard/classify'
     | '/dashboard/instances'
     | '/dashboard/'
     | '/dashboard/instances/$instanceId'
@@ -221,6 +245,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardInstancesRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/classify': {
+      id: '/dashboard/classify'
+      path: '/classify'
+      fullPath: '/dashboard/classify'
+      preLoaderRoute: typeof DashboardClassifyRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/attack-paths': {
+      id: '/dashboard/attack-paths'
+      path: '/attack-paths'
+      fullPath: '/dashboard/attack-paths'
+      preLoaderRoute: typeof DashboardAttackPathsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/instances/$instanceId': {
       id: '/dashboard/instances/$instanceId'
       path: '/$instanceId'
@@ -243,11 +281,15 @@ const DashboardInstancesRouteWithChildren =
   DashboardInstancesRoute._addFileChildren(DashboardInstancesRouteChildren)
 
 interface DashboardRouteChildren {
+  DashboardAttackPathsRoute: typeof DashboardAttackPathsRoute
+  DashboardClassifyRoute: typeof DashboardClassifyRoute
   DashboardInstancesRoute: typeof DashboardInstancesRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAttackPathsRoute: DashboardAttackPathsRoute,
+  DashboardClassifyRoute: DashboardClassifyRoute,
   DashboardInstancesRoute: DashboardInstancesRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
 }

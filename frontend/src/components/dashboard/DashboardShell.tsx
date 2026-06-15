@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { LayoutDashboard, Boxes, LogOut, Menu, ShieldHalf } from 'lucide-react'
+import { LayoutDashboard, Boxes, Waypoints, BrainCircuit, LogOut, Menu, ShieldHalf } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 
@@ -10,10 +10,12 @@ interface NavItem {
   icon: LucideIcon
 }
 
-// Grows as feature routes are added in B6.5-B6.7.
+// Grows as feature routes are added in B6.6-B6.7.
 const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/dashboard/instances', label: 'Instances', icon: Boxes },
+  { to: '/dashboard/attack-paths', label: 'Attack paths', icon: Waypoints },
+  { to: '/dashboard/classify', label: 'CVE severity', icon: BrainCircuit },
 ]
 
 function initials(name?: string) {
