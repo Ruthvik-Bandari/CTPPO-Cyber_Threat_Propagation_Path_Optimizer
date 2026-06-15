@@ -6,7 +6,7 @@ Commands:
   ctppo-cli configure --api-key KEY [--api-url URL]   store credentials
   ctppo-cli login                                     validate the key; show identity + sub
   ctppo-cli whoami                                    alias for login
-  ctppo-cli scan PATH [--name N] [--prompt P]         scan a local repo, submit as an instance
+  ctppo-cli scan PATH|URL [--name N] [--prompt P] [--ref R]  scan a local repo or remote git URL
 """
 
 from __future__ import annotations
@@ -15,9 +15,11 @@ import argparse
 import sys
 from typing import Optional
 
+import shutil
+
 from cli.client import CtppoClient, CtppoError
 from cli.config import DEFAULT_API_URL, load_config, save_config
-from cli.scan import collect_repo_files, run_review
+from cli.scan import clone_and_verify, collect_repo_files, is_remote_repo, run_review
 
 
 def _client() -> CtppoClient:
@@ -42,27 +44,45 @@ def cmd_login(args) -> None:
 
 def cmd_scan(args) -> None:
     client = _client()
-    metas, code_paths = collect_repo_files(args.path)
-    print(f"Scanning {args.path}: {len(metas)} file(s), {len(code_paths)} code file(s)")
-    findings, available, reason = run_review(code_paths)
-    if available:
-        print(f"Model-assisted code review: {len(findings)} finding(s)")
-    else:
-        print(f"Code review skipped ({reason}); submitting file-metadata scan only.")
-    target_spec = {
-        "repo_path": str(args.path),
-        "review_findings": findings,
-        "reviewer_available": available,
-        # remote Git clone + SSH verification: not yet implemented (B5b follow-up).
-        "remote_git": "not_implemented",
-    }
-    instance = client.create_instance(
-        name=args.name or f"scan: {args.path}",
-        prompt=args.prompt or "",
-        files=metas,
-        target_spec=target_spec,
-    )
-    print(f"Created instance {instance['id']} ({len(instance['files'])} files recorded).")
+
+    # Remote repo URL? Verify access (incl. SSH-key auth), shallow-clone, then scan the tree.
+    scan_path = args.path
+    cleanup_dir = None
+    git_info: dict = {"remote_git": None}
+    if is_remote_repo(args.path):
+        print(f"Verifying + cloning {args.path} …")
+        try:
+            cloned, git_info = clone_and_verify(args.path, args.ref)
+        except RuntimeError as e:
+            raise CtppoError(str(e))
+        scan_path = cloned
+        cleanup_dir = cloned
+        print(f"Cloned at {git_info.get('commit', '?')[:12] if git_info.get('commit') else '?'}")
+
+    try:
+        metas, code_paths = collect_repo_files(scan_path)
+        print(f"Scanning {args.path}: {len(metas)} file(s), {len(code_paths)} code file(s)")
+        findings, available, reason = run_review(code_paths)
+        if available:
+            print(f"Model-assisted code review: {len(findings)} finding(s)")
+        else:
+            print(f"Code review skipped ({reason}); submitting file-metadata scan only.")
+        target_spec = {
+            "repo_path": str(args.path),
+            "review_findings": findings,
+            "reviewer_available": available,
+            **git_info,
+        }
+        instance = client.create_instance(
+            name=args.name or f"scan: {args.path}",
+            prompt=args.prompt or "",
+            files=metas,
+            target_spec=target_spec,
+        )
+        print(f"Created instance {instance['id']} ({len(instance['files'])} files recorded).")
+    finally:
+        if cleanup_dir is not None:
+            shutil.rmtree(cleanup_dir, ignore_errors=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,10 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name, help="validate the API key; show identity + subscription")
         p.set_defaults(func=cmd_login)
 
-    p_scan = sub.add_parser("scan", help="scan a local repo path and submit it as an instance")
-    p_scan.add_argument("path")
+    p_scan = sub.add_parser("scan", help="scan a local path or remote git URL; submit as an instance")
+    p_scan.add_argument("path", help="local repo path or remote git URL (https/ssh/git)")
     p_scan.add_argument("--name", default=None)
     p_scan.add_argument("--prompt", default=None)
+    p_scan.add_argument("--ref", default=None, help="branch/tag to clone (remote URLs only)")
     p_scan.set_defaults(func=cmd_scan)
 
     return parser

@@ -7,15 +7,21 @@ optionally runs the model-assisted code reviewer (``scanners/llm_code_review.py`
 reviewer needs ``anthropic`` + ``ANTHROPIC_API_KEY``; when unavailable the scan degrades
 honestly to a file-metadata-only submission (clearly reported, never faked).
 
-NOTE: remote Git clone + SSH verification are not implemented yet — ``scan`` operates on a
-local path. Those are a B5b follow-up (the design's CI/CD Git integration).
+Remote Git: ``scan`` accepts a remote repo URL (https/ssh/git) — it verifies access with
+``git ls-remote`` (which also exercises SSH-key auth for ssh:// and git@ URLs), shallow-clones
+it to a temp dir, records the resolved commit, then scans the working tree. The system ``git``
+is used, so any credentials/SSH agent the user already has apply.
 """
 
 from __future__ import annotations
 
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 CODE_EXTS = {
     ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".cpp", ".c",
@@ -23,6 +29,55 @@ CODE_EXTS = {
 }
 _SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build",
               ".mypy_cache", ".pytest_cache", "graphify-out"}
+
+
+_REMOTE_RE = re.compile(r"^(https?://|git@|ssh://|git://)")
+
+
+def is_remote_repo(target: str) -> bool:
+    """True if ``target`` looks like a remote Git URL rather than a local path."""
+    return bool(_REMOTE_RE.match(target)) or target.endswith(".git")
+
+
+def clone_and_verify(repo_url: str, ref: Optional[str] = None) -> Tuple[Path, dict]:
+    """Verify access to a remote repo, shallow-clone it, and return (local_path, git_info).
+
+    Raises RuntimeError on any failure. Uses the system ``git`` so existing credentials /
+    SSH-agent keys apply (this is the "SSH login + Git verification" of the design).
+    """
+    if not shutil.which("git"):
+        raise RuntimeError("git is not installed on this machine")
+
+    # ls-remote both verifies the URL is reachable and that auth/identity works (esp. SSH).
+    try:
+        ls = subprocess.run(["git", "ls-remote", repo_url], capture_output=True, text=True, timeout=60)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        raise RuntimeError(f"git ls-remote failed: {e}")
+    if ls.returncode != 0:
+        raise RuntimeError(f"cannot access {repo_url}: {ls.stderr.strip() or 'access denied'}")
+
+    tmp = Path(tempfile.mkdtemp(prefix="ctppo_clone_"))
+    cmd = ["git", "clone", "--depth", "1"]
+    if ref:
+        cmd += ["--branch", ref]
+    cmd += [repo_url, str(tmp)]
+    try:
+        cl = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError(f"git clone failed: {e}")
+    if cl.returncode != 0:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise RuntimeError(f"git clone failed: {cl.stderr.strip()}")
+
+    commit = subprocess.run(["git", "-C", str(tmp), "rev-parse", "HEAD"], capture_output=True, text=True)
+    git_info = {
+        "remote_git": repo_url,
+        "verified": True,
+        "ref": ref,
+        "commit": commit.stdout.strip() if commit.returncode == 0 else None,
+    }
+    return tmp, git_info
 
 
 def collect_repo_files(root, max_code_files: int = 200) -> Tuple[List[dict], List[Path]]:

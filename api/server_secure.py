@@ -308,6 +308,20 @@ async def get_current_user(user: dict = Depends(get_authenticated_user)) -> dict
     return user
 
 
+async def get_enterprise_user(user: dict = Depends(get_current_user)) -> dict:
+    """Authenticated + active subscription AND specifically the enterprise tier (owners
+    bypass). Gates organization creation on an enterprise plan (B4 deferred item)."""
+    if is_owner(user["email"]):
+        return user
+    sub = subscriptions.check_subscription(user["email"])
+    if sub.get("subscription_type") != "enterprise":
+        raise HTTPException(
+            status_code=403,
+            detail="An enterprise subscription is required to create an organization.",
+        )
+    return user
+
+
 # ============================================================================
 # MODEL LOADING
 # ============================================================================
@@ -417,8 +431,9 @@ async def security_headers(request: Request, call_next):
 app.include_router(create_auth_router(USERS_DB, sessions))
 # B3: instance CRUD, gated by get_current_user (auth + active subscription) and owner-scoped.
 app.include_router(create_instance_router(instance_store, get_current_user))
-# B4: enterprise orgs + RBAC, subscription-gated; per-org admin/member enforced in the store.
-app.include_router(create_org_router(org_store, get_current_user))
+# B4: enterprise orgs + RBAC, subscription-gated; org *creation* additionally requires the
+# enterprise tier (get_enterprise_user); per-org admin/member enforced in the store.
+app.include_router(create_org_router(org_store, get_current_user, create_user=get_enterprise_user))
 # B5a: API-key management (issue/list/revoke), session-authenticated + subscription-gated.
 app.include_router(create_api_key_router(api_keys, get_current_user))
 

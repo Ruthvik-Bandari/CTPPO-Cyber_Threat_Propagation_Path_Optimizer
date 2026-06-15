@@ -38,11 +38,14 @@ def _guard(call):
         raise HTTPException(status_code=e.status, detail=e.detail)
 
 
-def create_org_router(store: OrgStore, current_user) -> APIRouter:
+def create_org_router(store: OrgStore, current_user, create_user=None) -> APIRouter:
+    """``create_user`` is the dependency gating org *creation* (e.g. an enterprise-tier check);
+    it defaults to ``current_user`` when omitted, so isolated tests keep working unchanged."""
     router = APIRouter(prefix="/api/orgs", tags=["Organizations"])
+    create_user = create_user or current_user
 
     @router.post("")
-    async def create_org(body: OrgCreate, user: dict = Depends(current_user)):
+    async def create_org(body: OrgCreate, user: dict = Depends(create_user)):
         return _guard(lambda: store.create_org(body.name, user["email"], body.seats))
 
     @router.get("/me")

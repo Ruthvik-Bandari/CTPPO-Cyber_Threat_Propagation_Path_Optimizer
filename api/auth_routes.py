@@ -21,11 +21,14 @@ import os
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
+from mailer import mailer_configured, send_email
 from passwords import hash_password, verify_password
 from session_store import SessionStore, SESSION_TTL_SECONDS
 from user_store import UserStore, public_view
 
 SESSION_COOKIE = "ctppo_session"
+# Where the reset link points (the SPA route that consumes the token).
+_FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 _COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 # SameSite for the session cookie. Default "lax" (good for same-origin / Vite-proxy dev). A
 # cross-origin prod frontend must set COOKIE_SAMESITE=none, which browsers only honour on a
@@ -119,8 +122,19 @@ def create_auth_router(users: UserStore, sessions: SessionStore) -> APIRouter:
         generic = {"message": "If an account exists for that email, a reset link has been sent."}
         if req.email in users:
             token = sessions.create_reset_token(req.email)
-            print(f"[auth] password reset requested for {req.email.lower()} "
-                  f"(email delivery stubbed; token issued)")
+            reset_url = f"{_FRONTEND_URL}/reset-password?token={token}"
+            if mailer_configured():
+                sent = send_email(
+                    req.email,
+                    "Reset your CTPPO password",
+                    "We received a request to reset your CTPPO password.\n\n"
+                    f"Use this link (single-use, expires soon):\n{reset_url}\n\n"
+                    "If you didn't request this, you can safely ignore this email.",
+                )
+                print(f"[auth] password reset email {'sent' if sent else 'FAILED'} for {req.email.lower()}")
+            else:
+                print(f"[auth] password reset requested for {req.email.lower()} "
+                      f"(SMTP not configured; token issued in dev)")
             if _EXPOSE_RESET_TOKEN:
                 # Dev only — no mailer configured. Clearly labeled, never use in prod.
                 return {**generic, "dev_reset_token": token}
