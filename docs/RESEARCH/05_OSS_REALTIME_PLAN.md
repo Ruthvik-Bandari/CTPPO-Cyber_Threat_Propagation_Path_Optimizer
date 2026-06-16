@@ -40,6 +40,7 @@ demo on a distribution built to win.* This plan converts mechanism → generaliz
 - B2 edge-independence correlation-sensitivity test (+ shared-factor option).
 - B1 EPSS conditional-vs-base-rate conditioning / sensitivity.
 - B4 validate time-to-exploit vs Metasploit/ExploitDB + KEV add-dates; B5 asset-criticality sensitivity.
+  **B4 external grounding DONE (2026-06-16):** KEV-add-date validation — `Spearman(proxy, disclosure→known-exploited window)=+0.263 [+0.11,+0.41]`, CI excludes 0, n=155 → externally corroborated (was +0.02 straddling 0); confound = CISA cataloguing lag; Metasploit/ExploitDB timestamps still the gold standard. `B4_EXTERNAL_GROUNDING.md`.
 - A3 **recall/coverage** metric (does the front contain the attacker's real path?), not just soundness.
 - A5 report node/edge counts, seeds, CIs, variance.
 - **B6** success-probability heuristic multipliers (AC execution 0.90/0.50, KEV exist-floor 0.90, EPSS-missing prior 0.05) sensitivity.
