@@ -48,9 +48,9 @@ export function DashboardShell() {
   )
 
   return (
-    <div className="min-h-screen bg-base">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line-soft bg-base-2/60 backdrop-blur lg:block">
+    <div className="min-h-screen">
+      {/* Desktop sidebar (translucent so the cyber/AI background shows through) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-line-soft bg-base-2/50 backdrop-blur-xl lg:block">
         {SidebarContent}
       </aside>
 

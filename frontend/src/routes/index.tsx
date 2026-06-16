@@ -1,4 +1,3 @@
-import { lazy, Suspense } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'motion/react'
 import {
@@ -17,11 +16,6 @@ import { ScrollReveal } from '@/components/effects/ScrollReveal'
 import { AppleCarousel, type CarouselCard } from '@/components/effects/AppleCarousel'
 import { Nav } from '@/components/marketing/Nav'
 import { Footer } from '@/components/marketing/Footer'
-
-// three.js is heavy — keep it out of the landing's critical path; the CSS marble wash shows first.
-const CyberBackground = lazy(() =>
-  import('@/components/effects/CyberBackground').then((m) => ({ default: m.CyberBackground })),
-)
 
 // Open straight into the working dashboard — no auth, no landing gate.
 export const Route = createFileRoute('/')({
@@ -190,11 +184,7 @@ function Landing() {
 
   return (
     <div className="relative overflow-x-hidden">
-      {/* CSS marble fallback shows until the WebGL chunk loads */}
-      <div aria-hidden className="marble pointer-events-none fixed inset-0 -z-10" />
-      <Suspense fallback={null}>
-        <CyberBackground />
-      </Suspense>
+      {/* The animated cyber/AI background is mounted globally in RootLayout (-z-10). */}
       <Nav />
 
       {/* Hero */}
