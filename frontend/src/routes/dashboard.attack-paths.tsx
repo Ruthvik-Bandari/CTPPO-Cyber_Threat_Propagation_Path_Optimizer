@@ -8,6 +8,7 @@ import { ErrorState, EmptyState } from '@/components/dashboard/states'
 import { ParetoChart } from '@/components/attack/ParetoChart'
 import { PathList, prettyObjective } from '@/components/attack/PathList'
 import { NetworkBuilder } from '@/components/attack/NetworkBuilder'
+import { WhatIfPanel } from '@/components/attack/WhatIfPanel'
 import { attackPathApi, ApiError, type AttackPathResponse, type AttackPathNode, type AttackPathVuln } from '@/api/client'
 import { formatTime, cn } from '@/lib/utils'
 
@@ -21,6 +22,7 @@ function AttackPathsPage() {
   const [tab, setTab] = useState<Tab>('sample')
   const [result, setResult] = useState<AttackPathResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [customSpec, setCustomSpec] = useState<{ nodes: AttackPathNode[]; vulnerabilities: AttackPathVuln[] } | null>(null)
 
   const onError = (e: unknown) => {
     setError(e instanceof ApiError ? e.message : 'Analysis failed.')
@@ -82,7 +84,10 @@ function AttackPathsPage() {
         <Card>
           <NetworkBuilder
             isPending={analyzeMutation.isPending}
-            onAnalyze={(nodes, vulnerabilities) => analyzeMutation.mutate({ nodes, vulnerabilities })}
+            onAnalyze={(nodes, vulnerabilities) => {
+              setCustomSpec({ nodes, vulnerabilities })
+              analyzeMutation.mutate({ nodes, vulnerabilities })
+            }}
           />
         </Card>
       )}
@@ -121,6 +126,10 @@ function AttackPathsPage() {
                 <PathList paths={paths} />
               </div>
             </>
+          )}
+
+          {tab === 'custom' && customSpec && paths.length > 0 && (
+            <WhatIfPanel nodes={customSpec.nodes} vulnerabilities={customSpec.vulnerabilities} />
           )}
 
           <span className="text-xs text-faint">Computed in {formatTime(result.processing_time_ms)}</span>

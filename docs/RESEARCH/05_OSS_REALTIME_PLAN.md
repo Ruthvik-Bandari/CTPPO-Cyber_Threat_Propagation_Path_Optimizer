@@ -99,12 +99,55 @@ demo on a distribution built to win.* This plan converts mechanism → generaliz
   ◻ agent fires and reports (opt-in via `/schedule`, harness ready).
 
 ### Phase 5 — Modeling scope (C/E)
-- C1 identity/credential/AD (biggest gap), C3 misconfig, C2 cloud IAM, C4 BAS-lite or explicit "model-not-validator" scoping; ATT&CK technique IDs on edges.
-- E1 decide classifier role (cut/justify — currently decorative), E2 GNN exploratory-or-lift, E3 leakage/circularity audit + documented splits.
-- **Exit:** an AD/credential lateral path appears in a testbed scenario; ML roles documented honestly.
+- C1 ✅ identity/credential/AD (biggest gap) + ATT&CK technique IDs on edges. `core/identity_graph.py`
+  models credential lateral movement on the canonical graph; the AD kill-chain scenario recovers **2
+  Pareto credential paths** to Domain Admin (Phish T1566.001 → PtH T1550.002 → {RDP T1021.001 | Kerberoast
+  T1558.003 → DCSync T1003.006} → DC). **Exit criterion met.** Credential costs are honestly flagged
+  heuristic (not data-grounded). `C1_IDENTITY_AD.md`, `tests/core/test_identity_graph.py`.
+- C2 ✅ cloud IAM / permission-lateral-movement (`core/cloud_iam_graph.py`). The AWS privesc scenario
+  (low-priv IAM user → EC2 instance → CI/CD role → Account Admin) recovers **2 Pareto cloud-privesc
+  paths** with cloud ATT&CK IDs on the edges (T1078.004 → T1651 → {T1548.005 direct | T1552.005 IMDS →
+  T1098.003}). Cross-cloud (Azure/GCP) mapping documented; costs honestly flagged heuristic (same as C1).
+  `C2_CLOUD_IAM.md`, `tests/core/test_cloud_iam_graph.py`.
+- C3 ✅ misconfiguration (non-CVE weakness) modeling (`core/misconfig_graph.py`). The misconfig
+  breach scenario (DMZ web → app → backup → database, **no CVE**) recovers **2 Pareto weakness
+  chains** with CWE ids on the edges (CWE-798 → CWE-306 → {CWE-306 direct | CWE-732 → CWE-522}).
+  Costs honestly flagged heuristic; the nuance is misconfig success priors are high because the
+  gating question is *presence* not exploitability. `C3_MISCONFIG.md`, `tests/core/test_misconfig_graph.py`.
+- C4 ✅ "model, not validator" scoping statement + a **safe, non-firing evidence grader**
+  (`evaluation/path_validator.py`). The grader classifies each path edge into an evidence tier
+  (live-exploited/KEV/high-EPSS/data-grounded/heuristic) and reports a per-path grounded fraction.
+  **Measured:** C1/C3 paths grade 0% grounded (heuristic-only); the 3c live-testbed path grades 50%
+  (mixed — entry CVE live-exploited, lateral pivot heuristic). `C4_MODEL_NOT_VALIDATOR.md`,
+  `tests/evaluation/test_path_validator.py`.
+- E1 ✅ classifier role decided: **KEEP, narrowly justified** (standalone analyst tool + a coarse
+  no-CVSS impact fallback `severity_to_impact`); confirmed NOT in the Pareto path (import graph),
+  never decides a fix, engine stays decoupled from the 266 MB model. `E1_CLASSIFIER_ROLE.md`.
+- E2 ✅ GNN positioned **exploratory (default-off)**: new engine-level test wires the trained
+  checkpoint via `refine_graph_costs` → changes the Pareto top-fix in **0/60** real-CVE nets (moves
+  per-edge success magnitude mean 0.032 / max 0.347 but not the decision — the B1–B8 pattern); the
+  one measured lift is topology (PIGNN +0.07 AUC). `E2_GNN_ROLE.md`, `evaluation/e2_gnn_engine_lift.py`.
+- E3 ✅ leakage / circularity audit + documented splits. Severity classifier: text-only (no CVSS
+  circularity), exact-dedup, stratified 70/15/15 — **measured 0 exact / 0 near-dup overlap** on the
+  real 240-CVE split. GNN synth: label = EPSS + 2-hop lateral → honest *recoverability* test (graph-
+  level split, no leakage); PIGNN: real external check (graph-level split). `E3_ML_LEAKAGE_AUDIT.md`,
+  `evaluation/e3_leakage_audit.py`.
+- **Exit ✅:** an AD/credential lateral path appears in a testbed scenario (C1); ML roles documented
+  honestly (E1–E3). **PHASE 5 (modeling scope) COMPLETE: C1·C2·C3·C4·E1·E2·E3.**
 
 ### Phase 6 — Realtime product UX + integrations (G/I)
-- "What-if" remediation simulator (on D4); per-path uncertainty bands (propagate EPSS CIs); SIEM/EDR/ticketing hooks.
+- ✅ **What-if remediation simulator** (on D4): `POST /api/attack-paths/whatif` + frontend `WhatIfPanel`
+  surface the exact incremental engine — off-front patch = provably-unchanged no-op (D4 skip), on-front
+  patch = exact recompute + reachability reduction. Verified (`tests/api/test_whatif_api.py`); frontend
+  typecheck + build green. `PHASE6_WHATIF.md`.
+- ✅ **per-path uncertainty bands** (`core/uncertainty.py`): reachability reported as a range
+  `[∏ pᵢ, min pᵢ]` (independence ↔ comonotone) on every API path + frontend `PathList` — operationalizes
+  the B1/B2 "report a range" recommendation; sample band [0.0003, 0.0561] (×185). `PHASE6_UNCERTAINTY.md`.
+- ✅ **SIEM/EDR/ticketing hooks (G2)** (`integrations/exporters.py` + `POST /api/integrations/export`):
+  format findings as ECS / CEF / Jira-ServiceNow ticket + an optional webhook dispatcher; the
+  choke-point fix + its D4 reachability reduction ride along. Honest scope: formats + optionally POSTs;
+  no real authenticated Splunk/Jira connector (needs operator creds). `PHASE6_INTEGRATIONS.md`.
+- **Phase 6 deliverables done: what-if simulator · uncertainty bands · SIEM/EDR/ticketing hooks.**
 - *(G4 SOC2/compliance retired by the OSS decision.)*
 
 ---

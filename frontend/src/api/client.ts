@@ -110,9 +110,17 @@ export interface AttackPathRequest {
   max_depth?: number
 }
 
+export interface ReachabilityBand {
+  independence: number
+  comonotone: number
+  width_factor: number
+  n_edges: number
+}
+
 export interface ParetoPath {
   path: string[]
   cost: Record<string, number>
+  reachability_band?: ReachabilityBand
 }
 
 export interface AttackPathResponse {
@@ -123,6 +131,25 @@ export interface AttackPathResponse {
 
 export interface SampleAttackPathResponse extends AttackPathResponse {
   network: { nodes: number; edges: number }
+}
+
+export interface WhatIfRequest extends AttackPathRequest {
+  patch_cves: string[]
+}
+
+export interface WhatIfSummary {
+  patched_cves: string[]
+  skipped_recompute: boolean
+  skip_reason: string | null
+  before_num_paths: number
+  after_num_paths: number
+  before_reachability: number
+  after_reachability: number
+  reachability_reduction: number
+}
+
+export interface WhatIfResponse extends AttackPathResponse {
+  whatif: WhatIfSummary
 }
 
 // ============================================================================
@@ -148,6 +175,7 @@ export const classifyApi = {
 export const attackPathApi = {
   analyze: (req: AttackPathRequest) => post<AttackPathResponse>('/attack-paths/analyze', req),
   sample: () => get<SampleAttackPathResponse>('/attack-paths/sample'),
+  whatif: (req: WhatIfRequest) => post<WhatIfResponse>('/attack-paths/whatif', req),
 }
 
 // ---- Scanning (SimpleScanner always available; nmap/zap optional, degrade gracefully) ----

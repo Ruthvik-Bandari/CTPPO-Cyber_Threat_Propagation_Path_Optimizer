@@ -69,6 +69,42 @@ def _cve_pool(provider: ThreatDataProvider) -> List[str]:
     return _POOL
 
 
+_REAL_CVSS: Optional[Dict[str, float]] = None
+_REAL_POOL: Optional[List[str]] = None
+
+
+def _real_cvss_map() -> Dict[str, float]:
+    """Real per-CVE CVSS base scores from the on-disk NVD/CVE caches (list-format files).
+    Used for the fully-real (real EPSS + real KEV + real CVSS) base-rate. Cached per process."""
+    global _REAL_CVSS
+    if _REAL_CVSS is None:
+        import glob, json
+        cvss: Dict[str, float] = {}
+        for p in glob.glob(str(Path(__file__).resolve().parent.parent / "data" / "cve_cache" / "*.json")):
+            try:
+                d = json.load(open(p))
+            except Exception:
+                continue
+            if not isinstance(d, list):
+                continue
+            for r in d:
+                if isinstance(r, dict) and r.get("cve_id") and r.get("cvss_score"):
+                    cvss[r["cve_id"]] = float(r["cvss_score"])
+        _REAL_CVSS = cvss
+    return _REAL_CVSS
+
+
+def _real_cve_pool(provider: ThreatDataProvider) -> List[str]:
+    """CVEs that have BOTH real EPSS (provider) AND a real CVSS base score (cache), so a 'real'
+    network is grounded on all three. Cached per process; deterministically ordered."""
+    global _REAL_POOL
+    if _REAL_POOL is None:
+        epss = set(provider.epss_items().keys())
+        both = sorted(c for c in _real_cvss_map() if c in epss)
+        _REAL_POOL = both
+    return _REAL_POOL
+
+
 # --- generators ------------------------------------------------------------------
 
 def network(seed: int, mode: str, provider: ThreatDataProvider
@@ -77,14 +113,21 @@ def network(seed: int, mode: str, provider: ThreatDataProvider
 
     mode="stacked": off-path extra edges biased HIGH CVSS (the CVSS failure mode, Phase-C).
     mode="neutral": every edge's CVSS drawn from the same U(4,10) — no off-path bias (A2).
-    Both draw real CVE ids (real EPSS + KEV) from the pool.
+    mode="real":    every edge's CVSS is the CVE's REAL NVD base score (fully-real base-rate —
+                    real EPSS + real KEV + real CVSS; no synthetic CVSS at all). Drawn from the
+                    pool of CVEs that have both real EPSS and real CVSS.
     """
     rng = random.Random(seed)
-    pool = _cve_pool(provider)
+    real = mode == "real"
+    real_cvss = _real_cvss_map() if real else {}
+    pool = _real_cve_pool(provider) if real else _cve_pool(provider)
     picks = iter(rng.sample(pool, min(len(pool), 40)))  # distinct real CVEs for this net
 
     def next_cve() -> str:
         return next(picks)
+
+    def cvss_of(cve: str, lo: float) -> float:
+        return real_cvss[cve] if real else round(rng.uniform(lo, 10.0), 1)
 
     k = rng.randint(2, 5)
     hosts = [HostSpec("internet", is_entry=True)]
@@ -96,7 +139,7 @@ def network(seed: int, mode: str, provider: ThreatDataProvider
     chain = ["internet"] + [f"h{i}" for i in range(k)] + ["crown"]
     for a, b in zip(chain, chain[1:]):
         cve = next_cve()
-        vulns.append(VulnSpec(cve, a, b, cvss_score=round(rng.uniform(4.0, 10.0), 1),
+        vulns.append(VulnSpec(cve, a, b, cvss_score=cvss_of(cve, 4.0),
                               has_exploit=provider.is_kev(cve)))
     for _ in range(rng.randint(2, 6)):
         a, b = rng.sample(ids, 2)
@@ -104,7 +147,7 @@ def network(seed: int, mode: str, provider: ThreatDataProvider
             continue
         cve = next_cve()
         lo = 6.0 if mode == "stacked" else 4.0    # stacked → biased high; neutral → same as chain
-        vulns.append(VulnSpec(cve, a, b, cvss_score=round(rng.uniform(lo, 10.0), 1),
+        vulns.append(VulnSpec(cve, a, b, cvss_score=cvss_of(cve, lo),
                               has_exploit=provider.is_kev(cve)))
     return hosts, vulns
 
@@ -201,9 +244,9 @@ def run(n: int = N_NETWORKS, mode: str = "neutral", provider=None) -> Dict:
     return out
 
 
-def compare_distributions(n: int = N_NETWORKS) -> Dict[str, Dict]:
+def compare_distributions(n: int = N_NETWORKS, modes=("stacked", "neutral", "real")) -> Dict[str, Dict]:
     provider = ThreatDataProvider(offline=True)
-    return {mode: run(n, mode, provider) for mode in ("stacked", "neutral")}
+    return {mode: run(n, mode, provider) for mode in modes}
 
 
 def _fmt(ci: Dict) -> str:
@@ -212,9 +255,10 @@ def _fmt(ci: Dict) -> str:
 
 if __name__ == "__main__":
     res = compare_distributions()
-    for mode in ("stacked", "neutral"):
+    for mode in ("stacked", "neutral", "real"):
         r = res[mode]
-        print(f"\n=== {mode.upper()} distribution — {r['n_evaluated']} nets (real EPSS/KEV) ===")
+        grounding = "real EPSS/KEV + REAL CVSS" if mode == "real" else "real EPSS/KEV, synthetic CVSS"
+        print(f"\n=== {mode.upper()} distribution — {r['n_evaluated']} nets ({grounding}) ===")
         print("  oracle reachability-reduction recovered (higher = better fix):")
         for method in METHODS:
             print(f"    {method:14s} {_fmt(r[f'recovery_{method}'])}")

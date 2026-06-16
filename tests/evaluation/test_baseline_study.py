@@ -28,7 +28,7 @@ def test_on_path_filter_is_subset_including_chain():
 
 def test_both_modes_run_and_pareto_beats_baselines():
     provider = ThreatDataProvider(offline=True)
-    for mode in ("stacked", "neutral"):
+    for mode in ("stacked", "neutral", "real"):
         r = bs.run(n=12, mode=mode, provider=provider)
         assert r["n_evaluated"] >= 1
         par = r["recovery_pareto"]["point"]
@@ -38,3 +38,15 @@ def test_both_modes_run_and_pareto_beats_baselines():
             assert par >= r[f"recovery_{b}"]["point"] - 1e-9
         # and matches/beats CVSS in a clear majority of nets
         assert r["pareto_ge_cvss"]["point"] >= 0.5
+
+
+def test_real_mode_uses_real_cvss():
+    # in 'real' mode every edge's CVSS is the CVE's real NVD base score (from the cache map)
+    provider = ThreatDataProvider(offline=True)
+    real_cvss = bs._real_cvss_map()
+    assert len(real_cvss) > 100                       # the cache actually has real CVSS
+    hosts, vulns = bs.network(3, "real", provider)
+    assert vulns
+    for v in vulns:
+        assert v.cve_id in real_cvss
+        assert abs(v.cvss_score - real_cvss[v.cve_id]) < 1e-6   # real, not synthetic U(4,10)

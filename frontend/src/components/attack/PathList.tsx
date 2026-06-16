@@ -38,6 +38,15 @@ export function PathList({ paths }: { paths: ParetoPath[] }) {
               </span>
             ))}
           </div>
+          {p.reachability_band && (
+            <p className="text-xs text-faint">
+              reachability range (edge-correlation uncertainty):{' '}
+              <span className="font-mono text-muted">
+                {p.reachability_band.independence.toFixed(4)} – {p.reachability_band.comonotone.toFixed(4)}
+              </span>{' '}
+              (×{p.reachability_band.width_factor} wide) — point estimate assumes independent edges (B2)
+            </p>
+          )}
         </div>
       ))}
     </div>

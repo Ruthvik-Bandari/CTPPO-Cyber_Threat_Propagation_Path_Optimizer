@@ -32,6 +32,21 @@ def severity_to_index(label: str) -> Optional[int]:
     return _SEVERITY_INDEX.get(str(label).upper().split(".")[-1])  # handles 'Severity.HIGH'
 
 
+# CVSS v3.1 severity-band midpoints (0–10). This is the classifier's ONE engine-adjacent,
+# non-decorative role: a COARSE impact fallback when a CVE has a description but NO CVSS
+# score/vector (a scanner finding with no vector — see 3b Qualys/OpenVAS/nmap — or a freshly
+# disclosed CVE NVD hasn't scored — 3a measured ~7.7% of recent CVEs). It is NEVER used to decide
+# which path/fix wins (EPSS/KEV/graph structure do that); it only supplies a weak impact prior when
+# no real CVSS exists, and the caller must flag it heuristic. See docs/RESEARCH/E1_CLASSIFIER_ROLE.md.
+_SEVERITY_IMPACT_BAND = {"CRITICAL": 9.5, "HIGH": 7.5, "MEDIUM": 5.0, "LOW": 2.5}
+
+
+def severity_to_impact(severity_label: str, default: float = 5.0) -> float:
+    """Map a (predicted) severity band to a coarse CVSS-aligned impact estimate (0–10). Use ONLY as
+    a fallback when no real CVSS is available; the result is a heuristic prior, not a measurement."""
+    return _SEVERITY_IMPACT_BAND.get(str(severity_label).upper().split(".")[-1], default)
+
+
 @dataclass
 class SeverityConfig:
     model_name: str = "distilbert-base-uncased"

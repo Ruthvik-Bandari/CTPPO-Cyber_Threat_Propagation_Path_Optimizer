@@ -43,3 +43,6 @@ frontend/dist/
 
 # Phase 4 continuous-eval timeseries (local runtime state)
 evaluation/history/
+
+# graphify knowledge-graph artifacts (generated; the canonical graph lives at the scan root)
+graphify-out/

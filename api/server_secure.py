@@ -315,6 +315,7 @@ async def threat_data_status(user: dict = Depends(get_current_user)):
 
 def _format_pareto(graph, result):
     """Render a NAMOA* result into the API response shape."""
+    from core.uncertainty import path_reachability_band
     paths = []
     for path_ids, cost in result.pareto_paths:
         names = [graph.get_node(nid).name if graph.get_node(nid) else nid for nid in path_ids]
@@ -322,7 +323,11 @@ def _format_pareto(graph, result):
         if hasattr(cost, "values"):
             labels = getattr(cost, "labels", None) or [f"obj{i}" for i in range(len(cost.values))]
             cost_d = {str(l): round(float(x), 4) for l, x in zip(labels, cost.values)}
-        paths.append({"path": names, "cost": cost_d})
+        # Reachability as a RANGE under unknown edge correlation (Phase 6 / B2): the cost's
+        # SUCCESS_PROBABILITY is the independence lower bound; the band's upper bound is the
+        # weakest-edge (comonotone) probability. Annotation only — no decision changes.
+        band = path_reachability_band(graph, path_ids)
+        paths.append({"path": names, "cost": cost_d, "reachability_band": band})
     return {
         "paths": {"pareto_optimal": paths},
         "risk_summary": {
@@ -335,8 +340,10 @@ def _format_pareto(graph, result):
     }
 
 
-def _graph_from_request(req: AttackPathRequest) -> AttackGraph:
-    """Build a canonical AttackGraph from the request: typed nodes + data-grounded costs."""
+def _graph_and_edgemap_from_request(req: AttackPathRequest, exclude_cves=frozenset()):
+    """Build a canonical AttackGraph from the request (typed nodes + data-grounded costs) and an
+    edge_map {(src_node_id, tgt_node_id) -> NetworkVuln} for incremental what-if. CVEs in
+    ``exclude_cves`` are treated as patched (their edges are omitted)."""
     graph = AttackGraph(name="api_attack_paths")
     id_map = {}
     for n in req.nodes:
@@ -352,16 +359,34 @@ def _graph_from_request(req: AttackPathRequest) -> AttackGraph:
         id_map[n.id] = node.id
 
     provider = _get_threat_provider()
+    edge_map = {}
     for v in req.vulnerabilities:
-        if v.source not in id_map or v.target not in id_map:
+        if v.source not in id_map or v.target not in id_map or v.cve_id in exclude_cves:
             continue
         cost = build_edge_cost(EdgeCostInputs(
             cve_id=v.cve_id, cvss_score=v.cvss_score,
             is_kev=v.has_exploit,        # request's "public exploit exists" signal
             asset_criticality=8.0,
         ), provider=provider)
-        graph.add_edge(id_map[v.source], id_map[v.target], EdgeType.ASSET_REACHES_ASSET, cost)
-    return graph
+        s, t = id_map[v.source], id_map[v.target]
+        graph.add_edge(s, t, EdgeType.ASSET_REACHES_ASSET, cost)
+        edge_map[(s, t)] = v
+    return graph, edge_map
+
+
+def _graph_from_request(req: AttackPathRequest) -> AttackGraph:
+    """Build a canonical AttackGraph from the request: typed nodes + data-grounded costs."""
+    return _graph_and_edgemap_from_request(req)[0]
+
+
+def _best_success(result) -> float:
+    """Best (most-likely) success probability across a Pareto front — the reachability scalar."""
+    best = 0.0
+    for _ids, cost in result.pareto_paths:
+        labels = list(getattr(cost, "labels", []))
+        if "SUCCESS_PROBABILITY" in labels:
+            best = max(best, float(cost.values[labels.index("SUCCESS_PROBABILITY")]))
+    return round(best, 4)
 
 
 @app.post("/api/attack-paths/analyze", response_model=AttackPathResponse)
@@ -390,6 +415,107 @@ async def sample_attack_paths(user: dict = Depends(get_current_user)):
     return {"paths": out["paths"], "risk_summary": out["risk_summary"],
             "network": {"nodes": graph.num_nodes, "edges": graph.num_edges},
             "processing_time_ms": round((time.time() - start) * 1000, 2)}
+
+
+class WhatIfRequest(AttackPathRequest):
+    """An attack-path network + the CVE(s) an operator is considering patching (Phase 6 / D4)."""
+    patch_cves: List[str] = Field(default_factory=list,
+                                  description="CVE ids to simulate patching (remove from the graph)")
+
+
+@app.post("/api/attack-paths/whatif")
+async def whatif_attack_paths(req: WhatIfRequest, user: dict = Depends(get_current_user)):
+    """Exact incremental "what if I patch these CVEs?" — surfaces the D4 engine.
+
+    Returns the before/after Pareto fronts and the reachability reduction. If none of the patched
+    CVEs lie on the baseline Pareto front, the front is **provably unchanged** and we say so without
+    re-searching (`skipped_recompute=True`) — the D4 exact skip rule.
+    """
+    from evaluation.d4_incremental import whatif_front
+    start = time.time()
+    graph, edge_map = _graph_and_edgemap_from_request(req)
+    if not graph.entry_points or not graph.goal_nodes:
+        return {"paths": {"pareto_optimal": []},
+                "risk_summary": {"num_pareto_paths": 0,
+                                 "note": "need >=1 entry point and >=1 critical asset"},
+                "processing_time_ms": round((time.time() - start) * 1000, 2)}
+
+    def _recompute(patched):
+        g2, _ = _graph_and_edgemap_from_request(req, exclude_cves=patched)
+        return run_namoa_star(g2)
+
+    before, after, skipped = whatif_front(graph, edge_map, req.patch_cves, _recompute)
+    before_best, after_best = _best_success(before), _best_success(after)
+    after_graph = graph if skipped else _graph_and_edgemap_from_request(
+        req, exclude_cves=set(req.patch_cves))[0]
+    out = _format_pareto(after_graph, after)
+    out["whatif"] = {
+        "patched_cves": req.patch_cves,
+        "skipped_recompute": skipped,
+        "skip_reason": ("patched CVEs are on no Pareto path — front provably unchanged (D4 skip)"
+                        if skipped else None),
+        "before_num_paths": len(before.pareto_paths),
+        "after_num_paths": len(after.pareto_paths),
+        "before_reachability": before_best,
+        "after_reachability": after_best,
+        "reachability_reduction": round(max(0.0, before_best - after_best), 4),
+    }
+    out["processing_time_ms"] = round((time.time() - start) * 1000, 2)
+    return out
+
+
+class IntegrationExportRequest(AttackPathRequest):
+    """A network to analyze + export to a SIEM/ticketing schema (Phase 6 / G2)."""
+    format: str = Field("ecs", description="ecs | cef | ticket")
+    webhook_url: Optional[str] = Field(None, description="optional URL to POST the payload to")
+
+
+@app.post("/api/integrations/export")
+async def integrations_export(req: IntegrationExportRequest, user: dict = Depends(get_current_user)):
+    """Analyze a network and export the findings to a SIEM/ticketing schema (ECS, CEF, or ticket).
+
+    Formats only; with no `webhook_url` it returns the payload without delivering (honest no-op —
+    real delivery needs the operator's endpoint/credentials). G2 integration hook.
+    """
+    from evaluation.baseline_comparison import pareto_critical_vulns
+    from evaluation.d4_incremental import whatif_front
+    from integrations.exporters import to_ecs_events, to_cef, to_ticket, dispatch_webhook
+    start = time.time()
+    fmt = (req.format or "ecs").lower()
+    if fmt not in {"ecs", "cef", "ticket"}:
+        raise HTTPException(status_code=400, detail="format must be ecs | cef | ticket")
+
+    graph, edge_map = _graph_and_edgemap_from_request(req)
+    if not graph.entry_points or not graph.goal_nodes:
+        raise HTTPException(status_code=422, detail="need >=1 entry point and >=1 critical asset")
+    result = run_namoa_star(graph)
+    out = _format_pareto(graph, result)
+
+    crit = pareto_critical_vulns(edge_map, result.pareto_paths)
+    top_fix = crit.most_common(1)[0][0] if crit else None
+    reduction = None
+    if top_fix:
+        before, after, _ = whatif_front(
+            graph, edge_map, [top_fix],
+            lambda patched: run_namoa_star(_graph_and_edgemap_from_request(req, exclude_cves=patched)[0]))
+        reduction = round(max(0.0, _best_success(before) - _best_success(after)), 4)
+
+    if fmt == "ecs":
+        payload = to_ecs_events(out, recommended_fix=top_fix)
+    elif fmt == "cef":
+        payload = [to_cef(e) for e in to_ecs_events(out, recommended_fix=top_fix)]
+    else:
+        payload = to_ticket(out, recommended_fix=top_fix, reachability_reduction=reduction)
+
+    dispatch = dispatch_webhook(payload, url=req.webhook_url)
+    return {
+        "format": fmt,
+        "recommended_fix": top_fix,
+        "reachability_reduction": reduction,
+        "payload": payload,
+        "dispatch": dispatch,
+        "processing_time_ms": round((time.time() - start) * 1000, 2),
+    }
 
 
 class ScanImportRequest(BaseModel):

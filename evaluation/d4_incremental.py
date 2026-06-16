@@ -63,6 +63,24 @@ def on_front_host_pairs(edge_map, pareto_paths) -> set:
     return pairs
 
 
+def whatif_front(graph, edge_map, patched_cves, recompute_fn):
+    """Exact incremental what-if for a single network (the reusable core behind the API/UX).
+
+    Runs the baseline front, then applies the D4 skip rule: if **no** patched CVE's edge lies on the
+    baseline Pareto front, the front is provably unchanged → return the baseline without re-searching
+    (``skipped=True``). Otherwise call ``recompute_fn(patched_set)`` (which rebuilds the front with the
+    patched CVEs removed) and return that. Returns ``(before_result, after_result, skipped)``.
+    """
+    base = run_namoa_star(graph)
+    patched = set(patched_cves)
+    front_pairs = on_front_host_pairs(edge_map, base.pareto_paths)
+    on_front = any(v.cve_id in patched and (v.source, v.target) in front_pairs
+                   for v in edge_map.values())
+    if not on_front:
+        return base, base, True
+    return base, recompute_fn(patched), False
+
+
 def incremental_whatif(seed: int, provider) -> List[dict]:
     """For one network, evaluate patching every candidate CVE both incrementally (skip if its edge
     is on no Pareto path) and by full recompute; record skip/match/timing per candidate."""
