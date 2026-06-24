@@ -375,5 +375,6 @@ def create_pitch_pdf(output_path):
 
 
 if __name__ == "__main__":
-    output_path = "/home/claude/ctppo/docs/CTPPO_Elevator_Pitch.pdf"
+    import os
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CTPPO_Elevator_Pitch.pdf")
     create_pitch_pdf(output_path)

@@ -1,12 +1,14 @@
 # Running CTPPO locally
 
 Two processes: the **FastAPI** backend (`:8000`) and the **Vite** frontend (`:5173`, which
-proxies `/api` to the backend). No Docker required.
+proxies `/api` to the backend). No login required — fully local-first.
 
 ## Prerequisites
-- **Python 3.11+** with the engine/API deps installed (`pip install -r requirements.txt`;
-  torch CPU wheel: `pip install torch --index-url https://download.pytorch.org/whl/cpu`).
+
+- **Python 3.11+** with engine/API deps: `pip install -r requirements.txt`
+  - PyTorch CPU wheel (needed for the severity classifier): `pip install torch --index-url https://download.pytorch.org/whl/cpu`
 - **bun** (recommended) or **npm** for the frontend.
+- **Docker** — only needed for the live container testbed (`evaluation/live_testbed.py`).
 
 ## Quickstart (2 terminals)
 
@@ -18,86 +20,66 @@ proxies `/api` to the backend). No Docker required.
 ./scripts/run-frontend.sh
 ```
 
-Open **http://localhost:5173**.
+Open **http://localhost:5173**. No account needed.
 
-### First login → full access
-Sign up (or log in) with an **owner email** — owners bypass the subscription gate, so you get
-the whole dashboard immediately:
+### Optional: persist instances across restarts
 
-> `bandari.ru@northeastern.edu`  ·  `ruthvik299@gmail.com`  (password ≥ 8 chars)
-
-Any other email signs up fine but lands on the dashboard's **activation** panel until a product
-key is activated.
-
-### Testing the subscription/activation flow (non-owner)
-Demo product keys are auto-seeded in the default in-memory mode. Generate or list one via the
-admin API (`ADMIN_SECRET` defaults to `ctppo-admin-2026`):
-
-```bash
-# generate a fresh individual key
-curl -s -X POST localhost:8000/api/admin/generate-key \
-  -H 'Content-Type: application/json' \
-  -d '{"admin_secret":"ctppo-admin-2026","subscription_type":"individual","validity_days":365}'
-# or list the seeded demo keys
-curl -s "localhost:8000/api/admin/keys?admin_secret=ctppo-admin-2026"
-```
-
-Then sign up with any email and paste the `CTPPO-XXXX-...` key into the dashboard's **Activate**
-panel. (Org creation additionally needs an **enterprise**-type key.)
-
-## Optional: persistence + Redis sessions
-The app runs fully in-memory by default (simplest; data resets on restart). To persist:
+The API runs fully in-memory by default (data resets on restart). To persist:
 
 ```bash
 # SQLite — zero infra, survives restarts:
 CTPPO_DB_URL=sqlite:///$PWD/ctppo.db ./scripts/run-api.sh
-
-# Postgres + Redis (production-shaped) — start the infra, then point the API at it:
-docker compose up -d
-CTPPO_DB_URL=postgresql+psycopg2://ctppo:ctppo@localhost:5432/ctppo \
-REDIS_URL=redis://localhost:6379/0 \
-  ./scripts/run-api.sh
 ```
 
-(With a DB configured, demo-key seeding is skipped — generate keys via the admin API above.)
+## The engine CLI
 
-## The engine CLI (no server needed)
 ```bash
-PYTHONPATH=.:api python3 main.py demo                 # sample enterprise attack-graph
-python3 main.py analyze-network                        # multi-host lateral-movement paths
-python3 main.py compare-baselines                      # CVSS ranking vs NAMOA* Pareto
+PYTHONPATH=.:api python3 main.py demo                # sample enterprise attack-graph
+python3 main.py analyze-network                       # multi-host lateral-movement paths
+python3 main.py compare-baselines                     # CVSS ranking vs NAMOA* Pareto
 ```
 
-## The pip CLI client (talks to the running API with an API key)
-Issue a key in the dashboard (**API keys** page), then:
+## Importing scanner output
+
 ```bash
-pip install -e .                                       # installs the `ctppo-cli` entry point
-ctppo-cli configure --api-key ctppo_XXXX --api-url http://localhost:8000
-ctppo-cli whoami
-ctppo-cli scan ./some/repo                             # local path
-ctppo-cli scan https://github.com/org/repo --ref main # remote (clone + verify)
+# Via CLI
+PYTHONPATH=.:api python3 -m cli.main import-scan path/to/scan.xml
+
+# Via API (Nessus / Qualys / OpenVAS / nmap-XML)
+curl -X POST localhost:8000/api/scan/import \
+  -F "file=@scan.xml" -F "format=nessus"
 ```
 
-## Optional: LLM code reviewer
-Needs the Anthropic SDK + an API key (it degrades to metadata-only without them):
+## Refreshing threat feeds (EPSS / KEV / NVD)
+
 ```bash
-pip install anthropic
-export ANTHROPIC_API_KEY=sk-ant-...
-PYTHONPATH=.:api python3 main.py review-code path/to/file.py   # uses claude-opus-4-8
+# Trigger a refresh via the API
+curl -s localhost:8000/api/threat-data/status          # check staleness + provenance
+
+# Or run the refresh script directly (no server needed)
+./scripts/refresh-threat-feeds.sh
 ```
 
-## Tests + evaluations
+## Live container testbed (Docker required)
+
 ```bash
-python3 tests/api/test_auth_routes.py                  # any test file, run directly (no pytest)
-python3 evaluation/phase_c_eval.py                     # Pareto vs CVSS remediation (synthetic)
-python3 evaluation/emulated_testbed.py                 # ground-truth path recovery (no infra)
-python3 evaluation/pignn_path_recovery.py              # path P/R/F1 on the real PIGNN data (needs data/pignn)
+open -a Docker                                         # start Docker daemon (macOS)
+PYTHONPATH=. python3 evaluation/live_testbed.py        # launches 2 vulnerable Apache containers,
+                                                       # runs nmap, builds graph, runs NAMOA*
+```
+
+Both CVEs (CVE-2021-41773 / CVE-2021-42013) are KEV-listed with EPSS > 0.999 — the predicted
+Pareto path matches the live-exploitable path (recall 1.00 / soundness 1.00).
+
+## Tests
+
+```bash
+pytest tests -q                       # fast suite (~11 s, 102 pass / 76 skip)
+pytest tests -q --runslow             # full suite (~11 min, 184 passed)
 ```
 
 ## Troubleshooting
-- **`ModuleNotFoundError: No module named 'core'`** when starting the API → you ran it from
-  `api/`. Use `./scripts/run-api.sh` (it sets `PYTHONPATH=.:api` and runs from the repo root).
-- **Port in use** → `PORT=8001 ./scripts/run-api.sh` (and set `VITE_API_URL` or the Vite proxy
-  accordingly).
-- **Cross-origin prod deploy** → set `COOKIE_SAMESITE=none` and add the frontend origin to
-  `CORS_ORIGINS` (browsers only send the session cookie cross-site when it's `SameSite=None; Secure`).
+
+- **`ModuleNotFoundError: No module named 'core'`** when starting the API → run via
+  `./scripts/run-api.sh` (it sets `PYTHONPATH=.:api` from the repo root).
+- **Port in use** → `PORT=8001 ./scripts/run-api.sh` (and update `VITE_API_URL` accordingly).
