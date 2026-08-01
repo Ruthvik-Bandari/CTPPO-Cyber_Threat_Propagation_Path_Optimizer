@@ -61,7 +61,8 @@ Sibling docs: [`00_VISION.md`](00_VISION.md) (the idea + architecture),
 graphify graph: `cyber/graphify-out/graph.json` (~2,228 nodes). **Git-ignored artifacts to
 regenerate:** `data/threat_cache/` (`ctppo threat-data --refresh`), `models/exploitability_gnn.pt`
 (`python3 ml/gnn/train_synth.py`), `models/severity_text/` (`python3 ml/train_severity.py`),
-`data/cve_cache/` + `data/pignn/` (re-fetch/re-download).
+`data/cve_cache/` + `data/pignn/` (re-fetch/re-download; pignn from
+mbdlrocks/PhD_Replication_Package, GPL-3.0)
 
 **Tests (88, run each with `python3 <file>`):** core/test_cost_model (9),
 core/test_network_builder (8), api/test_session_store (10), api/test_auth_routes (8),

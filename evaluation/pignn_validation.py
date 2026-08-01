@@ -151,7 +151,9 @@ chance (0.5), and the topology vs no-topology gap isolates the contribution of m
 passing. This is **not** a head-to-head with the PIGNN paper (theirs is an edge-level
 physics-informed model; we run a node-classification reduction with a plain GCN) — it is an
 external-validity check that our architecture works on real, published attack-path data.
-Data is git-ignored (9 GB extracted); re-download from the replication package to reproduce.
+Data is git-ignored (9 GB extracted, 1,033 graphs). Re-download from the PIGNN
+Active-Directory replication package (mbdlrocks/PhD_Replication_Package, GPL-3.0)
+and extract to data/pignn/ to reproduce.
 """, encoding="utf-8")
 
 
