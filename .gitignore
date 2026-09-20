@@ -46,3 +46,6 @@ evaluation/history/
 
 # graphify knowledge-graph artifacts (generated; the canonical graph lives at the scan root)
 graphify-out/
+
+# TypeScript build cache
+*.tsbuildinfo
