@@ -55,6 +55,22 @@ def test_oversized_bodies_are_refused_before_reading(client):
     assert resp.status_code == 413
 
 
+def test_streamed_bodies_without_content_length_are_capped(client):
+    def chunks():
+        for _ in range(3):
+            yield b"x" * 1024 * 1024
+
+    resp = client.post("/api/forensics/url", content=chunks(), headers={"content-type": "application/json"})
+    assert resp.status_code == 413
+    assert resp.json()["reason"] == "input_too_large"
+
+
+def test_http_errors_use_the_standard_envelope(client):
+    resp = client.delete("/api/health")
+    assert resp.status_code == 405
+    assert set(resp.json()) == {"reason", "detail"}
+
+
 def test_spa_fallback_cannot_escape_static_dir(client):
     for path in ["/..%2f..%2fpyproject.toml", "/../../pyproject.toml", "/%2e%2e/%2e%2e/LICENSE"]:
         resp = client.get(path)

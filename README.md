@@ -89,8 +89,9 @@ JSONL events**, then:
 5. **Proposes bounded repairs.** Allowed changes are one mapping entry, a narrow benign exclusion, a
    modifier fix or a condition fix, with at most three AST edits. A repair may never drop a selection or
    delete the condition.
-6. **Validates on held-out events.** A candidate must detect every attack scenario, lose none that the
-   original caught, and match no more benign events than the healthy reference. If nothing passes, the
+6. **Validates on held-out events.** The best development candidate is frozen, then validated once on
+   a separate, non-overlapping fixture set. It must detect every attack scenario, lose none that the
+   original caught, and match no more benign events than the healthy reference. If it fails, the
    tool **abstains**. If the telemetry was never collected, it says so and recommends collecting it.
 
 ```text
@@ -100,7 +101,7 @@ finding: noise [benign_events_matched] c03d-u1, c03d-u2, c03d-u3
 original development: TP=3 FP=4 FN=0 TN=4
 original validation: TP=4 FP=5 FN=0 TN=4
 candidate b0-noise-1: passed
-candidate b0-noise-4: benign_matches_above_baseline
+candidate b0-noise-2: screened
 --- a/rule.yml
 +++ b/rule.yml
 +  cg_filter_1:

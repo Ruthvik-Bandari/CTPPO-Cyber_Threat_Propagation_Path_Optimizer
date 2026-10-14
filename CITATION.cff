@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use Aegis-Sec in your work, please cite it as below."
+type: software
+title: "Aegis-Sec: a local-first security workbench"
+abstract: >-
+  Aegis-Sec is a local-first security workbench with four modules: Sigma
+  detection repair validated by replay on a pinned Elasticsearch, file and
+  URL forensics, passive website exposure checks, and Bitcoin quantum
+  key-exposure scanning. It ships as one Python package with a CLI and a
+  local dashboard.
+authors:
+  - family-names: Bandari
+    given-names: Ruthvik
+version: 0.1.0
+date-released: "2026-10-14"
+license: Apache-2.0
+repository-code: "https://github.com/Ruthvik-Bandari/CTPPO-Cyber_Threat_Propagation_Path_Optimizer"
+keywords:
+  - security
+  - sigma
+  - detection-engineering
+  - forensics
+  - bitcoin
+  - post-quantum

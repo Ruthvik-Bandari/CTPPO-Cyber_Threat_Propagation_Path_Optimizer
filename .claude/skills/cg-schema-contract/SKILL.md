@@ -1,35 +1,35 @@
 ---
 name: cg-schema-contract
-description: Define or change versioned contracts and domain records (RuleVersion, SchemaProfile, DatasetVersion, FailureCase, RepairProposal, ValidationRun, Approval, Job/Outbox, ConnectorConfig), OpenAPI DTOs, Pydantic envelopes and migrations. Use when changing an API route, job envelope or persisted entity. Do not use for UI-only styling or for telemetry field mappings (use cg-telemetry-ingest or cg-sigma-adapter).
+description: Define or change versioned contracts and records - the detect report and candidate envelope, replay results, fixture and mapping formats, Pydantic API models, the OpenAPI schema and the dashboard types in frontend/src/lib/types.ts. Use when changing an API route, report field or envelope. Do not use for UI-only styling or for telemetry field mappings (use cg-telemetry-ingest or cg-sigma-adapter).
 ---
 
 # Versioned schema and contract changes
 
-Plan refs: sections 7, 8, 3 (ddl-auto and riskScore findings), 16.
+Plan refs: sections 7, 8, 16. Platform decision: `docs/adr/0001-platform-direction.md`.
 
 ## Expected inputs
 
-- The entity or route being changed and the ticket ID.
-- Current OpenAPI, Java DTOs, Pydantic models and migration directory.
+- The record or route being changed and the ticket ID.
+- Current Pydantic models and dataclasses in `src/aegissec/`, the OpenAPI schema (`GET /api/openapi.json`, or `create_app().openapi()`), and `frontend/src/lib/types.ts`.
 
 ## Steps
 
-1. State the invariant for each touched entity from the section 7 table (e.g. RuleVersion content is immutable; Approval binds proposal hash and validation id).
-2. Bump an explicit `schema_version` on any changed envelope. Keep existing incident APIs backward compatible.
-3. Keep score fields distinct: `analyst_severity`, `reporter_risk_score`, `model_rank_score`, replay metrics. Never reuse the legacy `riskScore` column for model output.
-4. For persistence, add a versioned migration (not `ddl-auto=update`) and a forward migration test. Non-test profiles should use schema validation.
-5. Mirror the contract on both sides: Java DTO + OpenAPI, and Pydantic model in `analysis/`. Add a contract test that round-trips a fixture envelope through both.
-6. Job states are only queued, running, succeeded, failed, canceled, expired. Domain outcomes are separate fields. Completion uses compare-and-set on lease ID.
-7. Status codes: 202 + job URL, 400, 401/403, 409 stale version, 413 size limit. No stack traces in responses.
-8. ConnectorConfig stores a credential reference only.
+1. State the invariant for each touched record from the section 7 table (for example, a candidate binds `original_sha256`; a selected artifact is frozen before validation).
+2. Bump an explicit `schema_version` on any changed envelope or report (`detect/workflow.py` `SCHEMA_VERSION`, `detect/candidate.py`, mapping `schema_version`). Keep existing fields backward compatible within a minor version, or record the break in `CHANGELOG.md`.
+3. Keep score and label fields distinct: replay counts, heuristic scores and model text are never merged or relabeled as confidence.
+4. There is no database in this release. Persisted state is content-addressed evidence JSON and the `secrets.json` config; a format change there needs a compatibility note.
+5. Mirror the contract on both sides: Pydantic model (and its OpenAPI output) and the TypeScript type in `frontend/src/lib/types.ts`. Add a test that round-trips a fixture through the Python model, and keep `npm --prefix frontend run typecheck` passing.
+6. Domain outcomes are explicit fields (`outcome`, `reason`); errors use `{reason, detail}`.
+7. Status codes: 400, 403, 404, 413, 421, 422, 502, 503 as mapped in `server/app.py`. No stack traces in responses.
+8. Never add a field that carries credentials or raw event payloads into evidence.
 
 ## Output evidence
 
-- Diff of contract files, migration file names, contract test names and their command output.
-- A compatibility note for existing incident routes.
+- Diff of contract files, schema version changes, contract test names and their command output.
+- A compatibility note for existing CLI JSON, API clients and the dashboard, plus the `docs/api.md` or module page update.
 
 ## Failure conditions (stop and report)
 
-- A change would mutate stored RuleVersion content or historical riskScore meaning.
+- A change would alter the meaning of an existing field or reason code without a version bump.
 - A field would carry credentials or raw event payloads into evidence.
-- Java and Python contracts cannot be kept in sync within the slice.
+- Python and TypeScript contracts cannot be kept in sync within the slice.

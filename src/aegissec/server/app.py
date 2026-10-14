@@ -5,7 +5,8 @@ The server is meant for the user's own machine. Every request passes ``_LocalOnl
 - the Host header must be a loopback name, which blocks DNS-rebinding attacks;
 - state-changing requests from another origin (``Origin`` / ``Sec-Fetch-Site``) are refused,
   which blocks cross-site "simple" POSTs such as multipart uploads;
-- declared request bodies are capped before they are read.
+- request bodies are capped: a declared Content-Length is checked up front and streamed
+  (chunked) bodies are counted as they arrive.
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .. import __version__
 from ..bitcoin.api import router as bitcoin_router
@@ -42,6 +45,8 @@ _STATUS = {
     Reason.TARGET_UNREACHABLE: 502,
     Reason.TARGET_NOT_ALLOWED: 403,
 }
+
+_HTTP_REASONS = {404: "not_found", 405: "method_not_allowed", 413: "input_too_large"}
 
 _SECURITY_HEADERS = {
     "Content-Security-Policy": (
@@ -86,12 +91,41 @@ class _LocalOnly(BaseHTTPMiddleware):
         if self._cross_site(request):
             return _refuse("cross_site_request", "requests from other websites are not allowed", 403)
         declared = request.headers.get("content-length", "0")
-        limit = LARGE_BODY_ROUTES.get(request.url.path, MAX_BODY_BYTES)
+        limit = body_limit(request.url.path)
         if not declared.isdigit() or int(declared) > limit:
             return _refuse("input_too_large", f"request body exceeds {limit} bytes", 413)
         response = await call_next(request)
         response.headers.update(_SECURITY_HEADERS)
         return response
+
+
+def body_limit(path: str) -> int:
+    return LARGE_BODY_ROUTES.get(path, MAX_BODY_BYTES)
+
+
+class _StreamedBodyLimit:
+    """Counts body bytes as they are received, so chunked uploads without a
+    Content-Length cannot exceed the cap either."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit, seen = body_limit(scope["path"]), 0
+
+        async def counted() -> Message:
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > limit:
+                    raise HTTPException(413, f"request body exceeds {limit} bytes")
+            return message
+
+        await self.app(scope, counted, send)
 
 
 class KeyUpdate(BaseModel):
@@ -102,7 +136,13 @@ def create_app(extra_hosts: frozenset[str] = frozenset()) -> FastAPI:
     app = FastAPI(
         title="Aegis-Sec", version=__version__, docs_url=None, redoc_url=None, openapi_url="/api/openapi.json"
     )
+    app.add_middleware(_StreamedBodyLimit)
     app.add_middleware(_LocalOnly, allowed_hosts=LOOPBACK_HOSTS | extra_hosts)
+
+    @app.exception_handler(HTTPException)
+    async def _http_error(_: Request, exc: HTTPException) -> JSONResponse:
+        reason = _HTTP_REASONS.get(exc.status_code, "http_error")
+        return JSONResponse({"reason": reason, "detail": exc.detail}, status_code=exc.status_code)
 
     @app.exception_handler(Rejected)
     async def _rejected(_: Request, exc: Rejected) -> JSONResponse:

@@ -1,35 +1,35 @@
 ---
 name: cg-platform-integration
-description: Connect the Python analysis core to the Spring Boot backend, leased worker, CLI and Next.js review UI - jobs, outbox, claim/heartbeat/complete, review page and exact-hash approval export (CG009, CG010, CG011). Use when wiring analysis results into cases and the analyst workflow. Do not use for changing rule semantics, replay internals or ML training.
+description: Wire an Aegis-Sec module function into the CLI, the FastAPI routes in src/aegissec/server and the React dashboard in frontend/ - commands, exit codes, routes, report rendering and evidence export. Use when exposing new analysis results to users. Do not use for changing rule semantics, replay internals or ML training.
 ---
 
-# Backend, worker, CLI and UI integration
+# CLI, API and dashboard integration
 
-Plan refs: sections 4 (FR05-FR10), 5 (analyst workflow), 6, 7, 8 (routes, job behavior), 17.
+Plan refs: sections 4 (FR05-FR10), 5 (analyst workflow), 6, 7, 8 (routes, job behavior), 17. Platform decision: `docs/adr/0001-platform-direction.md`.
 
 ## Expected inputs
 
-- The contracts from cg-schema-contract and core functions in `analysis/`.
-- Target route(s) from the section 8 table and affected UI pages.
+- The contracts from cg-schema-contract and the module functions in `src/aegissec/<module>/`.
+- The target CLI command, API route(s) and affected dashboard pages under `frontend/src/features/`.
 
 ## Steps
 
-1. Backend creates a job and outbox entry in one transaction with an idempotency key. It owns all state transitions.
-2. Worker claims via `/internal/v1/jobs/*` with a scoped service identity, heartbeats every 15 s on a 90 s lease, writes each attempt to its own temp dir, and completes with compare-and-set on the lease. 10 minute wall cap; cooperative cancel between index, inference and replay.
-3. Retry transient infrastructure failures at most twice with backoff; never retry invalid rules or missing required fields.
-4. Artifacts: write temp, SHA-256, atomic finalize, then acknowledge. Successful jobs store only content references.
-5. CLI calls the same core and emits JSON with machine-readable exit states matching domain outcomes.
-6. Every new route has ANALYST/ADMIN or project-reader checks plus cross-user and role denial tests.
-7. Review page shows original rule, diff, replay matches, abstention reason and evidence refs. Approval binds proposal hash and validation run ID; a stale run cannot be approved and later edits invalidate export.
-8. Linking a repair run to an incident must not change incident severity or riskScore. Existing incident tests still pass.
-9. For UI work, follow `frontend/AGENTS.md` and `.claude/rules/ui.md`.
+1. Keep one core: `src/aegissec/<module>/cli.py` and `api.py` call the same function and add no business logic.
+2. The CLI emits a text summary by default and the full report with `--json`. Exit codes match domain outcomes (detect: 0, 2, 3, 10, 11) and are documented.
+3. Each route validates its body with a Pydantic model, raises `Rejected(Reason, detail)` for invalid input, and maps non-400 reasons in `server/app.py` `_STATUS`. Large bodies need a `LARGE_BODY_ROUTES` entry and a streaming or field limit.
+4. Artifacts: write temp, SHA-256, atomic rename (`core/evidence.py`). Evidence holds content and hashes, never secrets.
+5. Long-running work stays synchronous in this release. Durable jobs, the outbox, leases, analyst accounts and approval records are deferred until a shared deployment exists (ADR 0001); do not add them inside a slice.
+6. Every new route keeps the `_LocalOnly` protections and gets tests for Host refusal, cross-site refusal and body caps where relevant (`tests/server/`).
+7. The dashboard shows original rule, diff, replay counts, abstention reason and evidence download. Unsupported, insufficient-evidence and engine-error states are explicit. Outbound actions say what leaves the machine.
+8. Model failure or a missing AI key must not block static diagnosis, original replay or evidence inspection.
+9. For UI work, follow `.claude/rules/ui.md`; for routes, `.claude/rules/backend.md`. Update `docs/api.md` and the module page.
 
 ## Output evidence
 
-- Route list with auth tests, lease and idempotency tests, CLI JSON sample from synthetic fixtures, command output for backend, frontend and analysis checks.
+- Route list with their tests, CLI JSON sample from synthetic fixtures, exit-code tests, and command output for `uv run pytest`, `uv run mypy`, `uv run ruff check src tests scripts` and `npm --prefix frontend run build`.
 
 ## Failure conditions (stop and report)
 
-- The worker would hold business authorization or database credentials beyond its scoped API.
+- Logic would be duplicated between the CLI, the API or the dashboard.
+- A route would weaken the loopback, cross-site or body-size protections, or return a secret.
 - Model failure would block static diagnosis, original replay or evidence inspection.
-- Incident lifecycle or authorization regressions appear.

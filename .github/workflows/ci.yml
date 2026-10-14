@@ -16,7 +16,7 @@ concurrency:
 jobs:
   python-checks:
     name: Python lint and types
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -30,7 +30,7 @@ jobs:
   python-tests:
     name: Python tests (${{ matrix.python }})
     needs: python-checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,7 @@ jobs:
   engine-tests:
     name: Replay tests on pinned Elasticsearch
     needs: python-checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       elasticsearch:
         image: docker.elastic.co/elasticsearch/elasticsearch:8.19.3@sha256:bbac63ecd50e9263565fbb616172a5287d5f99e486d76453e81e32cafcba3838
@@ -72,7 +72,7 @@ jobs:
 
   frontend:
     name: Dashboard lint, test and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -92,7 +92,7 @@ jobs:
   package:
     name: Build and smoke-test the wheel
     needs: [python-tests, frontend]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
