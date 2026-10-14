@@ -24,7 +24,7 @@ def _write(path: Path, text: str) -> None:
 
 def test_sigma_qc_counts_support_duplicates_and_regression(tmp_path):
     rules = tmp_path / SIGMA_RULES
-    _write(rules / "a.yml", RULE.format(title="A", rid="id-a", value="\\\\a.exe"))
+    _write(rules / "a.yml", "date: 2025-12-25\n" + RULE.format(title="A", rid="id-a", value="\\\\a.exe"))
     _write(rules / "b.yml", RULE.format(title="B", rid="id-b", value="\\\\a.exe"))  # same logic as A
     _write(rules / "c.yml", RULE.format(title="C", rid="id-c", value="*wild*"))
     _write(rules / "d.yml", "title: D\na: &x 1\nb: *x\n")  # alias: refused by the strict loader
@@ -60,6 +60,7 @@ def test_otrf_qc_counts_sysmon_process_creation(tmp_path):
     lines = [{"EventID": 1, "Channel": SYSMON_CHANNEL}, {"EventID": 4688, "Channel": "Security"}]
     with zipfile.ZipFile(zpath, "w") as archive:
         archive.writestr("one.json", "\n".join(json.dumps(x) for x in lines))
+        archive.writestr("__MACOSX/._one.json", b"\x00\x05\x16\x07 not json")
     (zpath.parent / "broken.zip").write_bytes(b"not a zip")
 
     report = qc_otrf(tmp_path)

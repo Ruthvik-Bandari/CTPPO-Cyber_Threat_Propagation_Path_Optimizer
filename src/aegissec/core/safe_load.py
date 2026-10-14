@@ -15,7 +15,10 @@ MAX_TELEMETRY_BYTES = 250 * 1024 * 1024
 MAX_LINE_BYTES = 1024 * 1024
 MAX_DEPTH = 16
 
-_PLAIN_TAGS = frozenset("tag:yaml.org,2002:" + t for t in ("str", "int", "bool", "null", "float", "seq", "map"))
+_TIMESTAMP_TAG = "tag:yaml.org,2002:timestamp"
+_PLAIN_TAGS = frozenset("tag:yaml.org,2002:" + t for t in ("str", "int", "bool", "null", "float", "seq", "map")) | {
+    _TIMESTAMP_TAG
+}
 
 
 class _StrictLoader(yaml.SafeLoader):
@@ -37,6 +40,15 @@ class _StrictLoader(yaml.SafeLoader):
         if node is not None and node.tag not in _PLAIN_TAGS:
             raise Rejected(Reason.YAML_TAG, f"tag {node.tag!r} is not allowed")
         return node
+
+
+# Sigma rules carry ``date: 2025-12-25``; keep it as the literal text so loaded documents stay
+# JSON-serializable and never depend on date parsing.
+def _timestamp_as_text(loader: _StrictLoader, node: yaml.Node) -> str:
+    return str(node.value)
+
+
+_StrictLoader.add_constructor(_TIMESTAMP_TAG, _timestamp_as_text)
 
 
 def check_depth(value: Any, limit: int = MAX_DEPTH) -> None:

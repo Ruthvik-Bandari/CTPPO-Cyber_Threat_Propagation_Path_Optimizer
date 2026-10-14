@@ -4,6 +4,18 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Real SigmaHQ rules are accepted again. Their unquoted `date:` and `modified:` values resolve as YAML timestamps, which the strict loader refused, so every rule failed with `yaml_tag_not_allowed`. Timestamps now load as their literal text. Other non-plain tags, such as `!!binary`, are still refused.
+
+### Added
+
+- `aegisbench`, a research package that is not shipped in the wheel:
+  - fetches SigmaHQ, OTRF Security-Datasets and Atomic Red Team at their pinned commits;
+  - records license and per-file SHA-256 manifests;
+  - writes aggregate-only QC reports.
+- Slurm and transfer-node scripts for the Explorer cluster (`hpc/`), the HPC runbook (`docs/hpc.md`), and the data source license record, data and model guardrails policy, and compliance checklist (`docs/data/`).
+
 ## [0.1.0] - 2026-10-14
 
 First release of Aegis-Sec as one installable package, `aegis-sec-ai`, with the `aegis-sec` CLI and a local dashboard. See [ADR 0001](docs/adr/0001-platform-direction.md) for the platform decision.

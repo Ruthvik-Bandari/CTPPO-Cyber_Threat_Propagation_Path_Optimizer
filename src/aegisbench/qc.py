@@ -153,7 +153,10 @@ def _zip_eid1_count(path: Path) -> tuple[int, int, str | None]:
             for member in archive.infolist():
                 if member.is_dir() or member.file_size > MAX_ZIP_MEMBER_BYTES:
                     continue
-                if not member.filename.endswith((".json", ".jsonl")):
+                name = member.filename.rsplit("/", 1)[-1]
+                if member.filename.startswith("__MACOSX/") or name.startswith("._"):
+                    continue  # macOS archive metadata, not telemetry
+                if not name.endswith((".json", ".jsonl")):
                     continue
                 with archive.open(member) as fh:
                     for line in fh:
