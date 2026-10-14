@@ -265,6 +265,15 @@ Detection repair follows the staged research plan:
 Each stage ships only if it beats the previous one on frozen, root-grouped splits. If adaptation does not
 help, the stronger baseline ships, and the negative result is published.
 
+The benchmark tooling lives in `src/aegisbench/`, a research package that is not shipped in the wheel. It fetches the
+pinned public sources (SigmaHQ, OTRF Security-Datasets, Atomic Red Team), records license and hash
+manifests, and writes aggregate QC reports. Related docs:
+
+- [docs/data/sources.md](docs/data/sources.md): the license record.
+- [docs/data/policy.md](docs/data/policy.md): the data and model guardrails.
+- [docs/data/compliance.md](docs/data/compliance.md): the approvals checklist.
+- [docs/hpc.md](docs/hpc.md): cluster jobs and choosing GPUs by task.
+
 ## Credits and license
 
 - **Detection-repair research workbench, platform architecture and implementation:** Ruthvik Bandari.
