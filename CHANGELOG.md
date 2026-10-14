@@ -10,6 +10,12 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 - **Breaking:** in `POST /api/detect/parse`, `selections` is now `{name: [[predicate, ...], ...]}`, a list of alternative maps, and each predicate includes `match_all`. Candidate predicate specs accept an optional `match_all`.
 - Rendered conditions keep parentheses on every nested group, so a condition re-parses to the identical tree and swapping `1 of` for `all of` counts as one edit.
 - Conditions are limited to 4,096 characters and 32 levels of nesting, and a rule to 2,048 values in total.
+- The website check grades what a CSP actually restricts, not just whether one is present. It adds the findings `csp.no_script_restriction`, `csp.report_only`, `csp.object_src_open` and `csp.base_uri_missing`.
+  - It follows the CSP Level 3 rules for nonces, hashes and `'strict-dynamic'`.
+  - It reads every enforced policy, not only the first header.
+  - Scores can drop. For example, a framing-only CSP now costs 10 points.
+- The website check adds `hsts.disabled` (`max-age=0`), `hsts.not_preload_ready` (info) and `cookie.prefix_violation` (`__Host-` and `__Secure-` rules).
+- `scripts/webcheck_conformance.py` is a live conformance run against badssl.com endpoints. A table of known-bad header pages is also tested through the full scan.
 
 ### Fixed
 

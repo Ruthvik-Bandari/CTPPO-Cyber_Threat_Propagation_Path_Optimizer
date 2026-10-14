@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
-from .models import Finding, TlsInfo
+from .models import Finding, Severity, TlsInfo
 
 Headers = dict[str, list[str]]  # lower-cased name -> every value received
 
 HSTS_MIN_AGE = 15_552_000  # 180 days
+HSTS_PRELOAD_AGE = 31_536_000  # one year, the hstspreload.org minimum
 CERT_EXPIRY_WARN_DAYS = 14
 _EVIDENCE_CHARS = 200
 _MAX_AGE = re.compile(r"max-age\s*=\s*\"?(\d+)", re.I)
@@ -52,9 +54,21 @@ def check_hsts(headers: Headers, https: bool) -> list[Finding]:
                 recommendation="Send 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
             )
         ]
-    out = []
     match = _MAX_AGE.search(value)
-    if match is None or int(match.group(1)) < HSTS_MIN_AGE:
+    max_age = int(match.group(1)) if match else None
+    if max_age == 0:
+        return [
+            Finding(
+                id="hsts.disabled",
+                severity="medium",
+                title="HSTS is switched off (max-age=0)",
+                explanation="max-age=0 tells browsers to forget the HTTPS-only rule, the same as sending no HSTS header.",
+                recommendation="Send 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
+                evidence=_ev(value),
+            )
+        ]
+    out = []
+    if max_age is None or max_age < HSTS_MIN_AGE:
         out.append(
             Finding(
                 id="hsts.short_max_age",
@@ -65,7 +79,8 @@ def check_hsts(headers: Headers, https: bool) -> list[Finding]:
                 evidence=_ev(value),
             )
         )
-    if "includesubdomains" not in value.lower():
+    directives = {d.strip().lower() for d in value.split(";")}
+    if "includesubdomains" not in directives:
         out.append(
             Finding(
                 id="hsts.no_subdomains",
@@ -73,6 +88,18 @@ def check_hsts(headers: Headers, https: bool) -> list[Finding]:
                 title="HSTS does not cover subdomains",
                 explanation="Subdomains can still be reached over HTTP and used to attack cookies of the main site.",
                 recommendation="Add includeSubDomains once every subdomain supports HTTPS.",
+                evidence=_ev(value),
+            )
+        )
+    elif "preload" not in directives or max_age is None or max_age < HSTS_PRELOAD_AGE:
+        out.append(
+            Finding(
+                id="hsts.not_preload_ready",
+                severity="info",
+                title="HSTS is not ready for the preload list",
+                explanation="Preloaded sites are HTTPS-only from the very first visit. That needs a max-age of at least "
+                "one year, includeSubDomains and preload.",
+                recommendation="If every subdomain is HTTPS-only, add 'preload' and submit the domain at hstspreload.org.",
                 evidence=_ev(value),
             )
         )
@@ -88,9 +115,104 @@ def _csp_directives(value: str) -> dict[str, list[str]]:
     return out
 
 
+def _csp_policies(headers: Headers) -> list[dict[str, list[str]]]:
+    """Every enforced policy. Several headers, or comma-separated policies in one header, are all
+    enforced by the browser, so a weakness counts only when every policy has it."""
+    return [_csp_directives(p) for v in headers.get("content-security-policy", []) for p in v.split(",") if p.strip()]
+
+
+def _script_sources(policy: dict[str, list[str]]) -> list[str] | None:
+    """Effective script sources, or None when the policy does not restrict scripts at all."""
+    for name in ("script-src", "default-src"):
+        if name in policy:
+            return policy[name]
+    return None
+
+
+def _nonce_or_hash(sources: list[str]) -> bool:
+    return any(s.startswith(("'nonce-", "'sha256-", "'sha384-", "'sha512-")) for s in sources)
+
+
+def _inline_allowed(p: dict[str, list[str]]) -> bool:
+    # With a nonce or hash present, CSP Level 2+ browsers ignore 'unsafe-inline'.
+    src = _script_sources(p) or []
+    return "'unsafe-inline'" in src and not _nonce_or_hash(src)
+
+
+def _eval_allowed(p: dict[str, list[str]]) -> bool:
+    return "'unsafe-eval'" in (_script_sources(p) or [])
+
+
+def _any_host_allowed(p: dict[str, list[str]]) -> bool:
+    # 'strict-dynamic' makes browsers ignore host and scheme sources.
+    src = _script_sources(p) or []
+    return "'strict-dynamic'" not in src and any(s in {"*", "http:", "https:", "data:"} for s in src)
+
+
+def _plugins_allowed(p: dict[str, list[str]]) -> bool:
+    return p.get("object-src", p.get("default-src")) != ["'none'"]
+
+
+_CSP_WEAKNESSES: tuple[tuple[Callable[[dict[str, list[str]]], bool], str, Severity, str, str, str], ...] = (
+    (
+        _inline_allowed,
+        "csp.unsafe_inline",
+        "low",
+        "CSP allows inline scripts",
+        "'unsafe-inline' lets injected <script> tags run, which removes most of CSP's XSS protection.",
+        "Use nonces or hashes for the inline scripts you need and drop 'unsafe-inline'.",
+    ),
+    (
+        _eval_allowed,
+        "csp.unsafe_eval",
+        "low",
+        "CSP allows eval()",
+        "'unsafe-eval' lets strings be executed as code, a common XSS escalation path.",
+        "Remove 'unsafe-eval' and replace eval-style code.",
+    ),
+    (
+        _any_host_allowed,
+        "csp.wildcard_source",
+        "low",
+        "CSP allows scripts from any host",
+        "A wildcard or bare scheme source lets scripts load from attacker-controlled servers.",
+        "List the exact hosts that serve your scripts, or use nonces with 'strict-dynamic'.",
+    ),
+    (
+        _plugins_allowed,
+        "csp.object_src_open",
+        "low",
+        "CSP does not block plugins",
+        "Without object-src 'none' (or default-src 'none'), <object> and <embed> can load content that runs script.",
+        "Add \"object-src 'none'\".",
+    ),
+    (
+        lambda p: "base-uri" not in p,
+        "csp.base_uri_missing",
+        "info",
+        "CSP does not restrict <base>",
+        "An injected <base> tag can redirect relative script URLs, which bypasses nonce-based policies.",
+        "Add \"base-uri 'none'\" (or 'self').",
+    ),
+)
+
+
 def check_csp(headers: Headers) -> list[Finding]:
-    value = _one(headers, "content-security-policy")
-    if value is None:
+    """Grade what the enforced CSP actually restricts, not just whether one is present."""
+    policies = _csp_policies(headers)
+    if not policies:
+        report_only = _one(headers, "content-security-policy-report-only")
+        if report_only is not None:
+            return [
+                Finding(
+                    id="csp.report_only",
+                    severity="medium",
+                    title="CSP is in report-only mode",
+                    explanation="Content-Security-Policy-Report-Only only reports violations; the browser still runs injected scripts.",
+                    recommendation="Once the reports are clean, send the same policy as Content-Security-Policy.",
+                    evidence=_ev(report_only),
+                )
+            ]
         return [
             Finding(
                 id="csp.missing",
@@ -100,49 +222,31 @@ def check_csp(headers: Headers) -> list[Finding]:
                 recommendation="Start with \"default-src 'self'; object-src 'none'; base-uri 'none'\" and tighten from there.",
             )
         ]
-    directives = _csp_directives(value)
-    scripts = directives.get("script-src", directives.get("default-src", []))
-    out = []
-    if "'unsafe-inline'" in scripts:
-        out.append(
+    evidence = _ev(", ".join(headers["content-security-policy"]))
+    if all(_script_sources(p) is None for p in policies):
+        # Scripts are unrestricted, so the per-source checks below do not apply.
+        return [
             Finding(
-                id="csp.unsafe_inline",
-                severity="low",
-                title="CSP allows inline scripts",
-                explanation="'unsafe-inline' lets injected <script> tags run, which removes most of CSP's XSS protection.",
-                recommendation="Use nonces or hashes for the inline scripts you need and drop 'unsafe-inline'.",
-                evidence=_ev(value),
+                id="csp.no_script_restriction",
+                severity="medium",
+                title="CSP does not restrict scripts",
+                explanation="The policy has neither script-src nor default-src, so injected scripts still run. It may "
+                "control framing or other resources, but it gives no protection against XSS.",
+                recommendation="Add a script-src, ideally nonce-based: \"script-src 'nonce-<random>' 'strict-dynamic'; "
+                "object-src 'none'; base-uri 'none'\".",
+                evidence=evidence,
             )
-        )
-    if "'unsafe-eval'" in scripts:
-        out.append(
-            Finding(
-                id="csp.unsafe_eval",
-                severity="low",
-                title="CSP allows eval()",
-                explanation="'unsafe-eval' lets strings be executed as code, a common XSS escalation path.",
-                recommendation="Remove 'unsafe-eval' and replace eval-style code.",
-                evidence=_ev(value),
-            )
-        )
-    if any(src in {"*", "http:", "https:", "data:"} for src in scripts):
-        out.append(
-            Finding(
-                id="csp.wildcard_source",
-                severity="low",
-                title="CSP allows scripts from any host",
-                explanation="A wildcard or bare scheme source lets scripts load from attacker-controlled servers.",
-                recommendation="List the exact hosts that serve your scripts.",
-                evidence=_ev(value),
-            )
-        )
-    return out
+        ]
+    return [
+        Finding(id=fid, severity=sev, title=title, explanation=why, recommendation=fix, evidence=evidence)
+        for weak, fid, sev, title, why, fix in _CSP_WEAKNESSES
+        if all(weak(p) for p in policies)
+    ]
 
 
 def check_framing(headers: Headers) -> list[Finding]:
     xfo = (_one(headers, "x-frame-options") or "").strip().upper()
-    csp = _csp_directives(_one(headers, "content-security-policy") or "")
-    if xfo in {"DENY", "SAMEORIGIN"} or "frame-ancestors" in csp:
+    if xfo in {"DENY", "SAMEORIGIN"} or any("frame-ancestors" in p for p in _csp_policies(headers)):
         return []
     return [
         Finding(
@@ -264,6 +368,21 @@ def check_cookies(headers: Headers, https: bool) -> list[Finding]:
                     title=f"Cookie {name} lacks HttpOnly",
                     explanation="Scripts can read the cookie, so an XSS bug could steal it. Fine only if JavaScript must read it.",
                     recommendation="Add HttpOnly to session and authentication cookies.",
+                    evidence=evidence,
+                )
+            )
+        prefix = name.lower()  # browsers now match the prefixes case-insensitively
+        if prefix.startswith(("__host-", "__secure-")) and (
+            "secure" not in attrs or (prefix.startswith("__host-") and ("domain" in attrs or attrs.get("path") != "/"))
+        ):
+            out.append(
+                Finding(
+                    id="cookie.prefix_violation",
+                    severity="medium",
+                    title=f"Cookie {name} breaks its name-prefix rules",
+                    explanation="Browsers drop a __Secure- cookie without Secure, and a __Host- cookie without Secure, "
+                    "with a Domain, or with a Path other than /.",
+                    recommendation="Set Secure, and for __Host- also Path=/ and no Domain attribute.",
                     evidence=evidence,
                 )
             )

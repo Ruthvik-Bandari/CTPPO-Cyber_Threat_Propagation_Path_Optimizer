@@ -74,18 +74,26 @@ Every finding has `id`, `severity`, `title`, `explanation`, `recommendation` and
 | --- | --- | --- |
 | `hsts.missing` | medium | HTTPS response without `Strict-Transport-Security`. |
 | `hsts.short_max_age` | low | HSTS `max-age` is missing or under 15,552,000 seconds (180 days). |
+| `hsts.disabled` | medium | HSTS `max-age=0`, which switches HSTS off. No other HSTS finding is reported. |
 | `hsts.no_subdomains` | info | HSTS lacks `includeSubDomains`. |
-| `csp.missing` | medium | No `Content-Security-Policy`. |
-| `csp.unsafe_inline` | low | `script-src` (or `default-src` when there is no `script-src`) allows `'unsafe-inline'`. |
-| `csp.unsafe_eval` | low | The same directive allows `'unsafe-eval'`. |
-| `csp.wildcard_source` | low | The same directive allows `*`, `http:`, `https:` or `data:`. |
-| `framing.unprotected` | medium | Neither `X-Frame-Options: DENY` or `SAMEORIGIN`, nor a CSP `frame-ancestors` directive. |
+| `hsts.not_preload_ready` | info | HSTS has `includeSubDomains` but not a `max-age` of at least one year together with `preload`, so it does not qualify for the [preload list](https://hstspreload.org). |
+| `csp.missing` | medium | Neither `Content-Security-Policy` nor `Content-Security-Policy-Report-Only`. |
+| `csp.report_only` | medium | Only `Content-Security-Policy-Report-Only` is sent. It reports violations but does not block anything. |
+| `csp.no_script_restriction` | medium | A CSP is enforced but has neither `script-src` nor `default-src`, so it gives no protection against injected scripts. For example, a policy with only `frame-ancestors`. |
+| `csp.unsafe_inline` | low | The effective script sources (`script-src`, or `default-src` when there is no `script-src`) allow `'unsafe-inline'` without a nonce or hash. Browsers ignore `'unsafe-inline'` when a nonce or hash is present. |
+| `csp.unsafe_eval` | low | The effective script sources allow `'unsafe-eval'`. |
+| `csp.wildcard_source` | low | The effective script sources allow `*`, `http:`, `https:` or `data:`, and do not use `'strict-dynamic'`, which makes browsers ignore host and scheme sources. |
+| `csp.object_src_open` | low | Neither `object-src 'none'` nor `default-src 'none'`, so plugins (`<object>`, `<embed>`) are not blocked. |
+| `csp.base_uri_missing` | info | No `base-uri`, so an injected `<base>` tag can redirect relative script URLs. |
+| `framing.unprotected` | medium | Neither `X-Frame-Options: DENY` or `SAMEORIGIN`, nor a CSP `frame-ancestors` directive in any enforced policy. |
 | `xcto.missing` | low | `X-Content-Type-Options` is not `nosniff`. |
 | `referrer.weak` | low | `Referrer-Policy` is missing, `unsafe-url` or `no-referrer-when-downgrade`. |
 | `permissions_policy.missing` | info | No `Permissions-Policy`. |
 | `coop.missing` | info | No `Cross-Origin-Opener-Policy`. |
 
 The HSTS checks run only for HTTPS responses.
+
+A browser enforces every CSP it receives: several `Content-Security-Policy` headers, or comma-separated policies in one header. A CSP weakness is therefore reported only when every enforced policy has it. The CSP checks follow the [CSP Level 3](https://www.w3.org/TR/CSP3/) rules for nonces, hashes and `'strict-dynamic'`.
 
 ### Information disclosure
 
@@ -104,6 +112,7 @@ These checks run on every `Set-Cookie` header of the final response.
 | `cookie.no_httponly` | low | The cookie lacks `HttpOnly`. This is acceptable only when JavaScript must read the cookie. |
 | `cookie.no_samesite` | low | The cookie has no `SameSite` attribute. |
 | `cookie.samesite_none_insecure` | medium | `SameSite=None` without `Secure`. |
+| `cookie.prefix_violation` | medium | A `__Secure-` cookie without `Secure`, or a `__Host-` cookie without `Secure`, with a `Domain`, or with a `Path` other than `/`. Browsers drop such cookies. The prefixes are matched case-insensitively. |
 
 ## Report fields
 
@@ -125,3 +134,10 @@ These checks run on every `Set-Cookie` header of the final response.
 - TLS is checked once, with httpx's default verified client context. The check does not enumerate cipher suites or every protocol version the server accepts.
 - Only the first resolved address is contacted. Sites behind several addresses or a CDN may answer differently elsewhere.
 - `--allow-private` removes the address protections for that run. Use it only for hosts you control.
+- Certificate revocation (OCSP or CRL) is not checked.
+
+## How the checks are verified
+
+- **Header and cookie checks:** `tests/webcheck` holds a table of known-bad header sets. Each set is served through a full scan, with the network mocked, and the scan must report exactly the expected findings. These run in CI.
+- **Certificate and TLS checks:** `uv run python scripts/webcheck_conformance.py` scans [badssl.com](https://badssl.com) endpoints: expired, wrong host, self-signed, untrusted root, TLS 1.0, plain HTTP and HSTS. It checks each result. It needs the network, so it is not part of CI. On 2026-10-14, all 8 endpoints gave the expected result. A client whose OpenSSL disables TLS 1.0 reports `tls-v1-0.badssl.com` as `handshake_failed` rather than `outdated_protocol`.
+- **Comparison with other scanners:** to look for gaps, scan 10 to 20 sites you are allowed to test with this tool, [Mozilla Observatory](https://developer.mozilla.org/en-US/observatory) and [securityheaders.com](https://securityheaders.com). Then compare the findings. Each tool uses its own rubric, so compare the findings, not the letter grades. Wherever the tools disagree, one of them has a bug or makes a different judgment.

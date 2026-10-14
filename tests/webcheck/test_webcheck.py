@@ -16,8 +16,8 @@ from aegissec.webcheck.scan import scan
 
 OK_TLS = TlsInfo(host="site.test", status="ok", protocol="TLSv1.3", days_remaining=90)
 GOOD = {
-    "strict-transport-security": ["max-age=31536000; includeSubDomains"],
-    "content-security-policy": ["default-src 'self'; frame-ancestors 'none'"],
+    "strict-transport-security": ["max-age=31536000; includeSubDomains; preload"],
+    "content-security-policy": ["default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"],
     "x-content-type-options": ["nosniff"],
     "referrer-policy": ["strict-origin-when-cross-origin"],
     "permissions-policy": ["camera=()"],
@@ -53,6 +53,78 @@ def test_missing_headers_are_reported():
 )
 def test_weak_csp(csp, expected):
     assert expected in ids(checks.check_csp({"content-security-policy": [csp]}))
+
+
+STRONG_CSP = "default-src 'self'; object-src 'none'; base-uri 'none'"
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected"),
+    [
+        # Framing-only policy, as on the scanned portfolio: present but no XSS protection.
+        (
+            {"content-security-policy": ["frame-ancestors 'none'; upgrade-insecure-requests"]},
+            {"csp.no_script_restriction"},
+        ),
+        ({"content-security-policy-report-only": [STRONG_CSP]}, {"csp.report_only"}),
+        ({"content-security-policy": [STRONG_CSP]}, set()),
+        ({"content-security-policy": ["script-src 'self'"]}, {"csp.object_src_open", "csp.base_uri_missing"}),
+        # A nonce or hash makes browsers ignore 'unsafe-inline'; 'strict-dynamic' ignores host sources.
+        (
+            {
+                "content-security-policy": [
+                    f"{STRONG_CSP}; script-src 'nonce-abc' 'unsafe-inline' 'strict-dynamic' https:"
+                ]
+            },
+            set(),
+        ),
+        ({"content-security-policy": [f"{STRONG_CSP}; script-src 'sha256-xyz' 'unsafe-inline'"]}, set()),
+        ({"content-security-policy": [f"{STRONG_CSP}; script-src 'self' 'unsafe-inline'"]}, {"csp.unsafe_inline"}),
+        # Every enforced policy applies, so a strict second policy covers a weak first one.
+        ({"content-security-policy": ["frame-ancestors 'none'", STRONG_CSP]}, set()),
+        ({"content-security-policy": [f"script-src * , {STRONG_CSP}"]}, set()),
+        (
+            {"content-security-policy": ["script-src *", "script-src https:"]},
+            {"csp.wildcard_source", "csp.object_src_open", "csp.base_uri_missing"},
+        ),
+    ],
+)
+def test_csp_strength(headers, expected):
+    assert ids(checks.check_csp(headers)) == expected
+
+
+def test_framing_reads_every_csp_policy():
+    assert checks.check_framing({"content-security-policy": [STRONG_CSP, "frame-ancestors 'self'"]}) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("max-age=0", {"hsts.disabled"}),
+        ("max-age=31536000; includeSubDomains", {"hsts.not_preload_ready"}),
+        ("max-age=15552000; includeSubDomains; preload", {"hsts.not_preload_ready"}),
+        ("max-age=63072000; includeSubDomains; preload", set()),
+        ("max-age=31536000; preload", {"hsts.no_subdomains"}),
+    ],
+)
+def test_hsts_details(value, expected):
+    assert ids(checks.check_hsts({"strict-transport-security": [value]}, True)) == expected
+
+
+@pytest.mark.parametrize(
+    ("cookie", "violates"),
+    [
+        ("__Host-sid=v; Secure; Path=/; HttpOnly; SameSite=Lax", False),
+        ("__Host-sid=v; Secure; Path=/; Domain=site.test; HttpOnly; SameSite=Lax", True),
+        ("__Host-sid=v; Secure; Path=/app; HttpOnly; SameSite=Lax", True),
+        ("__host-sid=v; Path=/; HttpOnly; SameSite=Lax", True),
+        ("__Secure-sid=v; Secure; Domain=site.test; HttpOnly; SameSite=Lax", False),
+        ("__Secure-sid=v; HttpOnly; SameSite=Lax", True),
+    ],
+)
+def test_cookie_prefix_rules(cookie, violates):
+    found = ids(checks.check_cookies({"set-cookie": [cookie]}, https=True))
+    assert ("cookie.prefix_violation" in found) is violates
 
 
 def test_hsts_edge_cases():
@@ -224,3 +296,32 @@ def test_cli_rejected_exit_code(monkeypatch):
 
     monkeypatch.setattr(cli, "scan", boom)
     assert CliRunner().invoke(cli_app, ["scan", "http://10.0.0.1"]).exit_code == 2
+
+
+# ---------------------------------------------------------------- conformance pages (full scan, mocked network)
+# Each page sets one known-bad header set; the scan must report exactly the expected findings.
+CONFORMANCE = {
+    "csp-framing-only": (
+        {**GOOD, "content-security-policy": ["frame-ancestors 'none'"]},
+        {"csp.no_script_restriction"},
+    ),
+    "csp-report-only": (
+        {k: v for k, v in GOOD.items() if k != "content-security-policy"}
+        | {"content-security-policy-report-only": GOOD["content-security-policy"], "x-frame-options": ["DENY"]},
+        {"csp.report_only"},
+    ),
+    "hsts-disabled": ({**GOOD, "strict-transport-security": ["max-age=0"]}, {"hsts.disabled"}),
+    "cookie-flags": (
+        {**GOOD, "set-cookie": ["sid=v", "__Host-t=v; Secure; Path=/; Domain=site.test; HttpOnly; SameSite=Lax"]},
+        {"cookie.no_secure", "cookie.no_httponly", "cookie.no_samesite", "cookie.prefix_violation"},
+    ),
+    "disclosure": ({**GOOD, "x-powered-by": ["Next.js"]}, {"disclosure.powered_by"}),
+}
+
+
+@pytest.mark.parametrize("page", sorted(CONFORMANCE))
+def test_conformance_pages(fake_dns, page):
+    headers, expected = CONFORMANCE[page]
+    tx, _ = transport({("site.test", "/"): (200, [(k, v) for k, vals in headers.items() for v in vals])})
+    report = scan("https://site.test/", transport=tx, probe=ok_probe)
+    assert ids(report.findings) == expected
