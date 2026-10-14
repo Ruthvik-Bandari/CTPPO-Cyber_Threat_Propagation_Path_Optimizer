@@ -47,7 +47,7 @@ def test_round_trip_is_stable():
         ("a or b and c", Or((Ref("a"), And((Ref("b"), Ref("c")))))),
         ("not (a or b)", Not(Or((Ref("a"), Ref("b"))))),
         ("(a and b) or not c", Or((And((Ref("a"), Ref("b"))), Not(Ref("c"))))),
-        ("(a and b) and (c or (d or e))", And((Ref("a"), Ref("b"), Or((Ref("c"), Ref("d"), Ref("e")))))),
+        ("(a and b) and (c or (d or e))", And((And((Ref("a"), Ref("b"))), Or((Ref("c"), Or((Ref("d"), Ref("e")))))))),
     ],
 )
 def test_condition_precedence(text, expected):
@@ -121,8 +121,7 @@ def test_list_of_maps_all_modifier_and_quantifiers():
     assert (cli.modifier, cli.match_all, cli.key) == ("contains", True, "CommandLine|contains|all")
     assert rule.condition == And(
         (
-            Ref("selection_img"),
-            Ref("selection_cli"),
+            And((Ref("selection_img"), Ref("selection_cli"))),
             Not(Or((Ref("filter_main_parent"), Ref("filter_optional_user")))),
         )
     )
@@ -178,3 +177,33 @@ def test_dates_load_as_text_and_other_tags_stay_refused():
     with pytest.raises(Rejected) as exc:
         load_yaml("x: !!binary aGVsbG8=\n")
     assert exc.value.reason == Reason.YAML_TAG
+
+
+@pytest.mark.parametrize(
+    ("cond", "expected"),
+    [
+        ("1 of *", Ref("sel")),  # pySigma: "_" names match only "_" patterns
+        ("1 of _*", Ref("_h")),
+        ("1 of them", Ref("sel")),
+    ],
+)
+def test_underscore_selections_follow_pysigma(cond, expected):
+    text = "title: t\nlogsource: {category: process_creation, product: windows}\n"
+    text += f"detection:\n  sel: {{Image: a}}\n  _h: {{Image: b}}\n  condition: {cond}\n"
+    assert parse_rule(text).condition == expected
+
+
+def test_underscore_only_pattern_without_match_is_undefined():
+    assert reason(IDIOMS.replace("all of selection_* and not 1 of filter_*", "1 of *h")) == Reason.UNDEFINED_SELECTION
+
+
+def test_deep_or_long_conditions_are_rejected_not_crashing():
+    assert reason(BASE.replace("sel and not filter", "(" * 40 + "sel" + ")" * 40)) == Reason.UNSUPPORTED_CONDITION
+    assert reason(BASE.replace("sel and not filter", " or ".join(["sel"] * 2000))) == Reason.UNSUPPORTED_CONDITION
+
+
+def test_total_value_budget():
+    values = ", ".join(f"'v{i}'" for i in range(64))
+    sels = "".join(f"  s{i}: {{CommandLine|contains: [{values}], Image|endswith: [{values}]}}\n" for i in range(32))
+    text = "title: t\nlogsource: {category: process_creation, product: windows}\ndetection:\n" + sels
+    assert reason(text + "  condition: 1 of s*\n") == Reason.UNSUPPORTED_VALUE

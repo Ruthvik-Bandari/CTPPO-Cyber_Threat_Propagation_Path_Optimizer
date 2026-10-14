@@ -51,6 +51,9 @@ MAX_SELECTIONS = 32
 MAX_BRANCHES = 16
 MAX_VALUES = 64
 MAX_VALUE_CHARS = 4096
+MAX_TOTAL_VALUES = 2048
+MAX_CONDITION_CHARS = 4096
+MAX_CONDITION_DEPTH = 32
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 _TOKEN = re.compile(r"\s*(\(|\)|[A-Za-z_*][A-Za-z0-9_*]*|\d+|\S+)")
 _PATTERN = re.compile(r"[A-Za-z_*][A-Za-z0-9_*]{0,63}")
@@ -158,7 +161,9 @@ def render_condition(cond: Cond, parent: type | None = None) -> str:
         case And(ops) | Or(ops):
             word = " and " if isinstance(cond, And) else " or "
             text = word.join(render_condition(o, type(cond)) for o in ops)
-            return f"({text})" if parent is not None and parent is not type(cond) else text
+            # Every nested group keeps its parentheses, so parse(render(c)) == c exactly. This keeps
+            # quantifier groups (``1 of x*`` inside an ``and``) intact for edit counting.
+            return f"({text})" if parent is not None else text
     raise TypeError(cond)
 
 
@@ -179,12 +184,11 @@ def _quantified(quantifier: str, target: str, names: Sequence[str] | None) -> Co
         raise Rejected(Reason.UNSUPPORTED_CONDITION, f"only '1 of' and 'all of' are supported, not {quantifier!r}")
     if names is None:
         raise Rejected(Reason.UNSUPPORTED_CONDITION, "quantifiers need the rule's selection names")
-    if target == "them":
-        matched = [n for n in names if not n.startswith("_")]
-    elif _PATTERN.fullmatch(target) and target not in _RESERVED:
-        matched = [n for n in names if fnmatchcase(n, target)]
-    else:
+    if target != "them" and (not _PATTERN.fullmatch(target) or target in _RESERVED):
         raise Rejected(Reason.UNSUPPORTED_CONDITION, f"unsupported quantifier target {target!r}")
+    # As in pySigma, names starting with "_" match only a pattern that itself starts with "_".
+    pattern = "*" if target == "them" else target
+    matched = [n for n in names if fnmatchcase(n, pattern) and (pattern.startswith("_") or not n.startswith("_"))]
     if not matched:
         raise Rejected(Reason.UNDEFINED_SELECTION, f"{quantifier} of {target} matches no selection")
     refs = tuple(Ref(n) for n in matched)
@@ -211,23 +215,21 @@ def parse_condition(text: str, names: Sequence[str] | None = None) -> Cond:
         pos += 1
         return tok
 
-    # Same-type children are flattened so that parse(render(c)) == c holds for every tree,
-    # including the nested groups that quantifier expansion and parentheses produce.
+    depth = 0
+
     def parse_or() -> Cond:
         ops = [parse_and()]
         while peek() == "or":
             take()
             ops.append(parse_and())
-        flat = tuple(x for op in ops for x in (op.operands if isinstance(op, Or) else (op,)))
-        return flat[0] if len(flat) == 1 else Or(flat)
+        return ops[0] if len(ops) == 1 else Or(tuple(ops))
 
     def parse_and() -> Cond:
         ops = [parse_not()]
         while peek() == "and":
             take()
             ops.append(parse_not())
-        flat = tuple(x for op in ops for x in (op.operands if isinstance(op, And) else (op,)))
-        return flat[0] if len(flat) == 1 else And(flat)
+        return ops[0] if len(ops) == 1 else And(tuple(ops))
 
     def parse_not() -> Cond:
         if peek() == "not":
@@ -241,7 +243,12 @@ def parse_condition(text: str, names: Sequence[str] | None = None) -> Cond:
             take()
             return _quantified(tok, take(), names)
         if tok == "(":
+            nonlocal depth
+            depth += 1
+            if depth > MAX_CONDITION_DEPTH:
+                raise Rejected(Reason.UNSUPPORTED_CONDITION, f"condition nesting exceeds {MAX_CONDITION_DEPTH}")
             inner = parse_or()
+            depth -= 1
             if take() != ")":
                 raise Rejected(Reason.UNSUPPORTED_CONDITION, "unbalanced parentheses")
             return inner
@@ -249,6 +256,8 @@ def parse_condition(text: str, names: Sequence[str] | None = None) -> Cond:
             raise Rejected(Reason.UNSUPPORTED_CONDITION, f"unsupported token {tok!r}")
         return Ref(tok)
 
+    if len(text) > MAX_CONDITION_CHARS:
+        raise Rejected(Reason.UNSUPPORTED_CONDITION, f"condition exceeds {MAX_CONDITION_CHARS} characters")
     if not tokens:
         raise Rejected(Reason.INVALID_RULE, "empty condition")
     result = parse_or()
@@ -376,6 +385,8 @@ def parse_rule(source: str) -> Rule:
     if not selections or len(selections) > MAX_SELECTIONS:
         raise Rejected(Reason.INVALID_RULE, f"1..{MAX_SELECTIONS} selections required")
 
+    if sum(len(p.values) for sel in selections.values() for p in sel.predicates) > MAX_TOTAL_VALUES:
+        raise Rejected(Reason.UNSUPPORTED_VALUE, f"more than {MAX_TOTAL_VALUES} values in one rule")
     condition = parse_condition(condition_text, list(selections))
     undefined = condition_refs(condition) - selections.keys()
     if undefined:

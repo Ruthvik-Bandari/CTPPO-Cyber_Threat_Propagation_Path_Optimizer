@@ -77,7 +77,7 @@ Version one accepts one kind of rule: a single-event Windows `process_creation` 
 | Fields | `Image`, `OriginalFileName`, `CommandLine`, `CurrentDirectory`, `User`, `LogonId`, `IntegrityLevel`, `Hashes`, `Product`, `Company`, `Description`, `FileVersion`, `ParentImage`, `ParentCommandLine`, `ParentUser`, `ProcessId`, `ParentProcessId` (Sysmon Event ID 1 names). |
 | Modifiers | None (exact match), `contains`, `startswith`, `endswith`. One of the last three may be followed by `\|all`, so that every listed value must match. |
 | Values | A string or integer, or a list of 1 to 64 of them (a list means any of the values). Each value is 1 to 4096 characters. `\*`, `\?` and `\\` are literal escapes. |
-| Condition | One string built from selection names, `and`, `or`, `not`, parentheses, and the quantifiers `1 of <pattern>` and `all of <pattern>`. A pattern is a selection name with `*` wildcards, or `them` (every selection whose name does not start with `_`). Quantifiers are expanded at parse time into an OR or an AND of the matching selections, in definition order, so exported rules show the expanded form. Precedence is `not`, then `and`, then `or`. |
+| Condition | One string built from selection names, `and`, `or`, `not`, parentheses, and the quantifiers `1 of <pattern>` and `all of <pattern>`. A pattern is a selection name with `*` wildcards, or `them` (the same as `*`). As in pySigma, a selection whose name starts with `_` matches only a pattern that also starts with `_`. Quantifiers are expanded at parse time into an OR or an AND of the matching selections, in definition order, so exported rules show the expanded form, with every nested group in parentheses. Precedence is `not`, then `and`, then `or`. At most 4096 characters and 32 levels of parentheses. |
 
 Matching is case-insensitive because of the [index settings](#engine-and-index-semantics).
 
@@ -91,9 +91,9 @@ Matching is case-insensitive because of the [index settings](#engine-and-index-s
 | Any other `logsource`, a non-empty `service`, or extra `logsource` keys | `unsupported_logsource` |
 | Keyword lists, empty selections, list items that are not maps, or more than 16 alternative maps | `unsupported_selection_form` |
 | Modifiers other than those above (for example `re`, `base64`, `cidr`, `windash`, `cased`), `\|all` on its own or after an exact match, or any other modifier chain | `unsupported_modifier` |
-| `null`, boolean, float or nested values; empty values or values over 4096 characters; zero or more than 64 values | `unsupported_value` |
+| `null`, boolean, float or nested values; empty values or values over 4096 characters; zero or more than 64 values per field, or more than 2048 in the whole rule | `unsupported_value` |
 | An unescaped `*` or `?` in a value | `unsupported_wildcard` |
-| Condition that is not one string, uses an aggregation pipe `\|`, a quantifier count other than `1`, a malformed quantifier target, or unbalanced parentheses | `unsupported_condition` |
+| Condition that is not one string, uses an aggregation pipe `\|`, a quantifier count other than `1`, a malformed quantifier target, unbalanced parentheses, more than 32 levels of nesting or more than 4096 characters | `unsupported_condition` |
 | Field outside the supported list | `unknown_field` |
 | Condition names a selection that does not exist, or a quantifier pattern matches none | `undefined_selection` |
 | Missing `title`, `detection` not a map, empty condition, invalid selection name, non-string field key, zero or more than 32 selections | `invalid_rule` |

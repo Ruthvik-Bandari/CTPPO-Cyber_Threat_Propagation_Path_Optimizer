@@ -7,7 +7,7 @@ from aegissec.detect.candidate import Candidate, apply, condition_edits
 from aegissec.detect.fixtures import Dataset, Event, lookup, profile
 from aegissec.detect.mapping import FieldMapping, parse_mapping, to_lucene
 from aegissec.detect.replay import score
-from aegissec.detect.rule import Ref, parse_condition, parse_rule
+from aegissec.detect.rule import Ref, parse_condition, parse_rule, render_condition
 from aegissec.detect.workflow import policy_failures
 
 RULE = parse_rule("""
@@ -214,3 +214,32 @@ def test_repeated_field_across_maps_is_not_a_single_target():
 
     rule = parse_rule(MULTI.replace("OriginalFileName: 'CertUtil.exe'", "Image: 'urlcache.exe'"))
     assert not [c for c in logic_candidates(rule) if c.patch[0].kind == "set_predicate"]
+
+
+def test_quantifier_and_or_swap_is_one_edit():
+    """Review finding: '1 of' -> 'all of' must fit the edit budget (it counted 15 before)."""
+    from aegissec.detect.candidate import apply
+    from aegissec.detect.mapping import FieldMapping
+    from aegissec.detect.repair import logic_candidates
+
+    rule = parse_rule(
+        "title: t\nlogsource: {category: process_creation, product: windows}\ndetection:\n"
+        "  sel_a: {Image|endswith: '\\\\a.exe'}\n  sel_b: {CommandLine|contains: x}\n"
+        "  filter_a: {User: s}\n  filter_b: {Company: c}\n"
+        "  condition: 1 of sel_* and not 1 of filter_*\n"
+    )
+    applied = []
+    for cand in logic_candidates(rule):
+        if cand.patch[0].kind == "set_condition":
+            new_rule, _ = apply(rule, FieldMapping("m", {}), cand)  # none may exceed the budget
+            applied.append(render_condition(new_rule.condition))
+    assert "(sel_a and sel_b) and not (filter_a or filter_b)" in applied
+
+
+def test_match_all_requires_a_string_modifier():
+    from pydantic import ValidationError
+
+    from aegissec.detect.candidate import PredicateSpec
+
+    with pytest.raises(ValidationError):
+        PredicateSpec(field="Image", modifier="equals", values=("a",), match_all=True)

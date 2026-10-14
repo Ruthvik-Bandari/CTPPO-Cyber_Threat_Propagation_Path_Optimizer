@@ -35,11 +35,12 @@ backend and fixtures verify their behavior".
 2. **Conditions:**
    - `1 of X` and `all of X` are expanded when the rule is parsed. They become an OR or an AND of the matching
      selection names, in definition order.
-   - `them` means every selection whose name does not start with `_`, which matches pySigma.
+   - `them` means the same as `*`. As in pySigma, a selection whose name starts with `_` matches only a pattern that
+     also starts with `_`.
    - A pattern that matches nothing is `undefined_selection`. Counts other than `1` are refused.
    - The internal tree stays `Ref | Not | And | Or`. The candidate contract, the edit counter and the condition
      mutations therefore keep working unchanged. Exported rules show the expanded condition, which has the same
-     meaning.
+     meaning. Every nested group is rendered with parentheses, so swapping `1 of` for `all of` counts as one edit.
 3. **Candidates:**
    - `PredicateSpec` gains `match_all`, with default `false`, so existing candidates remain valid.
    - `set_predicate` still has to hit exactly one predicate on its field, now counted across all branches of the

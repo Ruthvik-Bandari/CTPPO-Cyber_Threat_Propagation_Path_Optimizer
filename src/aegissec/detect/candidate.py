@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..core.errors import Reason, Rejected
 from .mapping import INDEX_FIELD, FieldMapping
@@ -30,6 +30,12 @@ class PredicateSpec(_Strict):
     modifier: Literal["equals", "contains", "startswith", "endswith"]
     values: tuple[str, ...] = Field(min_length=1, max_length=8)
     match_all: bool = False
+
+    @model_validator(mode="after")
+    def _all_needs_a_string_modifier(self) -> PredicateSpec:
+        if self.match_all and self.modifier == "equals":
+            raise ValueError("match_all applies only to contains, startswith or endswith")
+        return self
 
     def build(self) -> Predicate:
         return Predicate(self.field, self.modifier, self.values, self.match_all)
