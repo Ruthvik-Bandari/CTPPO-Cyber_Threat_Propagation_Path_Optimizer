@@ -8,7 +8,8 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 
 - The detection-repair Sigma subset now covers the four idioms that excluded most SigmaHQ rules ([ADR 0002](docs/adr/0002-sigma-subset-common-idioms.md)): selections written as lists of field maps, the `|all` modifier suffix, and `1 of` / `all of` quantifiers over name patterns or `them`. Each has a test on the pinned engine.
 - **Breaking:** in `POST /api/detect/parse`, `selections` is now `{name: [[predicate, ...], ...]}`, a list of alternative maps, and each predicate includes `match_all`. Candidate predicate specs accept an optional `match_all`.
-- Conditions are normalized as they are parsed, so nested groups of the same operator are flattened. A rendered condition therefore re-parses to the identical tree.
+- Rendered conditions keep parentheses on every nested group, so a condition re-parses to the identical tree and swapping `1 of` for `all of` counts as one edit.
+- Conditions are limited to 4,096 characters and 32 levels of nesting, and a rule to 2,048 values in total.
 
 ### Fixed
 
