@@ -100,7 +100,7 @@ class KeyUpdate(BaseModel):
 
 def create_app(extra_hosts: frozenset[str] = frozenset()) -> FastAPI:
     app = FastAPI(
-        title="Aegis-Sec", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None
+        title="Aegis-Sec", version=__version__, docs_url=None, redoc_url=None, openapi_url="/api/openapi.json"
     )
     app.add_middleware(_LocalOnly, allowed_hosts=LOOPBACK_HOSTS | extra_hosts)
 
@@ -139,7 +139,7 @@ def create_app(extra_hosts: frozenset[str] = frozenset()) -> FastAPI:
         return JSONResponse(
             {
                 "reason": "dashboard_not_built",
-                "detail": "Build it with `npm --prefix frontend run build`; the API is at /api/docs",
+                "detail": "Build it with `npm --prefix frontend run build`; the API schema is at /api/openapi.json",
             },
             status_code=503,
         )

@@ -41,7 +41,7 @@ def dashboard(
 
     extra = frozenset() if host in {"127.0.0.1", "localhost", "::1"} else frozenset({host})
     url = f"http://{'localhost' if host in {'127.0.0.1', '::1'} else host}:{port}"
-    typer.echo(f"Aegis-Sec {__version__} dashboard at {url}  (API docs: {url}/api/docs)")
+    typer.echo(f"Aegis-Sec {__version__} dashboard at {url}  (API schema: {url}/api/openapi.json)")
     if open_browser:
         import threading
         import webbrowser

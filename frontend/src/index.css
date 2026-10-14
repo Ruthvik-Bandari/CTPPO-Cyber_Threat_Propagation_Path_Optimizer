@@ -1,0 +1,426 @@
+@import "tailwindcss";
+
+/* Self-hosted fonts, Latin subset only (the CSP forbids font CDNs). */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 700;
+  src: url("@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2") format("woff2-variations");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
+/*
+ * Tokens. Neutrals carry a faint tint toward the brand hue (352, signal magenta).
+ * The accent is reserved for primary actions, the current location and focus.
+ * Status hues (critical 25, high 50, medium 85, low 245, ok 150) always ship with
+ * an icon and a label; they never carry meaning by color alone.
+ */
+:root {
+  color-scheme: light;
+  --bg: oklch(0.985 0.003 352);
+  --rail: oklch(0.962 0.005 352);
+  --surface: oklch(1 0 0);
+  --inset: oklch(0.968 0.004 352);
+  --line: oklch(0.9 0.006 352);
+  --line-strong: oklch(0.64 0.012 352);
+  --ink: oklch(0.22 0.012 352);
+  --ink-2: oklch(0.4 0.012 352);
+  --ink-3: oklch(0.5 0.01 352);
+  --accent: oklch(0.54 0.2 352);
+  --accent-hover: oklch(0.49 0.19 352);
+  --on-accent: oklch(1 0 0);
+  --accent-text: oklch(0.5 0.19 352);
+  --accent-soft: oklch(0.955 0.025 352);
+  --focus: oklch(0.54 0.2 352);
+
+  --crit: oklch(0.5 0.19 25);
+  --crit-mark: oklch(0.58 0.21 25);
+  --crit-bg: oklch(0.962 0.022 25);
+  --high: oklch(0.5 0.14 48);
+  --high-mark: oklch(0.66 0.17 50);
+  --high-bg: oklch(0.962 0.03 55);
+  --med: oklch(0.48 0.1 75);
+  --med-mark: oklch(0.68 0.14 75);
+  --med-bg: oklch(0.966 0.045 90);
+  --low: oklch(0.47 0.11 245);
+  --low-mark: oklch(0.6 0.13 245);
+  --low-bg: oklch(0.962 0.018 245);
+  --ok: oklch(0.46 0.11 150);
+  --ok-mark: oklch(0.6 0.14 150);
+  --ok-bg: oklch(0.962 0.03 150);
+
+  --diff-add-bg: oklch(0.955 0.04 150);
+  --diff-del-bg: oklch(0.955 0.03 25);
+  --shadow: 0 1px 2px oklch(0.22 0.012 352 / 0.06), 0 4px 16px oklch(0.22 0.012 352 / 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: oklch(0.175 0.008 352);
+    --rail: oklch(0.152 0.008 352);
+    --surface: oklch(0.207 0.009 352);
+    --inset: oklch(0.235 0.01 352);
+    --line: oklch(0.3 0.01 352);
+    --line-strong: oklch(0.52 0.014 352);
+    --ink: oklch(0.95 0.005 352);
+    --ink-2: oklch(0.8 0.008 352);
+    --ink-3: oklch(0.7 0.01 352);
+    --accent: oklch(0.74 0.17 352);
+    --accent-hover: oklch(0.79 0.14 352);
+    --on-accent: oklch(0.18 0.02 352);
+    --accent-text: oklch(0.8 0.14 352);
+    --accent-soft: oklch(0.3 0.06 352);
+    --focus: oklch(0.78 0.16 352);
+
+    --crit: oklch(0.8 0.12 25);
+    --crit-mark: oklch(0.67 0.19 25);
+    --crit-bg: oklch(0.275 0.06 25);
+    --high: oklch(0.82 0.11 55);
+    --high-mark: oklch(0.72 0.15 52);
+    --high-bg: oklch(0.28 0.05 55);
+    --med: oklch(0.86 0.12 90);
+    --med-mark: oklch(0.8 0.14 85);
+    --med-bg: oklch(0.28 0.04 85);
+    --low: oklch(0.82 0.08 245);
+    --low-mark: oklch(0.68 0.12 245);
+    --low-bg: oklch(0.27 0.04 245);
+    --ok: oklch(0.82 0.12 150);
+    --ok-mark: oklch(0.7 0.14 150);
+    --ok-bg: oklch(0.27 0.05 150);
+
+    --diff-add-bg: oklch(0.29 0.06 150);
+    --diff-del-bg: oklch(0.29 0.06 25);
+    --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 16px oklch(0 0 0 / 0.25);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: oklch(0.175 0.008 352);
+  --rail: oklch(0.152 0.008 352);
+  --surface: oklch(0.207 0.009 352);
+  --inset: oklch(0.235 0.01 352);
+  --line: oklch(0.3 0.01 352);
+  --line-strong: oklch(0.52 0.014 352);
+  --ink: oklch(0.95 0.005 352);
+  --ink-2: oklch(0.8 0.008 352);
+  --ink-3: oklch(0.7 0.01 352);
+  --accent: oklch(0.74 0.17 352);
+  --accent-hover: oklch(0.79 0.14 352);
+  --on-accent: oklch(0.18 0.02 352);
+  --accent-text: oklch(0.8 0.14 352);
+  --accent-soft: oklch(0.3 0.06 352);
+  --focus: oklch(0.78 0.16 352);
+
+  --crit: oklch(0.8 0.12 25);
+  --crit-mark: oklch(0.67 0.19 25);
+  --crit-bg: oklch(0.275 0.06 25);
+  --high: oklch(0.82 0.11 55);
+  --high-mark: oklch(0.72 0.15 52);
+  --high-bg: oklch(0.28 0.05 55);
+  --med: oklch(0.86 0.12 90);
+  --med-mark: oklch(0.8 0.14 85);
+  --med-bg: oklch(0.28 0.04 85);
+  --low: oklch(0.82 0.08 245);
+  --low-mark: oklch(0.68 0.12 245);
+  --low-bg: oklch(0.27 0.04 245);
+  --ok: oklch(0.82 0.12 150);
+  --ok-mark: oklch(0.7 0.14 150);
+  --ok-bg: oklch(0.27 0.05 150);
+
+  --diff-add-bg: oklch(0.29 0.06 150);
+  --diff-del-bg: oklch(0.29 0.06 25);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 16px oklch(0 0 0 / 0.25);
+}
+
+@theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --color-bg: var(--bg);
+  --color-rail: var(--rail);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-crit: var(--crit);
+  --color-crit-mark: var(--crit-mark);
+  --color-crit-bg: var(--crit-bg);
+  --color-high: var(--high);
+  --color-high-mark: var(--high-mark);
+  --color-high-bg: var(--high-bg);
+  --color-med: var(--med);
+  --color-med-mark: var(--med-mark);
+  --color-med-bg: var(--med-bg);
+  --color-low: var(--low);
+  --color-low-mark: var(--low-mark);
+  --color-low-bg: var(--low-bg);
+  --color-ok: var(--ok);
+  --color-ok-mark: var(--ok-mark);
+  --color-ok-bg: var(--ok-bg);
+
+  --shadow-panel: var(--shadow);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    min-width: 320px;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    color: var(--ink);
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+  summary {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    font-weight: 550;
+    font-size: 0.875rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 160ms var(--ease-out-quart),
+      border-color 160ms var(--ease-out-quart),
+      color 160ms var(--ease-out-quart);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--accent-hover);
+  }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .btn-secondary:not(:disabled):hover {
+    background: var(--inset);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-2);
+  }
+  .btn-ghost:not(:disabled):hover {
+    background: var(--inset);
+    color: var(--ink);
+  }
+  .btn-sm {
+    min-height: 2rem;
+    padding: 0 0.625rem;
+    font-size: 0.8125rem;
+    border-radius: 0.375rem;
+  }
+
+  .field {
+    width: 100%;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 0.5rem;
+    padding: 0.5625rem 0.75rem;
+    font-size: 0.9375rem;
+    transition: border-color 160ms var(--ease-out-quart);
+  }
+  .field::placeholder {
+    color: var(--ink-3);
+  }
+  .field:hover {
+    border-color: var(--ink-3);
+  }
+  .field:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 0;
+    border-color: transparent;
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--crit-mark);
+  }
+  textarea.field {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    resize: vertical;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+  }
+
+  .label {
+    display: block;
+    font-weight: 550;
+    font-size: 0.875rem;
+    color: var(--ink);
+    margin-bottom: 0.375rem;
+  }
+  .hint {
+    font-size: 0.8125rem;
+    color: var(--ink-2);
+  }
+
+  .check {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--accent);
+    flex: none;
+    margin-top: 0.15rem;
+  }
+
+  .link {
+    color: var(--accent-text);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .data-table th {
+    text-align: left;
+    font-weight: 550;
+    color: var(--ink-2);
+    font-size: 0.8125rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line-strong);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .data-table tbody th {
+    font-weight: 400;
+    font-size: 0.875rem;
+    color: var(--ink);
+    border-bottom-color: var(--line);
+    white-space: normal;
+    vertical-align: top;
+  }
+  .data-table tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .reveal {
+    animation: reveal 220ms var(--ease-out-quart) both;
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0.35;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .btn,
+  .field,
+  .panel {
+    border: 1px solid CanvasText;
+  }
+}
