@@ -12,16 +12,21 @@ install a key with `ssh-copy-id`. The repository is cloned at `$HOME/aegis-sec`;
 | Job | Partition | Resources | Purpose |
 | --- | --- | --- | --- |
 | `hpc/smoke_gpu.sbatch` | `gpu-short` | 1 GPU, 5 min | Record GPU, driver, CUDA and Python |
-| `hpc/acquire_qc.sbatch` | `short` | 4 CPU, 16 GB, 2 h | Fetch pinned sources, write manifests and QC reports |
+| `hpc/acquire.sh` | transfer node | n/a | Sync the locked environment, fetch pinned sources, write manifests |
+| `hpc/qc.sbatch` | `short` | 2 CPU, 8 GB, 1 h | Offline: verify manifests, write aggregate QC reports |
 
-Submit from the repository root on the cluster: `sbatch hpc/<job>.sbatch`. Logs go to
-`/scratch/$USER/aegis-sec/logs/`.
+Compute nodes have no internet access. Anything that downloads (git, `uv sync`, model or
+dataset fetches) runs on the transfer node, `xfer.discovery.neu.edu`, which shares `/home` and
+`/scratch` with Explorer: `ssh explorer-xfer 'cd ~/aegis-sec && bash hpc/acquire.sh'`. Jobs then
+run offline. Submit them from the repository root on the login node with `sbatch hpc/<job>.sbatch`.
+Logs go to `/scratch/$USER/aegis-sec/logs/`.
 
 ## Choosing hardware by task
 
 | Task | Hardware | Partition |
 | --- | --- | --- |
-| Download, QC, cleaning, variant generation, Elasticsearch replay | CPU | `short` (48 h), `sharing` (1 h) |
+| Download | transfer node | n/a |
+| QC, cleaning, variant generation, Elasticsearch replay | CPU | `short` (48 h), `sharing` (1 h) |
 | Smoke tests, B1 retrieval, small B2 inference | V100 32 GB or T4 | `gpu-short` (2 h), `gpu` (8 h) |
 | M1 LoRA/QLoRA on a 7B to 14B model | A100 | `gpu` with `--gres=gpu:a100:1` |
 | 24B to 32B comparison, long contexts, or A100 throughput measured too low | H200 (B200 if offered) | `gpu` with `--gres=gpu:h200:1` |
