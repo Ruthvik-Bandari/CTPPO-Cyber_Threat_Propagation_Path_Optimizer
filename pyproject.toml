@@ -74,5 +74,5 @@ ignore = ["PLR0911", "PLR0912", "PLR0913", "PLR2004", "S101", "E501", "B008", "P
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["aegissec"]
+packages = ["aegissec", "aegisbench"]
 mypy_path = "src"
