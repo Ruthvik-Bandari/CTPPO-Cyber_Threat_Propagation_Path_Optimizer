@@ -1,0 +1,81 @@
+{
+  "checks": {
+    "attack_techniques": 33,
+    "metadata_links_missing_zip": [
+      "cmd_copy_ntds_from_volume_shadow_copy.zip"
+    ],
+    "problems": [],
+    "records_total": 586275,
+    "sysmon_eid1_records": 1216,
+    "top_techniques": [
+      [
+        "T1003",
+        19
+      ],
+      [
+        "T1021",
+        15
+      ],
+      [
+        "T1218",
+        10
+      ],
+      [
+        "T1562",
+        7
+      ],
+      [
+        "T1055",
+        6
+      ],
+      [
+        "T1047",
+        6
+      ],
+      [
+        "T1069",
+        4
+      ],
+      [
+        "T1053",
+        4
+      ],
+      [
+        "T1059",
+        4
+      ],
+      [
+        "T1112",
+        3
+      ],
+      [
+        "T1087",
+        2
+      ],
+      [
+        "T1547",
+        2
+      ],
+      [
+        "T1134",
+        2
+      ],
+      [
+        "T1222",
+        1
+      ],
+      [
+        "T1550",
+        1
+      ]
+    ],
+    "windows_metadata_files": 100,
+    "windows_zip_files": 118,
+    "zips_with_sysmon_eid1": 74,
+    "zips_without_metadata": 9
+  },
+  "commit": "d9d40ef123d2c87d5d3df28c96bcab4f0faccc87",
+  "content_sha256": "034b77c5b7e72671e8527cf233d4515fe2a57e637498808e4e3109b13964c42f",
+  "schema_version": 1,
+  "source": "otrf"
+}

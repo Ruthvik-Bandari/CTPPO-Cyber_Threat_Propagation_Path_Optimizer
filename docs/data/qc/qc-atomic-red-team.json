@@ -1,0 +1,17 @@
+{
+  "checks": {
+    "problems": [],
+    "techniques": 344,
+    "tests": 1878,
+    "windows_executors": {
+      "command_prompt": 562,
+      "manual": 9,
+      "powershell": 689
+    },
+    "windows_tests": 1260
+  },
+  "commit": "388942adbd9641f4dfdcf079d7efe9a75ec0ac43",
+  "content_sha256": "ba04ee420a90ea12c20dd875ff2845baa1a3b0c679e9d9a4b8ab96ce3fcb2644",
+  "schema_version": 1,
+  "source": "atomic-red-team"
+}
