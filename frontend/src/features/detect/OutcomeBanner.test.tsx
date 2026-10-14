@@ -96,6 +96,14 @@ describe("outcome banner mapping", () => {
     expect(
       describePatch({ kind: "mapping", sigma_field: "CommandLine", from_field: "winlog.CommandLine", to_field: "process.command_line" }),
     ).toBe("Read CommandLine from process.command_line instead of winlog.CommandLine.");
+    expect(
+      describePatch({
+        kind: "set_predicate",
+        selection: "cli",
+        field: "CommandLine",
+        predicate: { field: "CommandLine", modifier: "contains", values: ["-urlcache", "http"], match_all: true },
+      }),
+    ).toBe("In “cli”, match CommandLine when it contains “-urlcache” and “http”.");
     expect(policyFailureText("preservation_loss")).toBe("It stops catching a scenario the original rule caught.");
     expect(policyFailureText("brand_new_code")).toBe("brand new code");
   });

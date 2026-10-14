@@ -1,7 +1,8 @@
 """Structured repair candidate envelope and bounded patch application (section 9).
 
 A candidate may change only selection values or modifiers, the condition, an added
-contextual exclusion, or one mapping entry. Applying it re-parses the patched rule so
+contextual exclusion, or one mapping entry. Selections may hold several alternative field maps
+(ADR 0002); a predicate edit must still identify exactly one predicate. Applying it re-parses the patched rule so
 every candidate passes the same validator as an imported rule.
 """
 
@@ -14,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.errors import Reason, Rejected
 from .mapping import INDEX_FIELD, FieldMapping
-from .rule import And, Cond, Not, Or, Predicate, Ref, Rule, condition_refs, parse_condition, parse_rule
+from .rule import And, Cond, Not, Or, Predicate, Ref, Rule, Selection, condition_refs, parse_condition, parse_rule
 
 MAX_CANDIDATES = 4
 MAX_AST_EDITS = 3
@@ -28,6 +29,10 @@ class PredicateSpec(_Strict):
     field: str
     modifier: Literal["equals", "contains", "startswith", "endswith"]
     values: tuple[str, ...] = Field(min_length=1, max_length=8)
+    match_all: bool = False
+
+    def build(self) -> Predicate:
+        return Predicate(self.field, self.modifier, self.values, self.match_all)
 
 
 class MappingPatch(_Strict):
@@ -99,7 +104,7 @@ def _size(c: Cond) -> int:
     raise TypeError(c)
 
 
-def _exclusion_name(selections: dict[str, tuple[Predicate, ...]]) -> str:
+def _exclusion_name(selections: dict[str, Selection]) -> str:
     n = 1
     while f"cg_filter_{n}" in selections:
         n += 1
@@ -133,23 +138,24 @@ def apply(rule: Rule, mapping: FieldMapping, cand: Candidate) -> tuple[Rule, Fie
                 if len(set(keys)) != len(keys):
                     raise Rejected(Reason.INVALID_CANDIDATE, "an exclusion may test each field/modifier once")
                 name = _exclusion_name(selections)
-                selections[name] = tuple(Predicate(p.field, p.modifier, p.values) for p in op.predicates)
+                selections[name] = Selection.of(*(p.build() for p in op.predicates))
                 condition = And((condition, Not(Ref(name))))
                 edits += 1 + len(op.predicates)  # the negated reference plus each new predicate
             case SetPredicate():
-                preds = selections.get(op.selection, ())
-                targets = [p for p in preds if p.field == op.field]
-                if op.field != op.predicate.field or len(targets) != 1:
+                sel = selections.get(op.selection)
+                targets = [p for p in sel.predicates if p.field == op.field] if sel else []
+                if sel is None or op.field != op.predicate.field or len(targets) != 1:
                     raise Rejected(
                         Reason.INVALID_CANDIDATE,
                         "set_predicate must target exactly one existing predicate on that field",
                     )
-                old, spec = targets[0], op.predicate
-                new = Predicate(spec.field, spec.modifier, spec.values)
-                selections[op.selection] = tuple(new if p is old else p for p in preds)
-                edits += (old.modifier != new.modifier) + (old.values != new.values)
+                old, new = targets[0], op.predicate.build()
+                selections[op.selection] = Selection(
+                    tuple(tuple(new if p is old else p for p in branch) for branch in sel.branches)
+                )
+                edits += (old.modifier != new.modifier) + (old.values != new.values) + (old.match_all != new.match_all)
             case SetCondition():
-                new_cond = parse_condition(op.condition)
+                new_cond = parse_condition(op.condition, list(rule.selections))
                 if condition_refs(new_cond) != condition_refs(rule.condition):
                     raise Rejected(Reason.INVALID_CANDIDATE, "condition must keep every original selection")
                 edits += condition_edits(condition, new_cond)

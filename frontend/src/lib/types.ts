@@ -48,7 +48,8 @@ export interface ParsedRule {
   sha256: string;
   fields: string[];
   condition: string;
-  selections: Record<string, { field: string; modifier: string; values: string[] }[]>;
+  /** Each selection is a list of alternative field maps (OR); each map is an AND of predicates. */
+  selections: Record<string, { field: string; modifier: string; values: string[]; match_all: boolean }[][]>;
 }
 
 export interface Counts {
@@ -93,6 +94,8 @@ export interface PredicateSpec {
   field: string;
   modifier: "equals" | "contains" | "startswith" | "endswith";
   values: string[];
+  /** Every value must match (Sigma `|all`) instead of any one. */
+  match_all?: boolean;
 }
 
 export type Patch =

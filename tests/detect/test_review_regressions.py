@@ -41,7 +41,7 @@ def test_sigma_escape_round_trips_through_pysigma(raw):
     escaped = sigma_escape(raw)
     assert not has_wildcard(escaped)
     r = rule(f"  s: {{Image: {json.dumps(escaped)}}}\n  condition: s\n")
-    assert r.selections["s"][0].values == (escaped,)
+    assert r.selections["s"].predicates[0].values == (escaped,)
 
 
 def test_selection_names_that_pysigma_reads_as_operators_are_rejected():

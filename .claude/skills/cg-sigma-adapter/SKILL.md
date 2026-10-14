@@ -17,7 +17,7 @@ Plan refs: sections 5 (version one semantics), 9 (diagnosis sequence, repair cla
 
 1. Load YAML with a safe loader only. Reject custom tags, anchors/aliases bombs, duplicate keys and files over the size ceiling.
 2. Build a rule AST. Verify required structure, `logsource` (process_creation, windows) and allowed operators.
-3. Supported subset: named selections, exact values, lists, `contains`, `startswith`, `endswith`, and simple `and` / `or` / `not` over selections. Reject with explicit reason codes: aggregation, correlation, `near`, `re`/regex, `base64offset`, `cidr`, wildcard tricks, `1 of them` style quantifiers until verified, and unsupported logsources.
+3. Supported subset (ADR 0002): named selections as a field map or a list of field maps, exact values, lists, `contains`, `startswith`, `endswith`, optional `|all`, and `and` / `or` / `not` with `1 of` / `all of` quantifiers expanded at parse time. Reject with explicit reason codes: aggregation, correlation, `near`, `re`/regex, `base64offset`, `cidr`, `windash`, wildcards in values, keyword selections, and unsupported logsources. Every new construct needs an engine test before it is accepted.
 4. Compute and preserve SHA-256 for the rule, the pipeline and the compiled query.
 5. Resolve the pipeline, then convert with the pinned backend. Record backend and target version in the output.
 6. Define and test null, missing field, case and array handling; each behavior must later be confirmed by real-engine replay, not assumed.

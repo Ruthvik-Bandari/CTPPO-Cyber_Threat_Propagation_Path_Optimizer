@@ -61,7 +61,7 @@ The dashboard (`aegis-sec dashboard`) runs the same workflow from the Detection 
 
 ## Supported Sigma subset
 
-Version one accepts one kind of rule: a single-event Windows `process_creation` rule built from named field-map selections. Anything outside that subset is rejected with a reason code before conversion. The parser does not guess at semantics it cannot replay. The rules live in [`rule.py`](../../src/aegissec/detect/rule.py) and [`core/safe_load.py`](../../src/aegissec/core/safe_load.py).
+Version one accepts one kind of rule: a single-event Windows `process_creation` rule built from named selections. [ADR 0002](../adr/0002-sigma-subset-common-idioms.md) widened the subset to the four idioms most common in SigmaHQ: lists of field maps, `|all`, `1 of` and `all of`. Each one has a test on the pinned engine. Anything outside that subset is rejected with a reason code before conversion. The parser does not guess at semantics it cannot replay. The rules live in [`rule.py`](../../src/aegissec/detect/rule.py) and [`core/safe_load.py`](../../src/aegissec/core/safe_load.py).
 
 ### Supported
 
@@ -72,12 +72,12 @@ Version one accepts one kind of rule: a single-event Windows `process_creation` 
 | `id` | Optional; kept as a string. |
 | Metadata kept | `status`, `description`, `author`, `level`, `tags`, `references`, `falsepositives`. Other top-level keys are dropped from the canonical rule. |
 | `logsource` | `category: process_creation` and `product: windows`. The keys `service` (only if empty) and `definition` are tolerated. |
-| Selections | 1 to 32 named selections. Each is a non-empty map of `field` or `field\|modifier` to values. |
+| Selections | 1 to 32 named selections. Each is a non-empty map of `field` or `field\|modifier` to values (an AND of its fields), or a list of 1 to 16 such maps (an OR of the maps). |
 | Selection names | Match `[A-Za-z_][A-Za-z0-9_]{0,63}`. A name may not start with `and`, `or` or `not` (any case), and may not be a reserved word. |
 | Fields | `Image`, `OriginalFileName`, `CommandLine`, `CurrentDirectory`, `User`, `LogonId`, `IntegrityLevel`, `Hashes`, `Product`, `Company`, `Description`, `FileVersion`, `ParentImage`, `ParentCommandLine`, `ParentUser`, `ProcessId`, `ParentProcessId` (Sysmon Event ID 1 names). |
-| Modifiers | None (exact match), `contains`, `startswith`, `endswith`. At most one modifier per key. |
+| Modifiers | None (exact match), `contains`, `startswith`, `endswith`. One of the last three may be followed by `\|all`, so that every listed value must match. |
 | Values | A string or integer, or a list of 1 to 64 of them (a list means any of the values). Each value is 1 to 4096 characters. `\*`, `\?` and `\\` are literal escapes. |
-| Condition | One string built from selection names, `and`, `or`, `not` and parentheses. Precedence is `not`, then `and`, then `or`. |
+| Condition | One string built from selection names, `and`, `or`, `not`, parentheses, and the quantifiers `1 of <pattern>` and `all of <pattern>`. A pattern is a selection name with `*` wildcards, or `them` (every selection whose name does not start with `_`). Quantifiers are expanded at parse time into an OR or an AND of the matching selections, in definition order, so exported rules show the expanded form. Precedence is `not`, then `and`, then `or`. |
 
 Matching is case-insensitive because of the [index settings](#engine-and-index-semantics).
 
@@ -89,13 +89,13 @@ Matching is case-insensitive because of the [index settings](#engine-and-index-s
 | `timeframe` under `detection` | `unsupported_rule_type` |
 | More than one YAML document | `unsupported_rule_type` |
 | Any other `logsource`, a non-empty `service`, or extra `logsource` keys | `unsupported_logsource` |
-| Keyword lists, or empty or non-map selections | `unsupported_selection_form` |
-| Modifiers other than the three above (for example `re`, `all`, `base64`, `cidr`, `windash`), or chained modifiers | `unsupported_modifier` |
+| Keyword lists, empty selections, list items that are not maps, or more than 16 alternative maps | `unsupported_selection_form` |
+| Modifiers other than those above (for example `re`, `base64`, `cidr`, `windash`, `cased`), `\|all` on its own or after an exact match, or any other modifier chain | `unsupported_modifier` |
 | `null`, boolean, float or nested values; empty values or values over 4096 characters; zero or more than 64 values | `unsupported_value` |
 | An unescaped `*` or `?` in a value | `unsupported_wildcard` |
-| Condition that is not one string, uses an aggregation pipe `\|`, `1 of`, `all of`, `them`, wildcard selection names or unbalanced parentheses | `unsupported_condition` |
+| Condition that is not one string, uses an aggregation pipe `\|`, a quantifier count other than `1`, a malformed quantifier target, or unbalanced parentheses | `unsupported_condition` |
 | Field outside the supported list | `unknown_field` |
-| Condition names a selection that does not exist | `undefined_selection` |
+| Condition names a selection that does not exist, or a quantifier pattern matches none | `undefined_selection` |
 | Missing `title`, `detection` not a map, empty condition, invalid selection name, non-string field key, zero or more than 32 selections | `invalid_rule` |
 | Invalid YAML or a duplicate key | `malformed_yaml` |
 | YAML anchors or aliases | `yaml_alias_not_allowed` |
@@ -229,10 +229,10 @@ A repair candidate is a structured envelope validated with Pydantic. Unknown key
 | --- | --- | --- | --- |
 | `mapping` | `sigma_field`, `from_field`, `to_field` | Points one Sigma field at a different index field. | 1 |
 | `add_exclusion` | `predicates` (1 to 3) | Adds selection `cg_filter_<n>` and rewrites the condition to `(<original>) and not cg_filter_<n>`. | 1 plus 1 per predicate |
-| `set_predicate` | `selection`, `field`, `predicate` | Replaces one existing predicate's modifier or values. | 1 per changed modifier, 1 per changed value list |
+| `set_predicate` | `selection`, `field`, `predicate` | Replaces one existing predicate's modifier, values or `match_all`. The field must occur exactly once across all of the selection's alternative maps. | 1 each for a changed modifier, value list or `match_all` |
 | `set_condition` | `condition` (up to 1024 characters) | Replaces the condition. | Approximate AST edit distance |
 
-A predicate spec has `field`, `modifier` (`equals`, `contains`, `startswith` or `endswith`) and 1 to 8 `values`.
+A predicate spec has `field`, `modifier` (`equals`, `contains`, `startswith` or `endswith`), 1 to 8 `values` and an optional `match_all` (default `false`).
 
 **Edit budget and refusals.** A candidate is refused with `invalid_candidate` when:
 

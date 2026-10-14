@@ -77,7 +77,8 @@ condition has a typo. Aegis-Sec takes a **Sigma rule**, an **environment field m
 JSONL events**, then:
 
 1. **Parses safely** a bounded, single-event subset of Sigma: `process_creation` on Windows, exact /
-   `contains` / `startswith` / `endswith` matches, value lists, and `and` / `or` / `not` conditions.
+   `contains` / `startswith` / `endswith` matches (optionally `|all`), value lists, lists of field maps, and
+   `and` / `or` / `not` conditions with `1 of` / `all of` quantifiers.
    Anything else is rejected with a reason code instead of being guessed at.
 2. **Profiles the telemetry.** For each field it reports which fields the rule needs, which are present,
    and which are missing.

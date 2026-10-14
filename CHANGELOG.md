@@ -4,6 +4,12 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- The detection-repair Sigma subset now covers the four idioms that excluded most SigmaHQ rules ([ADR 0002](docs/adr/0002-sigma-subset-common-idioms.md)): selections written as lists of field maps, the `|all` modifier suffix, and `1 of` / `all of` quantifiers over name patterns or `them`. Each has a test on the pinned engine.
+- **Breaking:** in `POST /api/detect/parse`, `selections` is now `{name: [[predicate, ...], ...]}`, a list of alternative maps, and each predicate includes `match_all`. Candidate predicate specs accept an optional `match_all`.
+- Conditions are normalized as they are parsed, so nested groups of the same operator are flattened. A rendered condition therefore re-parses to the identical tree.
+
 ### Fixed
 
 - Real SigmaHQ rules are accepted again. Their unquoted `date:` and `modified:` values resolve as YAML timestamps, which the strict loader refused, so every rule failed with `yaml_tag_not_allowed`. Timestamps now load as their literal text. Other non-plain tags, such as `!!binary`, are still refused.

@@ -160,3 +160,57 @@ def test_profile_and_lookup():
     assert lookup(events[0].data, "flat.key") == "y"
     assert lookup(events[0].data, "process.pid") == 4
     json.dumps(prof.as_dict())
+
+
+MULTI = """
+title: multi
+logsource: {category: process_creation, product: windows}
+detection:
+  sel:
+    - Image: 'certutil.exe'
+    - OriginalFileName: 'CertUtil.exe'
+  cli:
+    CommandLine|contains|all: ['-urlcache', 'http']
+  condition: 1 of sel* and cli
+"""
+
+
+def test_set_predicate_reaches_into_alternative_maps():
+    from aegissec.detect.candidate import Candidate, apply
+    from aegissec.detect.mapping import FieldMapping
+
+    rule = parse_rule(MULTI)
+    cand = Candidate.model_validate(
+        {
+            "proposal_id": "p",
+            "original_sha256": rule.sha256,
+            "patch_kind": "rule",
+            "patch": [
+                {
+                    "kind": "set_predicate",
+                    "selection": "sel",
+                    "field": "Image",
+                    "predicate": {"field": "Image", "modifier": "endswith", "values": ["\\certutil.exe"]},
+                },
+                {
+                    "kind": "set_predicate",
+                    "selection": "cli",
+                    "field": "CommandLine",
+                    "predicate": {"field": "CommandLine", "modifier": "contains", "values": ["-urlcache", "http"]},
+                },
+            ],
+        }
+    )
+    new_rule, _ = apply(rule, FieldMapping("m", {}), cand)
+    sel = new_rule.selections["sel"]
+    assert len(sel.branches) == 2
+    assert sel.predicates[0].key == "Image|endswith"
+    assert sel.predicates[1].key == "OriginalFileName"
+    assert new_rule.selections["cli"].predicates[0].match_all is False  # dropping |all is one counted edit
+
+
+def test_repeated_field_across_maps_is_not_a_single_target():
+    from aegissec.detect.repair import logic_candidates
+
+    rule = parse_rule(MULTI.replace("OriginalFileName: 'CertUtil.exe'", "Image: 'urlcache.exe'"))
+    assert not [c for c in logic_candidates(rule) if c.patch[0].kind == "set_predicate"]

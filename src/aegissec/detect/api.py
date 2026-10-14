@@ -100,8 +100,14 @@ def parse(body: RuleBody) -> dict[str, Any]:
         "fields": sorted(rule.fields),
         "condition": render_condition(rule.condition),
         "selections": {
-            name: [{"field": p.field, "modifier": p.modifier, "values": list(p.values)} for p in preds]
-            for name, preds in rule.selections.items()
+            name: [
+                [
+                    {"field": p.field, "modifier": p.modifier, "values": list(p.values), "match_all": p.match_all}
+                    for p in b
+                ]
+                for b in sel.branches
+            ]
+            for name, sel in rule.selections.items()
         },
     }
 

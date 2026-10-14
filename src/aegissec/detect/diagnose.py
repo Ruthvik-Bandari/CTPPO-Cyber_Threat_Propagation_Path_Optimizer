@@ -103,7 +103,7 @@ def _hits(predicates: list[Predicate], value: object) -> bool:
         "startswith": text.startswith,
         "endswith": text.endswith,
     }
-    return any(tests[p.modifier](v.lower()) for p in predicates for v in p.values)
+    return any((all if p.match_all else any)(tests[p.modifier](v.lower()) for v in p.values) for p in predicates)
 
 
 def alternative_fields(
@@ -114,7 +114,7 @@ def alternative_fields(
     value hits, then name similarity."""
     taken = set(mapping.fields.values())
     target = _norm(sigma_field)
-    predicates = [p for preds in rule.selections.values() for p in preds if p.field == sigma_field]
+    predicates = [p for sel in rule.selections.values() for p in sel.predicates if p.field == sigma_field]
     scored = []
     for name, stats in schema.fields.items():
         # Parent and child process fields describe different processes and are never interchangeable.

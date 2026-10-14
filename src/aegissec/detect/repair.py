@@ -113,9 +113,10 @@ def logic_candidates(rule: Rule) -> list[Candidate]:
         seen.add(cond)
         n += 1
         out.append(_candidate(rule, n, Family.LOGIC, "rule", SetCondition(condition=render_condition(cond))))
-    for selection, preds in rule.selections.items():
-        for p in preds:
-            if p.modifier != "equals":
+    for selection, sel in rule.selections.items():
+        for p in sel.predicates:
+            # set_predicate must identify one predicate, so skip fields repeated across alternative maps.
+            if p.modifier != "equals" or sum(q.field == p.field for q in sel.predicates) != 1:
                 continue
             if p.field in _PATH_FIELDS and not any("\\" in v for v in p.values):
                 spec = PredicateSpec(field=p.field, modifier="endswith", values=tuple("\\" + v for v in p.values))

@@ -121,7 +121,7 @@ Semantics, limits and report fields are in [`docs/modules/detect.md`](modules/de
 | `GET /api/detect/engine` | none | `reachable`, `version` (or `null`), `pinned_version` (`"8.19.3"`), `pinned`, `image` |
 | `GET /api/detect/cases` | none | Array of case manifests: `case_id`, `provenance`, `split`, `title`, `root_id`, `fault`, `expected` |
 | `POST /api/detect/cases/{case_id}/run` | none | The [workflow report](modules/detect.md#report-and-evidence-json) plus `case` (the manifest). An unknown `case_id` returns 400 `invalid_input`. |
-| `POST /api/detect/parse` | `{"rule": string}` (at most 102,400 characters) | `title`, `id`, `sha256`, `fields`, `condition` (canonical text), `selections` (`{name: [{field, modifier, values}]}`). A rule outside the subset returns 400 with its reason code. |
+| `POST /api/detect/parse` | `{"rule": string}` (at most 102,400 characters) | `title`, `id`, `sha256`, `fields`, `condition` (canonical text), `selections` (`{name: [[{field, modifier, values, match_all}, ...], ...]}`: each selection is a list of alternative maps, each map a list of predicates). A rule outside the subset returns 400 with its reason code. |
 | `POST /api/detect/run` | See below | The workflow report. |
 
 `POST /api/detect/run` body:

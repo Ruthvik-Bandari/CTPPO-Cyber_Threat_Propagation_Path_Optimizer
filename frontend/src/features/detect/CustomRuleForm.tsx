@@ -47,7 +47,7 @@ const specs: Record<Key, Spec> = {
   rule: {
     key: "rule",
     label: "Sigma rule",
-    hint: "YAML. Process-creation rules with equals, contains, startswith and endswith are supported.",
+    hint: "YAML. Process-creation rules with equals, contains, startswith, endswith, |all, lists of field maps and 1 of / all of are supported.",
     placeholder: RULE_PLACEHOLDER,
     accept: ".yml,.yaml,text/yaml",
     max: MAX_RULE,

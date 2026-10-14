@@ -29,7 +29,7 @@ def test_parses_supported_subset():
     assert rule.title == "Test rule"
     assert rule.fields == {"Image", "CommandLine", "ParentImage"}
     assert rule.condition == And((Ref("sel"), Not(Ref("filter"))))
-    assert rule.selections["sel"][1].values == ("-urlcache", "-verifyctl")
+    assert rule.selections["sel"].predicates[1].values == ("-urlcache", "-verifyctl")
     assert len(rule.sha256) == 64
 
 
@@ -47,6 +47,7 @@ def test_round_trip_is_stable():
         ("a or b and c", Or((Ref("a"), And((Ref("b"), Ref("c")))))),
         ("not (a or b)", Not(Or((Ref("a"), Ref("b"))))),
         ("(a and b) or not c", Or((And((Ref("a"), Ref("b"))), Not(Ref("c"))))),
+        ("(a and b) and (c or (d or e))", And((Ref("a"), Ref("b"), Or((Ref("c"), Ref("d"), Ref("e")))))),
     ],
 )
 def test_condition_precedence(text, expected):
@@ -55,7 +56,9 @@ def test_condition_precedence(text, expected):
     assert parse_condition(render_condition(cond)) == cond
 
 
-@pytest.mark.parametrize("cond", ["1 of sel*", "all of them", "sel | count() > 5", "sel and", "(sel", "sel )"])
+@pytest.mark.parametrize(
+    "cond", ["2 of sel*", "1 of", "1 of (sel)", "sel | count() > 5", "sel and", "(sel", "sel )", "1 of sel?x"]
+)
 def test_rejects_unsupported_conditions(cond):
     assert reason(BASE.replace("sel and not filter", cond)) in {Reason.UNSUPPORTED_CONDITION, Reason.INVALID_RULE}
 
@@ -64,7 +67,10 @@ def test_rejects_unsupported_conditions(cond):
     ("old", "new", "expected"),
     [
         ("Image|endswith", "Image|re", Reason.UNSUPPORTED_MODIFIER),
-        ("Image|endswith", "Image|contains|all", Reason.UNSUPPORTED_MODIFIER),
+        ("Image|endswith", "Image|all", Reason.UNSUPPORTED_MODIFIER),
+        ("Image|endswith", "Image|endswith|all|all", Reason.UNSUPPORTED_MODIFIER),
+        ("Image|endswith", "Image|windash", Reason.UNSUPPORTED_MODIFIER),
+        ("sel and not filter", "1 of nothing_*", Reason.UNDEFINED_SELECTION),
         ("Image|endswith", "Imagex|endswith", Reason.UNKNOWN_FIELD),
         ("'\\certutil.exe'", "'*certutil.exe'", Reason.UNSUPPORTED_WILDCARD),
         ("'\\certutil.exe'", "null", Reason.UNSUPPORTED_VALUE),
@@ -77,12 +83,72 @@ def test_rejects_outside_subset(old, new, expected):
     assert reason(BASE.replace(old, new, 1)) == expected
 
 
-def test_rejects_list_selection_and_multi_doc():
-    assert (
-        reason(BASE.replace("  filter:\n    ParentImage", "  filter:\n    - ParentImage"))
-        == Reason.UNSUPPORTED_SELECTION_FORM
+def test_rejects_keyword_selections_and_multi_doc():
+    assert reason(
+        BASE.replace("  filter:\n    ParentImage: 'C:\\Windows\\explorer.exe'", "  filter:\n    - certutil")
+    ) == (Reason.UNSUPPORTED_SELECTION_FORM)
+    assert reason(BASE.replace("  filter:\n    ParentImage: 'C:\\Windows\\explorer.exe'", "  filter: []")) == (
+        Reason.UNSUPPORTED_SELECTION_FORM
     )
     assert reason(BASE + "\n---\n" + BASE) == Reason.UNSUPPORTED_RULE_TYPE
+
+
+IDIOMS = """
+title: SigmaHQ idioms
+logsource: {category: process_creation, product: windows}
+detection:
+  selection_img:
+    - Image|endswith: '\\certutil.exe'
+    - OriginalFileName: 'CertUtil.exe'
+  selection_cli:
+    CommandLine|contains|all: ['-urlcache', 'http']
+  filter_main_parent:
+    ParentImage: 'C:\\Windows\\explorer.exe'
+  filter_optional_user:
+    User|startswith: 'NT AUTHORITY'
+  _helper:
+    Company: 'x'
+  condition: all of selection_* and not 1 of filter_*
+"""
+
+
+def test_list_of_maps_all_modifier_and_quantifiers():
+    rule = parse_rule(IDIOMS)
+    img = rule.selections["selection_img"]
+    assert len(img.branches) == 2
+    assert [p.field for p in img.predicates] == ["Image", "OriginalFileName"]
+    cli = rule.selections["selection_cli"].predicates[0]
+    assert (cli.modifier, cli.match_all, cli.key) == ("contains", True, "CommandLine|contains|all")
+    assert rule.condition == And(
+        (
+            Ref("selection_img"),
+            Ref("selection_cli"),
+            Not(Or((Ref("filter_main_parent"), Ref("filter_optional_user")))),
+        )
+    )
+    again = parse_rule(rule.to_yaml())
+    assert (again.selections, again.condition) == (rule.selections, rule.condition)
+
+
+@pytest.mark.parametrize(
+    ("cond", "expected"),
+    [
+        (
+            "1 of them",
+            Or(tuple(Ref(n) for n in ("selection_img", "selection_cli", "filter_main_parent", "filter_optional_user"))),
+        ),
+        ("all of filter_main*", Ref("filter_main_parent")),
+        ("1 of selection_* and _helper", And((Or((Ref("selection_img"), Ref("selection_cli"))), Ref("_helper")))),
+    ],
+)
+def test_quantifier_expansion(cond, expected):
+    assert parse_rule(IDIOMS.replace("all of selection_* and not 1 of filter_*", cond)).condition == expected
+
+
+def test_quantifiers_need_selection_names():
+    with pytest.raises(Rejected) as exc:
+        parse_condition("1 of sel*")
+    assert exc.value.reason == Reason.UNSUPPORTED_CONDITION
 
 
 def test_hostile_yaml_is_rejected():

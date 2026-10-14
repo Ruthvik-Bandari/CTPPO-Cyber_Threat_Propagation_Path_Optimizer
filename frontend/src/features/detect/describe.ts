@@ -84,8 +84,8 @@ export function policyFailureText(code: string): string {
 
 const modifierText = { equals: "equals", contains: "contains", startswith: "starts with", endswith: "ends with" };
 
-function quoteValues(values: string[]): string {
-  return values.map((v) => `“${v}”`).join(" or ");
+function quoteValues(values: string[], all = false): string {
+  return values.map((v) => `“${v}”`).join(all ? " and " : " or ");
 }
 
 /** One sentence per patch operation, written for a reviewer rather than a parser. */
@@ -95,10 +95,10 @@ export function describePatch(patch: Patch): string {
       return `Read ${patch.sigma_field} from ${patch.to_field} instead of ${patch.from_field}.`;
     case "add_exclusion":
       return `Ignore events where ${patch.predicates
-        .map((p) => `${p.field} ${modifierText[p.modifier]} ${quoteValues(p.values)}`)
+        .map((p) => `${p.field} ${modifierText[p.modifier]} ${quoteValues(p.values, p.match_all)}`)
         .join(" and ")}.`;
     case "set_predicate":
-      return `In “${patch.selection}”, match ${patch.field} when it ${modifierText[patch.predicate.modifier]} ${quoteValues(patch.predicate.values)}.`;
+      return `In “${patch.selection}”, match ${patch.field} when it ${modifierText[patch.predicate.modifier]} ${quoteValues(patch.predicate.values, patch.predicate.match_all)}.`;
     case "set_condition":
       return `Change the condition to “${patch.condition}”.`;
   }

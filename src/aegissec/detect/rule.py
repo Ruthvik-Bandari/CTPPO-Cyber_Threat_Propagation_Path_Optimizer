@@ -1,8 +1,9 @@
 """Parser for the bounded single-event Sigma subset (plan section 5, "Version one semantics").
 
-Supported: one process_creation/windows rule, named map selections, exact / contains /
-startswith / endswith string matching with value lists, and conditions built from
-selection names with ``and``, ``or``, ``not`` and parentheses. Everything else is
+Supported: one process_creation/windows rule; named selections written as a field map or a
+list of field maps (OR of maps); exact / contains / startswith / endswith string matching with
+value lists, optionally ``|all``; and conditions built from selection names with ``and``, ``or``,
+``not``, parentheses and the ``1 of`` / ``all of`` quantifiers (ADR 0002). Everything else is
 rejected with a reason code before conversion.
 """
 
@@ -10,7 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from typing import Literal
 
 import yaml
@@ -45,22 +48,47 @@ PROCESS_CREATION_FIELDS: frozenset[str] = frozenset(
 )
 
 MAX_SELECTIONS = 32
+MAX_BRANCHES = 16
 MAX_VALUES = 64
 MAX_VALUE_CHARS = 4096
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
-_TOKEN = re.compile(r"\s*(\(|\)|[A-Za-z_][A-Za-z0-9_]*|\S+)")
+_TOKEN = re.compile(r"\s*(\(|\)|[A-Za-z_*][A-Za-z0-9_*]*|\d+|\S+)")
+_PATTERN = re.compile(r"[A-Za-z_*][A-Za-z0-9_*]{0,63}")
 _RESERVED = frozenset({"and", "or", "not", "of", "them", "all"})
 
 
 @dataclass(frozen=True)
 class Predicate:
+    """``field`` matched against ``values``: any value by default, every value when ``match_all``."""
+
     field: str
     modifier: Modifier
     values: tuple[str, ...]
+    match_all: bool = False
 
     @property
     def key(self) -> str:
-        return self.field if self.modifier == "equals" else f"{self.field}|{self.modifier}"
+        key = self.field if self.modifier == "equals" else f"{self.field}|{self.modifier}"
+        return f"{key}|all" if self.match_all else key
+
+
+@dataclass(frozen=True)
+class Selection:
+    """OR of branches; each branch is an AND of its predicates (a Sigma field map)."""
+
+    branches: tuple[tuple[Predicate, ...], ...]
+
+    @classmethod
+    def of(cls, *predicates: Predicate) -> Selection:
+        return cls((predicates,))
+
+    @property
+    def predicates(self) -> tuple[Predicate, ...]:
+        return tuple(p for branch in self.branches for p in branch)
+
+    def to_sigma(self) -> object:
+        maps = [{p.key: list(p.values) if len(p.values) > 1 else p.values[0] for p in b} for b in self.branches]
+        return maps[0] if len(maps) == 1 else maps
 
 
 @dataclass(frozen=True)
@@ -92,7 +120,7 @@ class Rule:
 
     title: str
     rule_id: str | None
-    selections: dict[str, tuple[Predicate, ...]]
+    selections: dict[str, Selection]
     condition: Cond
     meta: dict[str, object]
     source: str
@@ -100,7 +128,7 @@ class Rule:
 
     @property
     def fields(self) -> frozenset[str]:
-        return frozenset(p.field for preds in self.selections.values() for p in preds)
+        return frozenset(p.field for sel in self.selections.values() for p in sel.predicates)
 
     def to_yaml(self) -> str:
         """Serialize to canonical Sigma YAML (used for patched rules)."""
@@ -110,8 +138,8 @@ class Rule:
         doc.update(self.meta)
         doc["logsource"] = {"category": "process_creation", "product": "windows"}
         detection: dict[str, object] = {}
-        for name, preds in self.selections.items():
-            detection[name] = {p.key: list(p.values) if len(p.values) > 1 else p.values[0] for p in preds}
+        for name, sel in self.selections.items():
+            detection[name] = sel.to_sigma()
         detection["condition"] = render_condition(self.condition)
         doc["detection"] = detection
         return yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
@@ -145,8 +173,30 @@ def condition_refs(cond: Cond) -> set[str]:
     raise TypeError(cond)
 
 
-def parse_condition(text: str) -> Cond:
-    """Recursive descent: or -> and -> not -> atom. Precedence: not > and > or."""
+def _quantified(quantifier: str, target: str, names: Sequence[str] | None) -> Cond:
+    """Expand ``1 of X`` / ``all of X`` to an OR / AND of the selections matching ``X``."""
+    if quantifier not in ("1", "all"):
+        raise Rejected(Reason.UNSUPPORTED_CONDITION, f"only '1 of' and 'all of' are supported, not {quantifier!r}")
+    if names is None:
+        raise Rejected(Reason.UNSUPPORTED_CONDITION, "quantifiers need the rule's selection names")
+    if target == "them":
+        matched = [n for n in names if not n.startswith("_")]
+    elif _PATTERN.fullmatch(target) and target not in _RESERVED:
+        matched = [n for n in names if fnmatchcase(n, target)]
+    else:
+        raise Rejected(Reason.UNSUPPORTED_CONDITION, f"unsupported quantifier target {target!r}")
+    if not matched:
+        raise Rejected(Reason.UNDEFINED_SELECTION, f"{quantifier} of {target} matches no selection")
+    refs = tuple(Ref(n) for n in matched)
+    if len(refs) == 1:
+        return refs[0]
+    return Or(refs) if quantifier == "1" else And(refs)
+
+
+def parse_condition(text: str, names: Sequence[str] | None = None) -> Cond:
+    """Recursive descent: or -> and -> not -> atom. Precedence: not > and > or.
+
+    ``names`` are the rule's selection names in definition order; quantifiers expand against them."""
     tokens = [m.group(1) for m in _TOKEN.finditer(text)]
     pos = 0
 
@@ -161,19 +211,23 @@ def parse_condition(text: str) -> Cond:
         pos += 1
         return tok
 
+    # Same-type children are flattened so that parse(render(c)) == c holds for every tree,
+    # including the nested groups that quantifier expansion and parentheses produce.
     def parse_or() -> Cond:
         ops = [parse_and()]
         while peek() == "or":
             take()
             ops.append(parse_and())
-        return ops[0] if len(ops) == 1 else Or(tuple(ops))
+        flat = tuple(x for op in ops for x in (op.operands if isinstance(op, Or) else (op,)))
+        return flat[0] if len(flat) == 1 else Or(flat)
 
     def parse_and() -> Cond:
         ops = [parse_not()]
         while peek() == "and":
             take()
             ops.append(parse_not())
-        return ops[0] if len(ops) == 1 else And(tuple(ops))
+        flat = tuple(x for op in ops for x in (op.operands if isinstance(op, And) else (op,)))
+        return flat[0] if len(flat) == 1 else And(flat)
 
     def parse_not() -> Cond:
         if peek() == "not":
@@ -183,6 +237,9 @@ def parse_condition(text: str) -> Cond:
 
     def parse_atom() -> Cond:
         tok = take()
+        if peek() == "of":
+            take()
+            return _quantified(tok, take(), names)
         if tok == "(":
             inner = parse_or()
             if take() != ")":
@@ -240,9 +297,20 @@ def _parse_value(field: str, value: object) -> str:
     return text
 
 
-def _parse_selection(name: str, body: object) -> tuple[Predicate, ...]:
-    if not isinstance(body, dict) or not body:
-        raise Rejected(Reason.UNSUPPORTED_SELECTION_FORM, f"{name}: only non-empty field maps are supported")
+def _parse_selection(name: str, body: object) -> Selection:
+    raw = body if isinstance(body, list) else [body]
+    maps: list[dict[object, object]] = [m for m in raw if isinstance(m, dict) and m]
+    if not raw or len(maps) != len(raw):
+        raise Rejected(
+            Reason.UNSUPPORTED_SELECTION_FORM,
+            f"{name}: only non-empty field maps or lists of them are supported (no keyword selections)",
+        )
+    if len(maps) > MAX_BRANCHES:
+        raise Rejected(Reason.UNSUPPORTED_SELECTION_FORM, f"{name}: at most {MAX_BRANCHES} alternative maps")
+    return Selection(tuple(_parse_map(name, m) for m in maps))
+
+
+def _parse_map(name: str, body: dict[object, object]) -> tuple[Predicate, ...]:
     preds = []
     for key, raw in body.items():
         if not isinstance(key, str):
@@ -250,12 +318,14 @@ def _parse_selection(name: str, body: object) -> tuple[Predicate, ...]:
         field, *mods = key.split("|")
         if field not in PROCESS_CREATION_FIELDS:
             raise Rejected(Reason.UNKNOWN_FIELD, f"{name}: field {field!r} is not a supported process_creation field")
-        if len(mods) > 1 or (mods and mods[0] not in SUPPORTED_MODIFIERS):
+        match_all = mods[1:] == ["all"]
+        if len(mods) > 1 + match_all or (mods and mods[0] not in SUPPORTED_MODIFIERS):
             raise Rejected(Reason.UNSUPPORTED_MODIFIER, f"{name}: modifier {'|'.join(mods)!r} is not supported")
         items = raw if isinstance(raw, list) else [raw]
         if not items or len(items) > MAX_VALUES:
             raise Rejected(Reason.UNSUPPORTED_VALUE, f"{name}.{field}: 1..{MAX_VALUES} values required")
-        preds.append(Predicate(field, mods[0] if mods else "equals", tuple(_parse_value(field, v) for v in items)))  # type: ignore[arg-type]
+        values = tuple(_parse_value(field, v) for v in items)
+        preds.append(Predicate(field, mods[0] if mods else "equals", values, match_all))  # type: ignore[arg-type]
     return tuple(preds)
 
 
@@ -290,7 +360,7 @@ def parse_rule(source: str) -> Rule:
     if "|" in condition_text:
         raise Rejected(Reason.UNSUPPORTED_CONDITION, "aggregation pipes are not supported")
 
-    selections: dict[str, tuple[Predicate, ...]] = {}
+    selections: dict[str, Selection] = {}
     for name, body in detection.items():
         if name == "condition":
             continue
@@ -306,7 +376,7 @@ def parse_rule(source: str) -> Rule:
     if not selections or len(selections) > MAX_SELECTIONS:
         raise Rejected(Reason.INVALID_RULE, f"1..{MAX_SELECTIONS} selections required")
 
-    condition = parse_condition(condition_text)
+    condition = parse_condition(condition_text, list(selections))
     undefined = condition_refs(condition) - selections.keys()
     if undefined:
         raise Rejected(Reason.UNDEFINED_SELECTION, f"condition references {sorted(undefined)}")
