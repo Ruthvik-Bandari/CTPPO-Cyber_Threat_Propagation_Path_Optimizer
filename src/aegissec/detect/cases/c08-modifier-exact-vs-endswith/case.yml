@@ -1,0 +1,12 @@
+case_id: c08-modifier-exact-vs-endswith
+provenance: synthetic
+split: development
+title: 'Value fault: exact file name instead of path suffix'
+root_id: R-mshta
+fault:
+  kind: logic
+  detail: Image compared exactly to 'mshta.exe' but holds a full path
+expected:
+  outcome: repaired
+  family: logic
+  patch_kind: rule

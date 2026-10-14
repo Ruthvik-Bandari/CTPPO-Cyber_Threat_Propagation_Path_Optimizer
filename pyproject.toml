@@ -1,0 +1,78 @@
+[project]
+name = "aegis-sec-ai"
+version = "0.1.0"
+description = "Aegis-Sec: a local-first security workbench for detection repair, file forensics, web exposure checks and Bitcoin quantum-risk scanning."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Ruthvik Bandari", email = "bandari.ru@northeastern.edu" }]
+requires-python = ">=3.12"
+keywords = ["security", "sigma", "detection-engineering", "forensics", "bitcoin", "post-quantum"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "httpx>=0.28",
+    "pydantic>=2.10",
+    "pyyaml>=6.0.2",
+    "pysigma>=1.5,<2",
+    "pysigma-backend-elasticsearch>=2.1,<3",
+    "typer>=0.15",
+    "python-multipart>=0.0.20",
+]
+
+[project.optional-dependencies]
+ai = ["anthropic>=0.75"]
+exif = ["pillow>=11"]
+
+[project.scripts]
+aegis-sec = "aegissec.cli:app"
+
+[project.urls]
+Repository = "https://github.com/Ruthvik-Bandari/CTPPO-Cyber_Threat_Propagation_Path_Optimizer"
+
+[build-system]
+requires = ["uv_build>=0.11.16,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "aegissec"
+
+[dependency-groups]
+dev = ["pytest>=9", "pytest-cov>=6", "ruff>=0.14", "mypy>=1.18", "types-pyyaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["engine: requires the pinned Elasticsearch at AEGIS_ES_URL (default http://127.0.0.1:9200)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL"]
+# E501: the formatter owns code width; long lines left are user-facing prose strings.
+# B008: Typer declares CLI options as argument defaults by design.
+# PLC0415: lazy imports keep CLI start-up fast and optional extras optional.
+ignore = ["PLR0911", "PLR0912", "PLR0913", "PLR2004", "S101", "E501", "B008", "PLC0415"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLR0917"]
+"scripts/**" = ["PLR0915", "PLR0917"]
+"src/aegissec/*/cli.py" = ["PLR0917"]  # Typer maps each CLI option to a parameter
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["aegissec"]
+mypy_path = "src"

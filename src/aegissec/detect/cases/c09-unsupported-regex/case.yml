@@ -1,0 +1,9 @@
+case_id: c09-unsupported-regex
+provenance: synthetic
+split: development
+title: 'Unsupported: regex modifier'
+root_id: R-encoded-ps-re
+fault:
+  kind: unsupported
+expected:
+  outcome: unsupported

@@ -1,0 +1,11 @@
+case_id: c05-missing-telemetry-commandline
+provenance: synthetic
+split: development
+title: 'Missing telemetry: command line not collected'
+root_id: R-encoded-ps
+fault:
+  kind: missing_telemetry
+  field: CommandLine
+expected:
+  outcome: insufficient_evidence
+  family: missing_telemetry

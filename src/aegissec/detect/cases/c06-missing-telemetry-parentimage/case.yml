@@ -1,0 +1,11 @@
+case_id: c06-missing-telemetry-parentimage
+provenance: synthetic
+split: development
+title: 'Missing telemetry: parent process not collected'
+root_id: R-wmi-child
+fault:
+  kind: missing_telemetry
+  field: ParentImage
+expected:
+  outcome: insufficient_evidence
+  family: missing_telemetry

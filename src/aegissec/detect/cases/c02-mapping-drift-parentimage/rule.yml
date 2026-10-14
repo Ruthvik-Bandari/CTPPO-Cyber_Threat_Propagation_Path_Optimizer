@@ -1,0 +1,18 @@
+title: Office application spawns a shell
+id: 8c5e2d1a-0000-4000-8000-000000000002
+status: test
+level: high
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentImage|endswith:
+    - \winword.exe
+    - \excel.exe
+  selection_child:
+    Image|endswith:
+    - \cmd.exe
+    - \powershell.exe
+    - \wscript.exe
+  condition: selection_parent and selection_child

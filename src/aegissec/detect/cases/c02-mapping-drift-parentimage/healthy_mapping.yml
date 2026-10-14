@@ -1,0 +1,10 @@
+schema_version: 1
+name: lab-ecs-parent-path
+fields:
+  Image: process.executable
+  CommandLine: process.command_line
+  ParentImage: process.parent.path
+  ParentCommandLine: process.parent.command_line
+  User: user.name
+  OriginalFileName: process.pe.original_file_name
+  Company: process.pe.company

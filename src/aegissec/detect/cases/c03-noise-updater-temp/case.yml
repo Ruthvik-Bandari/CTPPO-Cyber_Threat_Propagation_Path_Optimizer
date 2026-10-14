@@ -1,0 +1,12 @@
+case_id: c03-noise-updater-temp
+provenance: synthetic
+split: development
+title: 'Noise: updater executes from Temp'
+root_id: R-temp-exec
+fault:
+  kind: noise
+  detail: legitimate updater matched; needs a narrow parent exclusion
+expected:
+  outcome: repaired
+  family: noise
+  patch_kind: rule

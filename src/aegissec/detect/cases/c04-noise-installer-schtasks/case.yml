@@ -1,0 +1,11 @@
+case_id: c04-noise-installer-schtasks
+provenance: synthetic
+split: development
+title: 'Noise: installer creates scheduled tasks'
+root_id: R-schtasks
+fault:
+  kind: noise
+expected:
+  outcome: repaired
+  family: noise
+  patch_kind: rule

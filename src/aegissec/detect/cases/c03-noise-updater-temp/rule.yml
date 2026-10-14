@@ -1,0 +1,11 @@
+title: Execution from user Temp directory
+id: 8c5e2d1a-0000-4000-8000-000000000003
+status: test
+level: medium
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|contains: \AppData\Local\Temp\
+  condition: selection

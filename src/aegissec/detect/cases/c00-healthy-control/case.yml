@@ -1,0 +1,9 @@
+case_id: c00-healthy-control
+provenance: synthetic
+split: development
+title: 'Healthy control: certutil download'
+root_id: R-certutil
+fault:
+  kind: none
+expected:
+  outcome: unchanged

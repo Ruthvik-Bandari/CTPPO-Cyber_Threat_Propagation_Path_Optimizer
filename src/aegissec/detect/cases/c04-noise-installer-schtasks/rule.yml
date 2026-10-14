@@ -1,0 +1,12 @@
+title: Scheduled task created
+id: 8c5e2d1a-0000-4000-8000-000000000004
+status: test
+level: medium
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: \schtasks.exe
+    CommandLine|contains: /create
+  condition: selection

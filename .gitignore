@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+# Built dashboard is generated into the package at build time
+src/aegissec/server/static/*
+!src/aegissec/server/static/.gitkeep
+
+# Secrets and private data (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+data/raw/
+data/locked/
+
+# Run outputs
+artifacts/
+mlruns/
+*.safetensors
+*.gguf
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+.claude/settings.local.json

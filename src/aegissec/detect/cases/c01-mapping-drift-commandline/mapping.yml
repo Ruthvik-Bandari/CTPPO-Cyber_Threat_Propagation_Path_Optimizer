@@ -1,0 +1,10 @@
+schema_version: 1
+name: lab-ecs-stale
+fields:
+  Image: process.executable
+  CommandLine: winlog.event_data.CommandLine
+  ParentImage: process.parent.executable
+  ParentCommandLine: process.parent.command_line
+  User: user.name
+  OriginalFileName: process.pe.original_file_name
+  Company: process.pe.company

@@ -1,0 +1,10 @@
+# --- CyberGuard detection repair ---
+data/raw/
+data/locked/
+artifacts/
+analysis/.venv/
+**/__pycache__/
+.pytest_cache/
+mlruns/
+*.safetensors
+*.gguf

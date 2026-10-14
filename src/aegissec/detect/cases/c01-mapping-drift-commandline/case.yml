@@ -1,0 +1,12 @@
+case_id: c01-mapping-drift-commandline
+provenance: synthetic
+split: development
+title: 'Mapping drift: CommandLine renamed'
+root_id: R-certutil
+fault:
+  kind: mapping
+  detail: CommandLine mapped to winlog.event_data.CommandLine; data uses process.command_line
+expected:
+  outcome: repaired
+  family: mapping
+  patch_kind: mapping

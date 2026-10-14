@@ -1,0 +1,12 @@
+case_id: c02-mapping-drift-parentimage
+provenance: synthetic
+split: development
+title: 'Mapping drift: ParentImage moved to process.parent.path'
+root_id: R-office-child
+fault:
+  kind: mapping
+  detail: parent path field renamed with no name similarity
+expected:
+  outcome: repaired
+  family: mapping
+  patch_kind: mapping

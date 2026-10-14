@@ -1,0 +1,12 @@
+case_id: c07-logic-and-or
+provenance: synthetic
+split: development
+title: 'Logic fault: and instead of or'
+root_id: R-lolbin
+fault:
+  kind: logic
+  detail: condition requires both selections, which can never co-occur
+expected:
+  outcome: repaired
+  family: logic
+  patch_kind: rule

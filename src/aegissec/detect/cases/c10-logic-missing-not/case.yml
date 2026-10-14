@@ -1,0 +1,12 @@
+case_id: c10-logic-missing-not
+provenance: synthetic
+split: development
+title: 'Logic fault: exclusion filter missing ''not'''
+root_id: R-bitsadmin
+fault:
+  kind: logic
+  detail: condition is 'selection and filter_sccm'
+expected:
+  outcome: repaired
+  family: logic
+  patch_kind: rule
