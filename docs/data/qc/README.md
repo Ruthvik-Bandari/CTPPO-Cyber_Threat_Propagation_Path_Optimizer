@@ -42,6 +42,23 @@ A rule can have several of these causes; each rule is counted once, under the fi
 - Windows executors: 689 PowerShell, 562 command prompt, 9 manual.
 - These test definitions are data only; none of them has been run.
 
+## After ADR 0002 (Slurm job 11086173)
+
+[ADR 0002](../../adr/0002-sigma-subset-common-idioms.md) widened the subset to lists of field maps, `|all`, and `1 of` / `all of`. QC now also requires each supported rule to convert with the pinned pySigma Lucene backend.
+
+- **997 of 1,182 rules (84%) are supported, and every one of them converts.** Before the change, 192 rules were supported.
+- **101 supported rules have SigmaHQ positive regression events.** Before the change, 12 did.
+- The 185 remaining rules are excluded for these reasons:
+  - `windash` (78)
+  - `re` (41)
+  - null matching (23)
+  - wildcards (21)
+  - value-count and empty-value limits (17)
+  - `base64offset` (4)
+  - more than 16 alternative maps (1)
+
+The JSON reports in this folder are from this later run. The tables above describe the first run.
+
 ## What this means for the benchmark
 
 The plan targets 60 clean roots, each with at least 2 attack variants. Under v1 semantics there are 192 candidate rules, but only 12 come with ready-made positive events. There are two ways to close the gap (plan section 18, scope adjustment gates):
