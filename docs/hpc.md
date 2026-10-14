@@ -12,12 +12,14 @@ install a key with `ssh-copy-id`. The repository is cloned at `$HOME/aegis-sec`;
 | Job | Partition | Resources | Purpose |
 | --- | --- | --- | --- |
 | `hpc/smoke_gpu.sbatch` | `gpu-short` | 1 GPU, 5 min | Record GPU, driver, CUDA and Python |
-| `hpc/acquire.sh` | transfer node | n/a | Sync the locked environment, fetch pinned sources, write manifests |
+| `hpc/setup_env.sh` | login node | n/a | Build the locked environment (`uv sync --frozen`) once per pull |
+| `hpc/acquire.sh` | transfer node | n/a | Fetch pinned sources and write manifests (standard library only) |
 | `hpc/qc.sbatch` | `short` | 2 CPU, 8 GB, 1 h | Offline: verify manifests, write aggregate QC reports |
 
-Compute nodes have no internet access. Anything that downloads (git, `uv sync`, model or
-dataset fetches) runs on the transfer node, `xfer.discovery.neu.edu`, which shares `/home` and
-`/scratch` with Explorer: `ssh explorer-xfer 'cd ~/aegis-sec && bash hpc/acquire.sh'`. Jobs then
+Compute nodes have no internet access. The login node (Rocky 9, like the compute nodes) builds the
+environment. Data, model and dataset downloads run on the transfer node, `xfer.discovery.neu.edu`, which shares `/home` and
+`/scratch` with Explorer: `ssh explorer-xfer 'cd ~/aegis-sec && bash hpc/acquire.sh'`. The transfer node runs
+CentOS 7 (glibc 2.17), so never build the project environment there. Jobs then
 run offline. Submit them from the repository root on the login node with `sbatch hpc/<job>.sbatch`.
 Logs go to `/scratch/$USER/aegis-sec/logs/`.
 

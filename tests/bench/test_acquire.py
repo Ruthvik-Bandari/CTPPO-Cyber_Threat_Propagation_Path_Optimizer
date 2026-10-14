@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 
 from aegisbench import __main__ as cli
 from aegisbench.acquire import AcquisitionError, checkout, manifest
+from aegisbench.qc import QC
 from aegisbench.sources import SOURCES, Source
 
 
@@ -84,7 +86,7 @@ def test_qc_detects_files_changed_after_acquisition(upstream, monkeypatch, capsy
     source, dest = upstream
     monkeypatch.setattr(cli, "SOURCES", (source,))
     monkeypatch.setattr(cli, "by_name", lambda _: source)
-    monkeypatch.setitem(cli.QC, "fake", lambda _: {"ok": True})
+    monkeypatch.setitem(QC, "fake", lambda _: {"ok": True})
     root = dest.parent
     assert cli.main(["acquire", "--root", str(root)]) == 0
     assert json.loads((root / "manifests/fake.json").read_text())["file_count"] == 1
@@ -93,3 +95,11 @@ def test_qc_detects_files_changed_after_acquisition(upstream, monkeypatch, capsy
     (dest / "keep/sub/a.yml").write_text("a: 2\n")
     assert cli.main(["qc", "--root", str(root)]) == 1
     assert "changed since acquisition" in capsys.readouterr().err
+
+
+def test_acquire_imports_only_the_standard_library():
+    code = (
+        "import sys, aegisbench.__main__; print(sorted(m for m in ('yaml', 'pydantic', 'httpx') if m in sys.modules))"
+    )
+    out = subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True).stdout
+    assert out.strip() == "[]"

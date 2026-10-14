@@ -2,7 +2,8 @@
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
-Exit status is 1 if any source fails, so a Slurm job fails visibly.
+Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
+standard library, so it runs on the cluster transfer node without the project environment.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import tempfile
 from pathlib import Path
 
 from .acquire import AcquisitionError, checkout, manifest
-from .qc import QC
 from .sources import SOURCES, by_name
 
 
@@ -50,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
                 _write_json(root / "manifests" / f"{source.name}.json", record)
                 print(f"{source.name}: {record['file_count']} files, content {str(record['content_sha256'])[:12]}")
             else:
+                from .qc import QC  # needs the project environment; acquire needs only the stdlib
+
                 recorded = json.loads((root / "manifests" / f"{source.name}.json").read_text())
                 current = manifest(source, dest)
                 if current["files"] != recorded["files"]:
