@@ -37,6 +37,8 @@ def test_sigma_qc_counts_support_duplicates_and_regression(tmp_path):
     assert report["rules_total"] == 4
     assert report["outcomes"]["supported"] == 2
     assert report["outcomes"]["unsupported:unsupported_wildcard"] == 1
+    assert report["top_unsupported_causes"] == [("unsupported_wildcard: wildcard values are not supported in v1", 1)]
+    assert report["missing_id"] == 0  # the alias-refused rule is counted as a load failure, not a missing id
     assert report["outcomes"]["load:yaml_alias_not_allowed"] == 1
     assert report["duplicate_detection_groups"] == [[f"{SIGMA_RULES}/a.yml", f"{SIGMA_RULES}/b.yml"]]
     assert report["regression"]["sysmon_eid1_events"] == 1
@@ -83,3 +85,15 @@ def test_atomic_qc_counts_windows_executors(tmp_path):
     assert (report["techniques"], report["tests"], report["windows_tests"]) == (1, 2, 1)
     assert report["windows_executors"] == {"powershell": 1}
     assert report["problems"] == ["T1000.yaml: missing atomic_tests list"]
+
+
+def test_sigma_regression_accepts_concatenated_events(tmp_path):
+    (tmp_path / SIGMA_RULES).mkdir(parents=True)
+    case = tmp_path / SIGMA_REGRESSION / "m"
+    _write(case / "info.yml", "rule_metadata:\n  - id: id-m\n")
+    event = {"Event": {"System": {"EventID": 1, "Channel": SYSMON_CHANNEL}, "EventData": {}}}
+    _write(case / "id-m.json", json.dumps(event, indent=2) + "\n" + json.dumps(event, indent=2) + "\n")
+    regression = qc_sigma(tmp_path)["regression"]
+    assert (regression["sysmon_eid1_events"], regression["problems"]) == (2, [])
+    _write(case / "id-m.json", "{} trailing")
+    assert qc_sigma(tmp_path)["regression"]["problems"] == ["m: id-m.json is not valid bounded JSON"]

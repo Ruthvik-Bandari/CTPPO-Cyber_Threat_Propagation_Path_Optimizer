@@ -42,6 +42,24 @@ def _detection_fingerprint(doc: dict[str, Any]) -> str | None:
     return hashlib.sha256(canonical_json(detection)).hexdigest()
 
 
+def _json_documents(text: str) -> list[Any]:
+    """Parse one JSON value, a list, or several concatenated values (Sigma exports multi-event files that way)."""
+    decoder = json.JSONDecoder()
+    docs: list[Any] = []
+    pos = 0
+    while True:
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+        if pos == len(text):
+            break
+        doc, pos = decoder.raw_decode(text, pos)
+        check_depth(doc)
+        docs.extend(doc if isinstance(doc, list) else [doc])
+    if not docs:
+        raise ValueError("empty JSON file")
+    return docs
+
+
 def _regression_events(case_dir: Path, info: dict[str, Any]) -> tuple[list[str], int, list[str]]:
     """Return (rule ids covered, Sysmon EID 1 event count, problems) for one regression folder."""
     problems: list[str] = []
@@ -56,12 +74,10 @@ def _regression_events(case_dir: Path, info: dict[str, Any]) -> tuple[list[str],
             problems.append(f"{case_dir.name}: {path.name} exceeds size limit")
             continue
         try:
-            doc = json.loads(path.read_bytes())
-            check_depth(doc)
+            records = _json_documents(path.read_text(encoding="utf-8"))
         except (ValueError, Rejected):
             problems.append(f"{case_dir.name}: {path.name} is not valid bounded JSON")
             continue
-        records = doc if isinstance(doc, list) else [doc]
         for record in records:
             event = record.get("Event") if isinstance(record, dict) else None
             system = event.get("System") if isinstance(event, dict) else None
@@ -74,41 +90,7 @@ def _regression_events(case_dir: Path, info: dict[str, Any]) -> tuple[list[str],
     return ids, events, problems
 
 
-def qc_sigma(root: Path) -> dict[str, object]:
-    rules_dir = root / SIGMA_RULES
-    outcome: Counter[str] = Counter()
-    status: Counter[str] = Counter()
-    ids: Counter[str] = Counter()
-    fingerprints: defaultdict[str, list[str]] = defaultdict(list)
-    supported: list[str] = []
-    for path in sorted(rules_dir.rglob("*.yml")):
-        rel = path.relative_to(root).as_posix()
-        try:
-            doc = _read_yaml(path, MAX_SIGMA_BYTES)
-        except Rejected as exc:
-            outcome[f"load:{exc.reason}"] += 1
-            continue
-        if not isinstance(doc, dict):
-            outcome["load:not_a_mapping"] += 1
-            continue
-        rule_id = str(doc.get("id") or "")
-        if rule_id:
-            ids[rule_id] += 1
-        status[str(doc.get("status") or "missing")] += 1
-        fp = _detection_fingerprint(doc)
-        if fp:
-            fingerprints[fp].append(rel)
-        try:
-            parse_rule(path.read_text(encoding="utf-8"))
-        except Rejected as exc:
-            outcome[f"unsupported:{exc.reason}"] += 1
-            continue
-        except UnicodeDecodeError:
-            outcome["load:not_utf8"] += 1
-            continue
-        outcome["supported"] += 1
-        supported.append(rule_id or rel)
-
+def _qc_regression(root: Path) -> tuple[set[str], int, list[str]]:
     regression_ids: set[str] = set()
     regression_events = 0
     problems: list[str] = []
@@ -125,13 +107,58 @@ def qc_sigma(root: Path) -> dict[str, object]:
         regression_ids.update(covered)
         regression_events += events
         problems.extend(found)
+    return regression_ids, regression_events, problems
 
+
+def qc_sigma(root: Path) -> dict[str, object]:
+    rules_dir = root / SIGMA_RULES
+    outcome: Counter[str] = Counter()
+    status: Counter[str] = Counter()
+    details: Counter[str] = Counter()
+    ids: Counter[str] = Counter()
+    fingerprints: defaultdict[str, list[str]] = defaultdict(list)
+    supported: list[str] = []
+    missing_id = 0
+    for path in sorted(rules_dir.rglob("*.yml")):
+        rel = path.relative_to(root).as_posix()
+        try:
+            doc = _read_yaml(path, MAX_SIGMA_BYTES)
+        except Rejected as exc:
+            outcome[f"load:{exc.reason}"] += 1
+            continue
+        if not isinstance(doc, dict):
+            outcome["load:not_a_mapping"] += 1
+            continue
+        rule_id = str(doc.get("id") or "")
+        if rule_id:
+            ids[rule_id] += 1
+        else:
+            missing_id += 1
+        status[str(doc.get("status") or "missing")] += 1
+        fp = _detection_fingerprint(doc)
+        if fp:
+            fingerprints[fp].append(rel)
+        try:
+            parse_rule(path.read_text(encoding="utf-8"))
+        except Rejected as exc:
+            outcome[f"unsupported:{exc.reason}"] += 1
+            # Drop the selection-name prefix so equal causes aggregate across rules.
+            details[f"{exc.reason}: {exc.detail.split(': ', 1)[-1]}"] += 1
+            continue
+        except UnicodeDecodeError:
+            outcome["load:not_utf8"] += 1
+            continue
+        outcome["supported"] += 1
+        supported.append(rule_id or rel)
+
+    regression_ids, regression_events, problems = _qc_regression(root)
     supported_set = set(supported)
     return {
         "rules_total": sum(outcome.values()),
         "outcomes": dict(sorted(outcome.items())),
+        "top_unsupported_causes": details.most_common(25),
         "status": dict(sorted(status.items())),
-        "missing_id": sum(outcome.values()) - sum(ids.values()),
+        "missing_id": missing_id,
         "duplicate_ids": sorted(i for i, n in ids.items() if n > 1),
         "duplicate_detection_groups": sorted(sorted(v) for v in fingerprints.values() if len(v) > 1),
         "regression": {
