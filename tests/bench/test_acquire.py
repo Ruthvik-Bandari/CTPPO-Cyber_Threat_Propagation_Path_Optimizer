@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from aegisbench import __main__ as cli
-from aegisbench.acquire import AcquisitionError, checkout, manifest
+from aegisbench.acquire import AcquisitionError, checkout, manifest, sparse_patterns
 from aegisbench.qc import QC
 from aegisbench.sources import SOURCES, Source
 
@@ -20,6 +20,9 @@ def _git(cwd: Path, *args: str) -> str:
 def upstream(tmp_path: Path) -> tuple[Source, Path]:
     repo = tmp_path / "upstream"
     (repo / "keep/sub").mkdir(parents=True)
+    (repo / "keep/other").mkdir()
+    (repo / "keep/top.txt").write_text("parent file\n")
+    (repo / "keep/other/no.txt").write_text("sibling\n")
     (repo / "skip").mkdir()
     (repo / "LICENSE").write_text("MIT\n")
     (repo / "keep/sub/a.yml").write_text("a: 1\n")
@@ -38,7 +41,7 @@ def upstream(tmp_path: Path) -> tuple[Source, Path]:
         license_file="LICENSE",
         allowed_use="test",
         attribution="test",
-        paths=("keep",),
+        paths=("keep/sub",),
     )
     return source, tmp_path / "data" / "fake"
 
@@ -50,9 +53,23 @@ def test_checkout_is_sparse_and_pinned(upstream):
     assert record["commit"] == source.commit
     assert list(record["files"]) == ["keep/sub/a.yml"]
     assert not (dest / "skip").exists()
+    assert not (dest / "keep/other").exists()
     assert record["license"]["spdx"] == "MIT"
     checkout(source, dest)  # matching checkout is reused
     assert manifest(source, dest)["content_sha256"] == record["content_sha256"]
+
+
+def test_sparse_patterns_match_cone_mode():
+    assert sparse_patterns(("a/b/c", "a/d", "a/b/c/e")) == [
+        "/*",
+        "!/*/",
+        "/a/",
+        "!/a/*/",
+        "/a/b/",
+        "!/a/b/*/",
+        "/a/b/c/",
+        "/a/d/",
+    ]
 
 
 def test_unknown_commit_fails(upstream):

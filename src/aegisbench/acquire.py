@@ -1,7 +1,9 @@
 """Fetch each pinned source at its exact commit and record a license and content manifest.
 
-Uses a shallow, blob-filtered fetch plus a sparse checkout, so only the directories the
-benchmark needs are materialized. The checkout must resolve to the pinned commit or the
+Uses a shallow fetch of the pinned commit plus a sparse checkout, so only the directories the
+benchmark needs are materialized. The sparse patterns are written as a classic
+``info/sparse-checkout`` file, equivalent to cone mode, so git 2.19 (the cluster transfer
+node) works without the newer ``git sparse-checkout`` command. The checkout must resolve to the pinned commit or the
 acquisition fails; nothing is silently taken from a moving branch.
 """
 
@@ -57,6 +59,23 @@ def _head(dest: Path) -> str | None:
         return None
 
 
+def sparse_patterns(paths: tuple[str, ...]) -> list[str]:
+    """Cone-mode patterns: root files, each parent directory's files, and the full listed directories."""
+    full = sorted({p.strip("/") for p in paths})
+    full = [p for p in full if not any(p != q and p.startswith(q + "/") for q in full)]
+    lines = ["/*", "!/*/"]
+    seen: set[str] = set()
+    for path in full:
+        parts = path.split("/")
+        for depth in range(1, len(parts)):
+            parent = "/".join(parts[:depth])
+            if parent not in seen and parent not in full:
+                seen.add(parent)
+                lines += [f"/{parent}/", f"!/{parent}/*/"]
+        lines.append(f"/{path}/")
+    return lines
+
+
 def checkout(source: Source, dest: Path) -> None:
     """Materialize ``source`` at its pinned commit in ``dest``; reuse a matching checkout."""
     if _head(dest) == source.commit:
@@ -66,8 +85,10 @@ def checkout(source: Source, dest: Path) -> None:
     dest.mkdir(parents=True)
     _git(dest, "init", "--quiet")
     _git(dest, "remote", "add", "origin", source.url)
-    _git(dest, "sparse-checkout", "set", "--cone", *source.paths)
-    _git(dest, "fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", source.commit)
+    _git(dest, "config", "core.sparseCheckout", "true")
+    (dest / ".git" / "info").mkdir(exist_ok=True)
+    (dest / ".git" / "info" / "sparse-checkout").write_text("\n".join(sparse_patterns(source.paths)) + "\n")
+    _git(dest, "-c", "protocol.version=2", "fetch", "--quiet", "--depth", "1", "origin", source.commit)
     _git(dest, "-c", "advice.detachedHead=false", "checkout", "--quiet", "FETCH_HEAD")
     head = _head(dest)
     if head != source.commit:
