@@ -36,7 +36,7 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-14). The 
 - Compute nodes have no internet. The transfer node `xfer.discovery.neu.edu` does, but it runs CentOS 7 (glibc 2.17, git 1.8, with module `git/2.19.0`). Never build the project environment there.
 - Batch scripts need `#!/bin/bash -l` for `module`.
 - `/scratch` is purged on the first Tuesday of each month.
-- Slurm accounts visible to the user: `aai6610.202610` and `j.liebowitz`. The owner still has to confirm which one to charge.
+- Jobs charge Slurm account `aai6610.202610` (owner's choice, 2026-10-14).
 
 ## Failed or skipped checks
 
@@ -47,4 +47,4 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-14). The 
 1. Owner decision: how to reach about 60 benchmark roots (see `docs/data/qc/README.md`). Either widen the v1 subset (list-of-maps, `contains|all`, `1 of`/`all of`; needs an ADR), or find positives for the 192 supported rules by replaying OTRF EID 1 events on the pinned engine. Or both.
 2. Build the root-grouped split manifest (36/12/12), freeze its hashes, then generate impairment variants and replay labels.
 3. B1 and B2 on `gpu-short` V100, then M1 on A100 after the measured gap (plan sections 12 to 14).
-4. Owner items in `docs/data/compliance.md`: Slurm account, `/work` storage, and IRB review for practitioner trials.
+4. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.

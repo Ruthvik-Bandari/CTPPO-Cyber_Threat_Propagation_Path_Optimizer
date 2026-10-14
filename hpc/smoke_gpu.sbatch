@@ -1,5 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=aegis-smoke
+#SBATCH --account=aai6610.202610
 #SBATCH --partition=gpu-short
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=2

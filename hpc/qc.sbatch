@@ -1,5 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=aegis-qc
+#SBATCH --account=aai6610.202610
 #SBATCH --partition=short
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G

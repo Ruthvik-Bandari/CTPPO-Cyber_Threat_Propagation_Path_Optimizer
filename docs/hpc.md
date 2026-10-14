@@ -9,6 +9,8 @@ install a key with `ssh-copy-id`. The repository is cloned at `$HOME/aegis-sec`;
 
 ## Jobs
 
+Every job charges the Slurm account `aai6610.202610` (`#SBATCH --account`).
+
 | Job | Partition | Resources | Purpose |
 | --- | --- | --- | --- |
 | `hpc/smoke_gpu.sbatch` | `gpu-short` | 1 GPU, 5 min | Record GPU, driver, CUDA and Python |
