@@ -24,14 +24,19 @@ def _write(path: Path, text: str) -> None:
 
 def test_sigma_qc_counts_support_duplicates_and_regression(tmp_path):
     rules = tmp_path / SIGMA_RULES
-    _write(rules / "a.yml", "date: 2025-12-25\n" + RULE.format(title="A", rid="id-a", value="\\\\a.exe"))
-    _write(rules / "b.yml", RULE.format(title="B", rid="id-b", value="\\\\a.exe"))  # same logic as A
-    _write(rules / "c.yml", RULE.format(title="C", rid="id-c", value="*wild*"))
+    _write(
+        rules / "a.yml",
+        "date: 2025-12-25\n" + RULE.format(title="A", rid="00000000-0000-4000-8000-00000000000a", value="\\\\a.exe"),
+    )
+    _write(
+        rules / "b.yml", RULE.format(title="B", rid="00000000-0000-4000-8000-00000000000b", value="\\\\a.exe")
+    )  # same logic as A
+    _write(rules / "c.yml", RULE.format(title="C", rid="00000000-0000-4000-8000-00000000000c", value="*wild*"))
     _write(rules / "d.yml", "title: D\na: &x 1\nb: *x\n")  # alias: refused by the strict loader
     case = tmp_path / SIGMA_REGRESSION / "a"
-    _write(case / "info.yml", "rule_metadata:\n  - id: id-a\n    title: A\n")
+    _write(case / "info.yml", "rule_metadata:\n  - id: 00000000-0000-4000-8000-00000000000a\n    title: A\n")
     event = {"Event": {"System": {"EventID": 1, "Channel": SYSMON_CHANNEL}, "EventData": {"Image": "x"}}}
-    _write(case / "id-a.json", json.dumps(event))
+    _write(case / "00000000-0000-4000-8000-00000000000a.json", json.dumps(event))
 
     report = qc_sigma(tmp_path)
     assert report["rules_total"] == 4
@@ -42,7 +47,7 @@ def test_sigma_qc_counts_support_duplicates_and_regression(tmp_path):
     assert report["outcomes"]["load:yaml_alias_not_allowed"] == 1
     assert report["duplicate_detection_groups"] == [[f"{SIGMA_RULES}/a.yml", f"{SIGMA_RULES}/b.yml"]]
     assert report["regression"]["sysmon_eid1_events"] == 1
-    assert report["regression"]["supported_rules_with_positive_events"] == ["id-a"]
+    assert report["regression"]["supported_rules_with_positive_events"] == ["00000000-0000-4000-8000-00000000000a"]
     assert report["regression"]["problems"] == []
     assert "x" not in json.dumps(report["regression"])  # no event values in reports
 
@@ -97,3 +102,18 @@ def test_sigma_regression_accepts_concatenated_events(tmp_path):
     assert (regression["sysmon_eid1_events"], regression["problems"]) == (2, [])
     _write(case / "id-m.json", "{} trailing")
     assert qc_sigma(tmp_path)["regression"]["problems"] == ["m: id-m.json is not valid bounded JSON"]
+
+
+def test_sigma_qc_counts_conversion_failures(tmp_path, monkeypatch):
+    from aegisbench import qc
+    from aegissec.core.errors import Reason, Rejected
+
+    def fail(rule, mapping):
+        raise Rejected(Reason.CONVERSION_FAILED, "backend refused")
+
+    monkeypatch.setattr(qc, "to_lucene", fail)
+    _write(
+        tmp_path / SIGMA_RULES / "a.yml",
+        RULE.format(title="A", rid="00000000-0000-4000-8000-00000000000a", value="\\\\a.exe"),
+    )
+    assert qc_sigma(tmp_path)["outcomes"] == {"unsupported:conversion_failed": 1}

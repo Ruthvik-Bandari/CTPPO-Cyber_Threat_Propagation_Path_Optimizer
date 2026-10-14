@@ -17,6 +17,7 @@ from typing import Any
 from aegissec.core.errors import Rejected
 from aegissec.core.evidence import canonical_json
 from aegissec.core.safe_load import check_depth, load_yaml
+from aegissec.detect.mapping import FieldMapping, to_lucene
 from aegissec.detect.rule import PROCESS_CREATION_FIELDS, parse_rule
 
 MAX_SIGMA_BYTES = 100 * 1024
@@ -27,6 +28,8 @@ MAX_ZIP_MEMBER_BYTES = 2 * 1024**3
 SIGMA_RULES = "rules/windows/process_creation"
 SIGMA_REGRESSION = "regression_data/rules/windows/process_creation"
 SYSMON_CHANNEL = "Microsoft-Windows-Sysmon/Operational"
+# Sysmon field names map to themselves, as in the raw regression events.
+IDENTITY = FieldMapping("sysmon-identity", {})
 
 
 def _read_yaml(path: Path, max_bytes: int) -> Any:
@@ -139,7 +142,8 @@ def qc_sigma(root: Path) -> dict[str, object]:
         if fp:
             fingerprints[fp].append(rel)
         try:
-            parse_rule(path.read_text(encoding="utf-8"))
+            rule = parse_rule(path.read_text(encoding="utf-8"))
+            to_lucene(rule, IDENTITY)
         except Rejected as exc:
             outcome[f"unsupported:{exc.reason}"] += 1
             # Drop the selection-name prefix so equal causes aggregate across rules.
