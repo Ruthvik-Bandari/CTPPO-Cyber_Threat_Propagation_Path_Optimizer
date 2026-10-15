@@ -111,3 +111,19 @@ To reach 60 roots with two variants, the remaining options are:
 
   Train has 37 roots rather than 36 because groups are never split. The largest group is 19 `wmic` rules, which landed in reserve.
 - The preview is not frozen. It changes once labels are added, and it is frozen only after review is complete.
+
+## Impairment variants from the split preview (Slurm job 11108295, 2026-10-15)
+
+`python -m aegisbench variants` (`hpc/variants.sbatch`) injected faults into every root in the preview split. It verified each one on the pinned engine. The aggregate report is `variants.json`; the case folders hold raw events and stay private on the cluster.
+
+- **153 cases from 61 roots, with no root left without a variant.** By fault:
+  - logic: 61;
+  - mapping drift: 46;
+  - missing telemetry: 46.
+- By split: test 32, development 28 and train 93.
+- **Discarded because the fault did not change engine behavior:**
+  - 29 logic edits;
+  - 15 mapping faults and 15 missing-telemetry faults. These are mostly rules whose preferred field is not what decides the match.
+- **144 of the 153 cases have no validation suite.** Their root has a single verified positive, so there is no independent attack event to hold out. The workflow reports their repairs as provisional.
+
+Only reviewed OTRF positives, or documented synthetic second variants, can close that gap. This run used the unreviewed preview, so the cases are regenerated after review and the split freeze.

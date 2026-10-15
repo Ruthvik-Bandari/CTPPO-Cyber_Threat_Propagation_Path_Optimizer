@@ -1,0 +1,24 @@
+{
+  "cases": 153,
+  "cases_by_kind": {
+    "logic": 61,
+    "mapping": 46,
+    "missing_telemetry": 46
+  },
+  "cases_by_split": {
+    "development": 28,
+    "test": 32,
+    "train": 93
+  },
+  "cases_without_validation_suite": 144,
+  "discarded": {
+    "logic:no_behavior_change": 29,
+    "mapping:no_behavior_change": 15,
+    "missing_telemetry:no_behavior_change": 15
+  },
+  "from_frozen_split": false,
+  "manifest": "split-preview.json",
+  "roots_without_variants": 0,
+  "schema_version": 1,
+  "seed": "aegis-bench-v1"
+}
