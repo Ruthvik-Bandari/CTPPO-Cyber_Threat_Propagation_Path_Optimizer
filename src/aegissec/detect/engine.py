@@ -61,7 +61,9 @@ class QueryResult:
 
 class Elasticsearch:
     def __init__(self, url: str = "http://127.0.0.1:9200", timeout: float = 30.0) -> None:
-        self._http = httpx.Client(base_url=url, timeout=timeout, follow_redirects=False)
+        # trust_env=False: the engine is a local replay oracle, so HTTP(S)_PROXY settings must not
+        # route its traffic (including 127.0.0.1) through a proxy.
+        self._http = httpx.Client(base_url=url, timeout=timeout, follow_redirects=False, trust_env=False)
 
     def close(self) -> None:
         self._http.close()

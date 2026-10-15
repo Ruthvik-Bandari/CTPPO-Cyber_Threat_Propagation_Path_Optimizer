@@ -253,3 +253,16 @@ def test_lucene_for_escaped_value_is_literal(es):
     ]
     with es.replay_index(events) as index:
         assert es.search_ids(index, q).matched_ids == {"hit"}
+
+
+def test_engine_client_ignores_proxy_environment(monkeypatch):
+    """Cluster nodes set http_proxy without NO_PROXY; the local engine must not be proxied."""
+    from aegissec.detect.engine import Elasticsearch
+
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+    monkeypatch.setenv("http_proxy", "http://proxy.invalid:3128")
+    es = Elasticsearch("http://127.0.0.1:9200")
+    try:
+        assert es._http._mounts == {}  # no proxy transports mounted from the environment
+    finally:
+        es.close()
