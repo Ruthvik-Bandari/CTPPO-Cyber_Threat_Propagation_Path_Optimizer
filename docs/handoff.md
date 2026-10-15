@@ -13,7 +13,7 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-15). The 
   - SSH aliases `explorer` (login), `explorer-01` (fallback login node) and `explorer-xfer` (transfer node);
   - the repo is at `~/aegis-sec`;
   - jobs charge `aai6610.202610`.
-- `src/aegisbench/` (not in the wheel) does three things:
+- `src/aegisbench/` (not in the wheel) also has `review-sheet`/`review-next`/`review-label`/`review-status`, `split` (preview, `--freeze`) and `variants` (verified impairment cases). It does three core things:
   - `acquire` fetches the pinned sources;
   - `qc` writes aggregate checks;
   - `replay` runs every supported rule on the pinned Elasticsearch against SigmaHQ regression and OTRF events.
@@ -60,6 +60,6 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-15). The 
 ## Next action
 
 1. **Owner:** label the 175 OTRF candidate events in `/scratch/$USER/aegis-sec/data/review/labels.csv` on the cluster, following `docs/data/review.md`. Copy the file to persistent storage after each session. Then run `sbatch hpc/review_split.sbatch`.
-2. After review: freeze the split (`python -m aegisbench split --freeze`), then generate impairment variants and replay labels. Decide whether single-variant roots get documented synthetic second variants.
+2. After review: freeze the split (`python -m aegisbench split --freeze`), then rerun `sbatch hpc/variants.sbatch`. The first run, on the preview, gave 153 verified cases from 61 roots. 144 of them have no validation suite (single-positive roots); decide whether those roots get documented synthetic second variants.
 3. B1 and B2 on `gpu-short` V100, then M1 on A100 after the measured gap (plan sections 12 to 14).
 4. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.
