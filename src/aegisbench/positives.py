@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from aegissec.core.errors import Rejected
+from aegissec.core.errors import Reason, Rejected
 from aegissec.detect.engine import Elasticsearch
 from aegissec.detect.fixtures import Event
 from aegissec.detect.mapping import to_lucene
@@ -32,15 +32,15 @@ from .qc import (
     MAX_EVENT_JSON_BYTES,
     MAX_METADATA_BYTES,
     MAX_SIGMA_BYTES,
+    OTRF_WINDOWS,
     SIGMA_REGRESSION,
     SIGMA_RULES,
     _json_documents,
     _read_yaml,
+    archive_key,
     is_sysmon_process_creation,
     iter_zip_records,
 )
-
-OTRF_WINDOWS = "datasets/atomic/windows"
 
 
 @dataclass(frozen=True)
@@ -108,11 +108,13 @@ def sigma_events(sigma_root: Path) -> Iterator[PoolEvent]:
 
 
 def otrf_events(otrf_root: Path) -> Iterator[PoolEvent]:
-    for path in sorted((otrf_root / OTRF_WINDOWS).rglob("*.zip")):
+    windows = otrf_root / OTRF_WINDOWS
+    for path in sorted(windows.rglob("*.zip")):
+        key = archive_key(windows, path)
         try:
             for n, (_, rec) in enumerate(iter_zip_records(path)):
                 if isinstance(rec, dict) and is_sysmon_process_creation(rec):
-                    yield PoolEvent(Event(f"otrf:{path.stem}:{n}", "unknown", None, _v1_fields(rec)), "otrf", path.stem)
+                    yield PoolEvent(Event(f"otrf:{key}:{n}", "unknown", None, _v1_fields(rec)), "otrf", key)
         except (ValueError, zipfile.BadZipFile, OSError):
             continue  # QC reports damaged archives
 
@@ -120,6 +122,8 @@ def otrf_events(otrf_root: Path) -> Iterator[PoolEvent]:
 def replay(rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch) -> dict[str, object]:
     es.require_pinned()
     by_id = {p.event.event_id: p for p in pool}
+    if len(by_id) != len(pool):
+        raise Rejected(Reason.INVALID_FIXTURE, f"{len(pool) - len(by_id)} duplicate event ids in the replay pool")
     own_total = Counter(p.source for p in pool if p.pool == "sigma")
     per_rule: dict[str, dict[str, object]] = {}
     positives: dict[str, int] = {}  # own regression matches plus OTRF candidates

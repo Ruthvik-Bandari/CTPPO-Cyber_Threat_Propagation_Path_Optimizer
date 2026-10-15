@@ -59,6 +59,11 @@ def root(tmp_path):
     ]
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("rundll_test.json", "\n".join(json.dumps(x) for x in lines))
+    # OTRF reuses one archive name under several tactic folders, with different contents.
+    twin = tmp_path / "otrf/datasets/atomic/windows/persistence/host/rundll_test.zip"
+    twin.parent.mkdir(parents=True)
+    with zipfile.ZipFile(twin, "w") as zf:
+        zf.writestr("rundll_test.json", json.dumps(lines[0]))
     return tmp_path
 
 
@@ -67,7 +72,11 @@ def test_pools_keep_only_v1_fields_and_sysmon_process_creation(root):
     assert [p.source for p in sigma] == [CERTUTIL, CERTUTIL, RUNDLL]
     assert all(set(p.event.data) <= {"Image"} for p in sigma)
     otrf = list(otrf_events(root / "otrf"))
-    assert [p.event.event_id for p in otrf] == ["otrf:rundll_test:0", "otrf:rundll_test:1"]
+    assert [p.event.event_id for p in otrf] == [
+        "otrf:execution/host/rundll_test:0",
+        "otrf:execution/host/rundll_test:1",
+        "otrf:persistence/host/rundll_test:0",
+    ]
     rules, rejected = supported_rules(root / "sigma")
     assert sorted(rules) == [CERTUTIL, RUNDLL, NEVER]
     assert rejected == {"unsupported_modifier": 1}
@@ -81,7 +90,7 @@ def test_replay_reports_fidelity_and_candidates(root):
     finally:
         es.close()
     assert report["engine_errors"] == {}
-    assert report["pool"] == {"sigma_events": 3, "otrf_events": 2}
+    assert report["pool"] == {"sigma_events": 3, "otrf_events": 3}
     per_rule = report["per_rule"]
     assert per_rule[CERTUTIL] == {
         "own_regression_events": 2,
@@ -91,7 +100,7 @@ def test_replay_reports_fidelity_and_candidates(root):
         "otrf_datasets": [],
     }
     assert per_rule[RUNDLL]["own_regression_matched"] == 0
-    assert per_rule[RUNDLL]["otrf_datasets"] == ["rundll_test"]
+    assert per_rule[RUNDLL]["otrf_datasets"] == ["execution/host/rundll_test", "persistence/host/rundll_test"]
     assert report["fidelity"] == {
         "rules_with_regression_events": 2,
         "rules_matching_all_own_events": 1,

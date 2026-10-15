@@ -177,6 +177,14 @@ def qc_sigma(root: Path) -> dict[str, object]:
     }
 
 
+OTRF_WINDOWS = "datasets/atomic/windows"
+
+
+def archive_key(windows: Path, path: Path) -> str:
+    """Stable, unique id of an OTRF archive: its path below the windows folder, without .zip."""
+    return path.relative_to(windows).as_posix().removesuffix(".zip")
+
+
 def is_sysmon_process_creation(fields: dict[str, Any]) -> bool:
     return str(fields.get("EventID")) == "1" and fields.get("Channel") == SYSMON_CHANNEL
 
@@ -221,7 +229,9 @@ def _zip_eid1_count(path: Path) -> tuple[int, int, str | None]:
 def qc_otrf(root: Path) -> dict[str, object]:
     meta_dir = root / "datasets/atomic/_metadata"
     windows = root / "datasets/atomic/windows"
-    zips = {p.name: p for p in windows.rglob("*.zip")}
+    # OTRF files one dataset name under several tactic folders with different contents,
+    # so archives are keyed by their path below datasets/atomic/windows, not by file name.
+    zips = {archive_key(windows, p): p for p in windows.rglob("*.zip")}
     problems: list[str] = []
     techniques: Counter[str] = Counter()
     linked: set[str] = set()
@@ -242,7 +252,7 @@ def qc_otrf(root: Path) -> dict[str, object]:
         for item in doc.get("files") or []:
             link = item.get("link") if isinstance(item, dict) else None
             if isinstance(link, str) and link.endswith(".zip"):
-                linked.add(link.rsplit("/", 1)[-1])
+                linked.add(link.split(OTRF_WINDOWS + "/", 1)[-1].removesuffix(".zip"))
     with_eid1 = 0
     total_records = total_eid1 = 0
     for name in sorted(zips):
@@ -251,7 +261,7 @@ def qc_otrf(root: Path) -> dict[str, object]:
         total_eid1 += eid1
         with_eid1 += eid1 > 0
         if error:
-            problems.append(error)
+            problems.append(f"{name}: {error.split(': ', 1)[-1]}")
     return {
         "windows_metadata_files": metadata_windows,
         "windows_zip_files": len(zips),

@@ -60,8 +60,14 @@ def test_sigma_qc_reports_missing_regression_events(tmp_path):
 
 def test_otrf_qc_counts_sysmon_process_creation(tmp_path):
     meta = tmp_path / "datasets/atomic/_metadata"
-    _write(meta / "SDWIN-1.yaml", "attack_mappings:\n  - technique: T1059\nfiles:\n  - link: https://h/x/one.zip\n")
-    _write(meta / "SDWIN-2.yaml", "files:\n  - link: https://h/x/gone.zip\n")
+    _write(
+        meta / "SDWIN-1.yaml",
+        "attack_mappings:\n  - technique: T1059\nfiles:\n  - link: https://raw.githubusercontent.com/OTRF/Security-Datasets/master/datasets/atomic/windows/execution/host/one.zip\n",
+    )
+    _write(
+        meta / "SDWIN-2.yaml",
+        "files:\n  - link: https://raw.githubusercontent.com/OTRF/Security-Datasets/master/datasets/atomic/windows/execution/host/gone.zip\n",
+    )
     zpath = tmp_path / "datasets/atomic/windows/execution/host/one.zip"
     zpath.parent.mkdir(parents=True)
     lines = [{"EventID": 1, "Channel": SYSMON_CHANNEL}, {"EventID": 4688, "Channel": "Security"}]
@@ -74,8 +80,8 @@ def test_otrf_qc_counts_sysmon_process_creation(tmp_path):
     assert report["windows_metadata_files"] == 2
     assert report["records_total"] == 2
     assert report["sysmon_eid1_records"] == 1
-    assert report["metadata_links_missing_zip"] == ["gone.zip"]
-    assert report["problems"] == ["broken.zip: BadZipFile"]
+    assert report["metadata_links_missing_zip"] == ["execution/host/gone"]
+    assert report["problems"] == ["execution/host/broken: BadZipFile"]
 
 
 def test_atomic_qc_counts_windows_executors(tmp_path):
