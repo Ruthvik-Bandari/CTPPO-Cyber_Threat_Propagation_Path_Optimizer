@@ -97,3 +97,42 @@ def test_wrong_header_and_stale_report_fail(root):
     stale["per_rule"][RULE_B]["matched_event_ids"].append("otrf:execution/host/demo:7")
     with pytest.raises(ReviewError, match="re-run replay"):
         write_sheet(root, stale)
+
+
+def _metadata(root):
+    meta = root / "otrf/datasets/atomic/_metadata/SDWIN-1.yaml"
+    meta.parent.mkdir(parents=True)
+    link = "https://raw.githubusercontent.com/OTRF/Security-Datasets/master/datasets/atomic/windows/execution/host/demo.zip"
+    meta.write_text(
+        "title: Demo attack\ndescription: An adversary runs x.\n"
+        "attack_mappings:\n  - technique: T1059\n    sub-technique: '001'\n"
+        f"files:\n  - type: Host\n    link: {link}\n"
+    )
+
+
+def test_label_loop_walks_candidates_and_keeps_other_rows(root, capsys):
+    from aegisbench import __main__ as cli
+    from aegisbench.review import format_candidate, next_candidate, set_label
+
+    _metadata(root)
+    write_sheet(root, _report())
+    item, remaining = next_candidate(root)
+    assert (item["event_id"], remaining) == (E0, 2)
+    assert item["dataset_info"]["techniques"] == ["T1059.001"]
+    text = format_candidate(item, remaining)
+    assert "Demo attack" in text and "A (" in text and "Image: C:\\x0.exe" in text
+
+    set_label(root, E0, "Malicious", "in the attack chain", "rb")
+    item, remaining = next_candidate(root)
+    assert (item["event_id"], remaining) == (E1, 1)
+    with pytest.raises(ReviewError, match="rationale is required"):
+        set_label(root, E1, "benign", "", "rb")
+    with pytest.raises(ReviewError, match="one line"):
+        set_label(root, E1, "benign", "two\nlines", "rb")
+    with pytest.raises(ReviewError, match="not exactly one row"):
+        set_label(root, "otrf:nope:1", "unknown", "", "rb")
+
+    assert cli.main(["review-label", "--root", str(root), "--event", E1, "--label", "unknown", "--reviewer", "rb"]) == 0
+    assert "Every candidate is labelled." in capsys.readouterr().out
+    result = status(root, _report())
+    assert result["labels"] == {"malicious": 1, "unknown": 1} and result["problems"] == []

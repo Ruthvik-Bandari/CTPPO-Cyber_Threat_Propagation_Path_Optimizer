@@ -22,6 +22,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from aegissec.core.errors import Rejected
+
 from .positives import otrf_events, supported_rules
 
 LABELS = ("malicious", "benign", "unknown")
@@ -93,6 +95,20 @@ def write_sheet(root: Path, report: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def label_problem(label: str, rationale: str, reviewer: str) -> str | None:
+    if label not in LABELS:
+        return f"label must be one of {', '.join(LABELS)}"
+    if not reviewer:
+        return "reviewer is required"
+    if label != "unknown" and not rationale:
+        return f"rationale is required for {label}"
+    if len(rationale) > MAX_RATIONALE_CHARS:
+        return f"rationale exceeds {MAX_RATIONALE_CHARS} characters"
+    if any(c in rationale + reviewer for c in "\r\n"):
+        return "rationale and reviewer must be one line"
+    return None
+
+
 def read_labels(path: Path, known: set[str]) -> tuple[dict[str, str], list[str]]:
     """Validated ``event_id -> label`` for reviewed rows, plus problems (row numbers and reasons only)."""
     if path.stat().st_size > MAX_LABELS_BYTES:
@@ -114,14 +130,8 @@ def read_labels(path: Path, known: set[str]) -> tuple[dict[str, str], list[str]]
                 problems.append(f"row {n}: duplicate event id")
             elif not label:
                 continue  # not reviewed yet
-            elif label not in LABELS:
-                problems.append(f"row {n}: label must be one of {', '.join(LABELS)}")
-            elif not reviewer:
-                problems.append(f"row {n}: reviewer is required")
-            elif label != "unknown" and not rationale:
-                problems.append(f"row {n}: rationale is required for {label}")
-            elif len(rationale) > MAX_RATIONALE_CHARS:
-                problems.append(f"row {n}: rationale exceeds {MAX_RATIONALE_CHARS} characters")
+            elif problem := label_problem(label, rationale, reviewer):
+                problems.append(f"row {n}: {problem}")
             else:
                 labels[event_id] = label
     return labels, problems
@@ -150,3 +160,97 @@ def status(root: Path, report: dict[str, Any]) -> dict[str, object]:
             "with_2plus_verified_positives": sum(n >= 2 for n in verified.values()),
         },
     }
+
+
+# ---------------------------------------------------------------- interactive labelling (run by the reviewer)
+
+
+def _load_sheet(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    review = root / "review"
+    sheet = [
+        json.loads(line) for line in (review / "candidates.jsonl").read_text(encoding="utf-8").splitlines() if line
+    ]
+    with (review / "labels.csv").open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        if tuple(reader.fieldnames or ()) != LABEL_COLUMNS:
+            raise ReviewError(f"labels.csv header must be {','.join(LABEL_COLUMNS)}")
+        rows = [dict(r) for r in reader]
+    return sheet, rows
+
+
+def dataset_info(otrf_root: Path) -> dict[str, dict[str, Any]]:
+    """OTRF metadata (title, description, ATT&CK techniques) keyed by archive path, for the reviewer."""
+    from .qc import MAX_METADATA_BYTES, OTRF_WINDOWS, _read_yaml
+
+    out: dict[str, dict[str, Any]] = {}
+    for path in sorted((otrf_root / "datasets/atomic/_metadata").glob("SDWIN-*.yaml")):
+        try:
+            doc = _read_yaml(path, MAX_METADATA_BYTES)
+        except Rejected:
+            continue  # metadata is advisory for the reviewer; QC reports unreadable files
+        if not isinstance(doc, dict):
+            continue
+        techniques = sorted(
+            str(m["technique"]) + (f".{m['sub-technique']}" if m.get("sub-technique") else "")
+            for m in doc.get("attack_mappings") or []
+            if isinstance(m, dict) and m.get("technique")
+        )
+        info = {
+            "id": path.stem,
+            "title": doc.get("title"),
+            "description": doc.get("description"),
+            "techniques": techniques,
+        }
+        for item in doc.get("files") or []:
+            link = item.get("link") if isinstance(item, dict) else None
+            if isinstance(link, str) and OTRF_WINDOWS + "/" in link:
+                out[link.split(OTRF_WINDOWS + "/", 1)[1].removesuffix(".zip")] = info
+    return out
+
+
+def next_candidate(root: Path) -> tuple[dict[str, Any] | None, int]:
+    """The first unlabelled candidate (with its dataset metadata) and how many remain."""
+    sheet, rows = _load_sheet(root)
+    labelled = {r["event_id"] for r in rows if (r.get("label") or "").strip()}
+    todo = [c for c in sheet if c["event_id"] not in labelled]
+    if not todo:
+        return None, 0
+    item = dict(todo[0])
+    item["dataset_info"] = dataset_info(root / "otrf").get(item["dataset"])
+    return item, len(todo)
+
+
+def format_candidate(item: dict[str, Any], remaining: int) -> str:
+    info = item.get("dataset_info") or {}
+    lines = [
+        f"{remaining} left to label",
+        f"event    {item['event_id']}",
+        f"dataset  {item['dataset']}"
+        + (f"  ({info.get('id')}: {info.get('title')})" if info else "  (no OTRF metadata)"),
+    ]
+    if info.get("techniques"):
+        lines.append(f"ATT&CK   {', '.join(info['techniques'])}")
+    if info.get("description"):
+        lines.append(f"scenario {' '.join(str(info['description']).split())}")
+    lines.append("matched by:")
+    lines += [f"  - {r['title']} ({r['rule_id']})" for r in item["rules"]]
+    lines.append("fields:")
+    lines += [f"  {k}: {v}" for k, v in sorted(item["fields"].items())]
+    return "\n".join(lines)
+
+
+def set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: str) -> None:
+    """Record one decision in labels.csv, keeping every other row as it was."""
+    label, rationale, reviewer = label.strip().lower(), rationale.strip(), reviewer.strip()
+    if problem := label_problem(label, rationale, reviewer):
+        raise ReviewError(problem)
+    _, rows = _load_sheet(root)
+    hits = [r for r in rows if r["event_id"] == event_id]
+    if len(hits) != 1:
+        raise ReviewError(f"{event_id} is not exactly one row of labels.csv")
+    hits[0].update(label=label, rationale=rationale, reviewer=reviewer)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=LABEL_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    _private_write(root / "review" / "labels.csv", buf.getvalue())

@@ -82,6 +82,23 @@ def _split(root: Path, seed: str, frozen: bool) -> int:
     return 0
 
 
+def _label(root: Path, args: argparse.Namespace) -> int:
+    """Interactive labelling. Prints raw event values: for the reviewer's own terminal only."""
+    from .review import ReviewError, format_candidate, next_candidate, set_label
+
+    try:
+        if args.command == "review-label":
+            if not (args.event and args.label):
+                raise ReviewError("review-label needs --event and --label")
+            set_label(root, args.event, args.label, args.rationale, args.reviewer)
+        item, remaining = next_candidate(root)
+    except (ReviewError, OSError, ValueError) as exc:
+        print(f"{args.command}: FAILED {exc}", file=sys.stderr)
+        return 1
+    print(format_candidate(item, remaining) if item else "Every candidate is labelled.")
+    return 0
+
+
 def _review(root: Path, command: str) -> int:
     from .review import ReviewError, status, write_sheet
 
@@ -101,12 +118,19 @@ def _review(root: Path, command: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aegisbench")
-    parser.add_argument("command", choices=["acquire", "qc", "replay", "review-sheet", "review-status", "split"])
+    parser.add_argument(
+        "command",
+        choices=["acquire", "qc", "replay", "review-sheet", "review-status", "review-next", "review-label", "split"],
+    )
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
     parser.add_argument("--source", action="append", choices=[s.name for s in SOURCES])
     parser.add_argument("--es-url", default="http://127.0.0.1:9200", help="pinned Elasticsearch for replay")
     parser.add_argument("--freeze", action="store_true", help="split: write the frozen manifest (never overwritten)")
     parser.add_argument("--seed", default=SPLIT_SEED, help="split: assignment seed")
+    parser.add_argument("--event", help="review-label: event id")
+    parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
+    parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
+    parser.add_argument("--reviewer", default=os.environ.get("AEGIS_REVIEWER", ""), help="review-label: initials")
     args = parser.parse_args(argv)
     root: Path = args.root.resolve()
     repo = Path(__file__).resolve().parents[2]
@@ -117,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
         return _replay(root, args.es_url)
     if args.command in ("review-sheet", "review-status"):
         return _review(root, args.command)
+    if args.command in ("review-next", "review-label"):
+        return _label(root, args)
     if args.command == "split":
         return _split(root, args.seed, args.freeze)
 

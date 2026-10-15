@@ -28,7 +28,39 @@ from the recorded lab hosts.
 
 ## How to label
 
-For each row in `labels.csv`:
+The quickest way is the labeling loop, run in your own terminal on the cluster. It prints raw event values, so run it yourself, not inside an AI assistant session.
+
+```bash
+ssh explorer                 # or explorer-01 if one login node is down
+cd ~/aegis-sec
+export AEGIS_REVIEWER=RB     # your initials, recorded with every label
+D=/scratch/$USER/aegis-sec/data
+
+uv run python -m aegisbench review-next --root $D      # show the next unlabeled event
+uv run python -m aegisbench review-label --root $D \
+  --event 'otrf:execution/host/<archive>:<n>' --label malicious \
+  --rationale "child of the dataset's launcher in the attack chain"   # saves it, shows the next one
+```
+
+`review-next` shows:
+
+- how many events are left;
+- the OTRF dataset, with its title, ATT&CK techniques and scenario description;
+- each rule that matched the event;
+- the event's fields.
+
+`review-label` checks your entry, saves it to `labels.csv` and shows the next event. It refuses a missing rationale, a multi-line rationale or an unknown event id.
+
+A quick way to decide:
+
+1. Read the scenario description: what did the simulated attacker run?
+2. Check whether this process belongs to that chain. Look at `Image`, `CommandLine` and `ParentImage`.
+3. Is it plainly an OS service, updater, telemetry agent or the capture tooling? Then it is `benign`.
+4. If you can't tell, use `unknown`. Don't guess.
+
+You can also edit `labels.csv` directly in a spreadsheet. Keep the header `event_id,label,rationale,reviewer` and one row per event.
+
+For each row:
 
 | `label` | Use when |
 | --- | --- |
