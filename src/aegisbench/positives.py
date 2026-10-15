@@ -173,6 +173,8 @@ def replay(
                 "other_regression_matched": sum(h.pool == "sigma" and h.source != rule_id for h in hits),
                 "otrf_candidate_events": otrf_events,
                 "otrf_datasets": otrf,
+                # Event ids only (pool:source:index), never values; the review sheet resolves them on the cluster.
+                "matched_event_ids": sorted(matched),
             }
     checked = sum(1 for r in per_rule if r in (expected or {}))
     return {

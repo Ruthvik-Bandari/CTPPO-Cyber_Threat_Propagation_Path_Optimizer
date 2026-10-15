@@ -99,6 +99,7 @@ def test_replay_reports_fidelity_and_candidates(root):
         "other_regression_matched": 0,
         "otrf_candidate_events": 0,
         "otrf_datasets": [],
+        "matched_event_ids": [f"sigma:{CERTUTIL}:0", f"sigma:{CERTUTIL}:1"],
     }
     assert per_rule[RUNDLL]["own_regression_matched"] == 0
     assert per_rule[RUNDLL]["otrf_datasets"] == ["execution/host/rundll_test", "persistence/host/rundll_test"]
