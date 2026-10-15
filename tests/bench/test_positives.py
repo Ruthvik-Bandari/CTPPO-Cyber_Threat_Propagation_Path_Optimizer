@@ -42,13 +42,13 @@ def root(tmp_path):
     _write(sigma / SIGMA_RULES / "c.yml", RULE.format(title="never", rid=NEVER, image="\\\\nothing.exe"))
     _write(sigma / SIGMA_RULES / "d.yml", RULE.format(title="regex", rid="x", image="x").replace("|endswith", "|re"))
     case = sigma / SIGMA_REGRESSION / "certutil"
-    _write(case / "info.yml", f"rule_metadata:\n  - id: {CERTUTIL}\n")
+    _write(case / "info.yml", f"rule_metadata:\n  - id: {CERTUTIL}\nregression_tests_info:\n  - match_count: 2\n")
     # Two concatenated events; the second carries a field outside v1 that must be dropped.
     events = [_sysmon("C:\\Windows\\certutil.exe"), _sysmon("C:\\W\\CertUtil.exe", RuleName="-", Unused=3)]
     _write(case / f"{CERTUTIL}.json", "\n".join(json.dumps(e, indent=1) for e in events))
     # The rundll rule's recorded event does not match it, which must surface as a fidelity disagreement.
     case = sigma / SIGMA_REGRESSION / "rundll"
-    _write(case / "info.yml", f"rule_metadata:\n  - id: {RUNDLL}\n")
+    _write(case / "info.yml", f"rule_metadata:\n  - id: {RUNDLL}\nregression_tests_info:\n  - match_count: 1\n")
     _write(case / f"{RUNDLL}.json", json.dumps(_sysmon("C:\\Windows\\regsvr32.exe")))
     archive = tmp_path / "otrf/datasets/atomic/windows/execution/host/rundll_test.zip"
     archive.parent.mkdir(parents=True)
@@ -95,6 +95,7 @@ def test_replay_reports_fidelity_and_candidates(root):
     assert per_rule[CERTUTIL] == {
         "own_regression_events": 2,
         "own_regression_matched": 2,
+        "own_regression_expected": 2,
         "other_regression_matched": 0,
         "otrf_candidate_events": 0,
         "otrf_datasets": [],
@@ -102,8 +103,8 @@ def test_replay_reports_fidelity_and_candidates(root):
     assert per_rule[RUNDLL]["own_regression_matched"] == 0
     assert per_rule[RUNDLL]["otrf_datasets"] == ["execution/host/rundll_test", "persistence/host/rundll_test"]
     assert report["fidelity"] == {
-        "rules_with_regression_events": 2,
-        "rules_matching_all_own_events": 1,
+        "rules_with_declared_match_count": 2,
+        "rules_matching_declared_count": 1,
         "rules_disagreeing": [RUNDLL],
     }
     assert report["summary"] == {
@@ -112,3 +113,12 @@ def test_replay_reports_fidelity_and_candidates(root):
         "rules_with_otrf_candidates": 1,
     }
     assert "certutil.exe" not in json.dumps(report).lower()  # no event values in the report
+
+
+def test_fidelity_uses_declared_match_count_not_recorded_events(root):
+    """A regression file may hold context events: SigmaHQ declares how many should match."""
+    from aegisbench.positives import expected_matches
+
+    case = root / "sigma" / SIGMA_REGRESSION / "multi"
+    _write(case / "info.yml", "rule_metadata:\n  - id: a\n  - id: b\nregression_tests_info:\n  - match_count: 1\n")
+    assert expected_matches(root / "sigma") == {CERTUTIL: 2, RUNDLL: 1}  # multi-rule folders are ambiguous

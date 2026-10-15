@@ -119,7 +119,30 @@ def otrf_events(otrf_root: Path) -> Iterator[PoolEvent]:
             continue  # QC reports damaged archives
 
 
-def replay(rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch) -> dict[str, object]:
+def expected_matches(sigma_root: Path) -> dict[str, int]:
+    """SigmaHQ's declared ``match_count`` per rule, for regression folders that cover one rule.
+
+    A regression file can hold context events that are not meant to match, so replay fidelity
+    is measured against this declared count, not against the number of recorded events."""
+    out: dict[str, int] = {}
+    for info_path in sorted((sigma_root / SIGMA_REGRESSION).glob("*/info.yml")):
+        try:
+            info = _read_yaml(info_path, MAX_METADATA_BYTES)
+        except Rejected:
+            continue
+        if not isinstance(info, dict):
+            continue
+        ids = [str(m["id"]) for m in info.get("rule_metadata") or [] if isinstance(m, dict) and "id" in m]
+        counts = [t.get("match_count") for t in info.get("regression_tests_info") or [] if isinstance(t, dict)]
+        if len(ids) == 1 and counts and all(isinstance(c, int) and not isinstance(c, bool) for c in counts):
+            out[ids[0]] = sum(counts)  # type: ignore[arg-type]
+    return out
+
+
+def replay(
+    rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch, expected: dict[str, int] | None = None
+) -> dict[str, object]:
+    """``expected`` holds SigmaHQ's declared match count per rule; fidelity is judged against it."""
     es.require_pinned()
     by_id = {p.event.event_id: p for p in pool}
     if len(by_id) != len(pool):
@@ -141,16 +164,17 @@ def replay(rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch) -> 
             otrf = sorted({h.source for h in hits if h.pool == "otrf"})
             otrf_events = sum(h.pool == "otrf" for h in hits)
             positives[rule_id] = own + otrf_events
-            if own != own_total.get(rule_id, 0):
+            if rule_id in (expected or {}) and own != (expected or {})[rule_id]:
                 disagree.append(rule_id)
             per_rule[rule_id] = {
                 "own_regression_events": own_total.get(rule_id, 0),
                 "own_regression_matched": own,
+                "own_regression_expected": (expected or {}).get(rule_id),
                 "other_regression_matched": sum(h.pool == "sigma" and h.source != rule_id for h in hits),
                 "otrf_candidate_events": otrf_events,
                 "otrf_datasets": otrf,
             }
-    with_own = sum(1 for r in per_rule if own_total.get(r))
+    checked = sum(1 for r in per_rule if r in (expected or {}))
     return {
         "schema_version": 1,
         "rules_replayed": len(per_rule),
@@ -160,8 +184,8 @@ def replay(rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch) -> 
             "otrf_events": sum(p.pool == "otrf" for p in pool),
         },
         "fidelity": {
-            "rules_with_regression_events": with_own,
-            "rules_matching_all_own_events": with_own - len(disagree),
+            "rules_with_declared_match_count": checked,
+            "rules_matching_declared_count": checked - len(disagree),
             "rules_disagreeing": sorted(disagree),
         },
         "summary": {
@@ -176,6 +200,6 @@ def replay(rules: dict[str, Rule], pool: list[PoolEvent], es: Elasticsearch) -> 
 def run(root: Path, es: Elasticsearch) -> dict[str, object]:
     rules, rejected = supported_rules(root / "sigma")
     pool = [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]
-    report = replay(rules, pool, es)
+    report = replay(rules, pool, es, expected_matches(root / "sigma"))
     report["rules_rejected"] = dict(sorted(rejected.items()))
     return report
