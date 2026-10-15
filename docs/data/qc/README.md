@@ -96,3 +96,18 @@ To reach 60 roots with two variants, the remaining options are:
 2. Accept roots with a single verified positive. Record them as single-variant roots and report results separately.
 3. Add a second variant by authoring a documented synthetic event for each single-positive root, labeled with provenance `synthetic`, and report those results separately.
 4. Capture Atomic Red Team runs in an authorized, isolated lab (`policy.md` section 7). Those would be labeled `lab_introduced`.
+
+## Review sheet and split preview (Slurm jobs 11107577 and 11107581, 2026-10-15)
+
+- **The review sheet holds 175 distinct OTRF candidate events, matched by 85 rules across 73 archives.** It is written privately on the cluster. How to label it is in [`../review.md`](../review.md).
+- **Before any review**, only SigmaHQ regression matches count as verified positives:
+  - 101 roots have at least one verified positive;
+  - 3 have two or more.
+- **The split preview** (`split-preview.json`, seed `aegis-bench-v1`) puts roots in the same group when they share a rule family or a positive event:
+  - test: 12 roots in 10 groups;
+  - development: 12 roots in 6 groups;
+  - train: 37 roots in 25 groups;
+  - reserve: 40 roots in 14 groups.
+
+  Train has 37 roots rather than 36 because groups are never split. The largest group is 19 `wmic` rules, which landed in reserve.
+- The preview is not frozen. It changes once labels are added, and it is frozen only after review is complete.

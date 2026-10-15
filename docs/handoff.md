@@ -59,7 +59,7 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-15). The 
 
 ## Next action
 
-1. Owner decision on reaching about 60 two-variant roots: review the OTRF candidates, accept single-variant roots, add documented synthetic variants, or capture lab runs (`docs/data/qc/README.md`).
-2. Build the root-grouped split manifest (36/12/12), freeze its hashes, then generate impairment variants and replay labels.
+1. **Owner:** label the 175 OTRF candidate events in `/scratch/$USER/aegis-sec/data/review/labels.csv` on the cluster, following `docs/data/review.md`. Copy the file to persistent storage after each session. Then run `sbatch hpc/review_split.sbatch`.
+2. After review: freeze the split (`python -m aegisbench split --freeze`), then generate impairment variants and replay labels. Decide whether single-variant roots get documented synthetic second variants.
 3. B1 and B2 on `gpu-short` V100, then M1 on A100 after the measured gap (plan sections 12 to 14).
 4. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.

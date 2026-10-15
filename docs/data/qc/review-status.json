@@ -1,0 +1,12 @@
+{
+  "candidate_events": 175,
+  "labels": {},
+  "problems": [],
+  "reviewed": 0,
+  "roots": {
+    "with_1plus_verified_positive": 101,
+    "with_2plus_verified_positives": 3
+  },
+  "schema_version": 1,
+  "unreviewed": 175
+}
