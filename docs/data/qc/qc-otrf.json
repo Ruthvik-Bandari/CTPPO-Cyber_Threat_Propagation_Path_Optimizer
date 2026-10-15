@@ -2,11 +2,12 @@
   "checks": {
     "attack_techniques": 33,
     "metadata_links_missing_zip": [
-      "cmd_copy_ntds_from_volume_shadow_copy.zip"
+      "credential_access/host/cmd_copy_ntds_from_volume_shadow_copy",
+      "lateral_movement/network/empire_dcom_shellwindows_stager"
     ],
     "problems": [],
-    "records_total": 586275,
-    "sysmon_eid1_records": 1216,
+    "records_total": 788932,
+    "sysmon_eid1_records": 1540,
     "top_techniques": [
       [
         "T1003",
@@ -70,9 +71,9 @@
       ]
     ],
     "windows_metadata_files": 100,
-    "windows_zip_files": 118,
-    "zips_with_sysmon_eid1": 74,
-    "zips_without_metadata": 9
+    "windows_zip_files": 155,
+    "zips_with_sysmon_eid1": 107,
+    "zips_without_metadata": 13
   },
   "commit": "d9d40ef123d2c87d5d3df28c96bcab4f0faccc87",
   "content_sha256": "034b77c5b7e72671e8527cf233d4515fe2a57e637498808e4e3109b13964c42f",
