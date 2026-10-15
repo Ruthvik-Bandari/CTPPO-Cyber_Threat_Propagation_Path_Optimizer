@@ -87,19 +87,19 @@ def noise_candidates(rule: Rule, mapping: FieldMapping, dataset: Dataset, matche
     return out
 
 
-def _mutations(cond: Cond) -> Iterator[Cond]:
+def condition_mutations(cond: Cond) -> Iterator[Cond]:
     """Every condition one edit away: negate or un-negate a node, or swap and/or."""
     match cond:
         case Ref():
             yield Not(cond)
         case Not(inner):
             yield inner
-            yield from (Not(m) for m in _mutations(inner))
+            yield from (Not(m) for m in condition_mutations(inner))
         case And(ops) | Or(ops):
             yield (Or if isinstance(cond, And) else And)(ops)
             yield Not(cond)
             for i, op in enumerate(ops):
-                for m in _mutations(op):
+                for m in condition_mutations(op):
                     yield type(cond)((*ops[:i], m, *ops[i + 1 :]))
 
 
@@ -107,7 +107,7 @@ def logic_candidates(rule: Rule) -> list[Candidate]:
     out: list[Candidate] = []
     seen = {rule.condition}
     n = 0
-    for cond in _mutations(rule.condition):
+    for cond in condition_mutations(rule.condition):
         if cond in seen or len(out) >= _MAX_MUTATIONS:
             continue
         seen.add(cond)

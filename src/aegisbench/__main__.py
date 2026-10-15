@@ -1,11 +1,12 @@
-"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split} --root DIR [--source NAME ...] [--es-url URL]``.
+"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants} --root DIR [--source NAME ...] [--es-url URL]``.
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
 ``replay`` runs every supported Sigma rule on the pinned engine and writes ``reports/replay-positives.json``.
 ``review-sheet`` writes the private OTRF candidate review files; ``review-status`` validates labels (counts only).
 ``split`` previews the root-grouped split (``reports/split-preview.json``); ``--freeze`` writes
-``benchmark/split-manifest.json`` once.
+``benchmark/split-manifest.json`` once. ``variants`` writes impairment cases (private) and
+``reports/variants.json``.
 Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
 standard library, so it runs on the cluster transfer node without the project environment.
 """
@@ -54,19 +55,57 @@ def _replay(root: Path, es_url: str) -> int:
 SPLIT_SEED = "aegis-bench-v1"
 
 
-def _split(root: Path, seed: str, frozen: bool) -> int:
+def _reviewed(root: Path, report: dict[str, object]) -> dict[str, str]:
+    """Validated labels, or {} before review; invalid rows stop the run."""
     from .review import ReviewError, candidates, read_labels
+
+    path = root / "review" / "labels.csv"
+    if not path.exists():
+        return {}
+    labels, problems = read_labels(path, set(candidates(root, report)))
+    if problems:
+        raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
+    return labels
+
+
+def _variants(root: Path, manifest_path: Path | None, es_url: str, seed: str) -> int:
+    import shutil
+
+    from aegissec.core.errors import Rejected
+    from aegissec.detect.engine import Elasticsearch
+
+    from .review import ReviewError
+    from .variants import build
+
+    frozen = root / "benchmark" / "split-manifest.json"
+    path = manifest_path or frozen
+    es = Elasticsearch(es_url, timeout=120.0)
+    try:
+        es.require_pinned()
+        manifest = json.loads(path.read_text())
+        report = json.loads((root / "reports" / "replay-positives.json").read_text())
+        benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
+        shutil.rmtree(root / "benchmark" / "cases", ignore_errors=True)  # regenerate deterministically
+        result = build(root, manifest, report, benign=benign, es=es, seed=seed)
+    except (Rejected, ReviewError, OSError, ValueError) as exc:
+        print(f"variants: FAILED {exc}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    result["manifest"] = path.name
+    result["from_frozen_split"] = path.resolve() == frozen.resolve()
+    _write_json(root / "reports" / "variants.json", result)
+    print(f"variants: {result}")
+    return 0
+
+
+def _split(root: Path, seed: str, frozen: bool) -> int:
+    from .review import ReviewError
     from .split import SplitError, build, freeze
 
     try:
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
-        malicious: set[str] = set()
-        labels_path = root / "review" / "labels.csv"
-        if labels_path.exists():
-            labels, problems = read_labels(labels_path, set(candidates(root, report)))
-            if problems:
-                raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
-            malicious = {e for e, label in labels.items() if label == "malicious"}
+        malicious = {e for e, label in _reviewed(root, report).items() if label == "malicious"}
         manifest = build(root / "sigma", report, malicious, seed)
         if frozen:
             digest = freeze(manifest, root / "sigma", root / "benchmark" / "split-manifest.json")
@@ -120,13 +159,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aegisbench")
     parser.add_argument(
         "command",
-        choices=["acquire", "qc", "replay", "review-sheet", "review-status", "review-next", "review-label", "split"],
+        choices=[
+            "acquire",
+            "qc",
+            "replay",
+            "review-sheet",
+            "review-status",
+            "review-next",
+            "review-label",
+            "split",
+            "variants",
+        ],
     )
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
     parser.add_argument("--source", action="append", choices=[s.name for s in SOURCES])
     parser.add_argument("--es-url", default="http://127.0.0.1:9200", help="pinned Elasticsearch for replay")
     parser.add_argument("--freeze", action="store_true", help="split: write the frozen manifest (never overwritten)")
     parser.add_argument("--seed", default=SPLIT_SEED, help="split: assignment seed")
+    parser.add_argument("--manifest", type=Path, help="variants: split manifest (default: the frozen one)")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
     parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
@@ -145,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
         return _label(root, args)
     if args.command == "split":
         return _split(root, args.seed, args.freeze)
+    if args.command == "variants":
+        return _variants(root, args.manifest, args.es_url, args.seed)
 
     failed = False
     for source in selected:

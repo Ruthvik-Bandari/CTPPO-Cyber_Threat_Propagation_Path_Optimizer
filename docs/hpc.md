@@ -20,11 +20,12 @@ Every job charges the Slurm account `aai6610.202610` (`#SBATCH --account`).
 | `hpc/fetch_engine.sh` | transfer node | n/a | Download Elasticsearch 8.19.3 (Linux tarball, SHA-512 pinned in the script) to scratch |
 | `hpc/replay.sbatch` | `short` | 4 CPU, 12 GB, 2 h | Start the pinned engine for this job only, replay every supported Sigma rule against the SigmaHQ regression and OTRF pools, and write `reports/replay-positives.json` |
 | `hpc/review_split.sbatch` | `short` | 1 CPU, 4 GB, 30 min | Write the private OTRF review sheet (`review/`, mode 0600), report review progress, and write the split preview |
+| `hpc/variants.sbatch [manifest]` | `short` | 4 CPU, 12 GB, 2 h | Generate and verify the impairment cases for every root in the split (`benchmark/cases/`, private), and write `reports/variants.json`. It uses the frozen split, or a manifest path relative to the data root |
 
 The cluster has no Docker, so jobs run Elasticsearch from Elastic's official tarball with its
 bundled JDK. That is the same 8.19.3 release the local Docker image pins by digest. The engine
 listens on `127.0.0.1` with security disabled, uses a data directory scoped to the job, and is
-stopped and deleted when the job ends. Other users on the same compute node could reach it while it
+stopped and deleted when the job ends (`hpc/engine.sh`, sourced by the engine jobs). Other users on the same compute node could reach it while it
 runs, so it may hold only public benchmark data.
 
 Compute nodes have no internet access. The login node (Rocky 9, like the compute nodes) builds the

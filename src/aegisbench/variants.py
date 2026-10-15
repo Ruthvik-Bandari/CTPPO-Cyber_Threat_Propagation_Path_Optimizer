@@ -1,0 +1,285 @@
+"""Impairment variants for each benchmark root (plan section 11, "Version one benchmark").
+
+For every root rule in the split manifest, up to three faults are injected into a healthy
+reference, each recorded with fault provenance ``synthetic``:
+
+- ``mapping``: one field the rule uses is mapped to a stale index name (expected repair: mapping);
+- ``missing_telemetry``: that field is removed from every event (expected: insufficient evidence);
+- ``logic``: one condition edit (and/or swap, added or removed ``not``), or an ``endswith`` turned
+  into an exact match.
+
+Events are rewritten into an ECS layout, and the healthy mapping points every v1 field at its ECS
+name. Every variant is verified on the pinned engine before it is kept: the healthy rule with the
+healthy mapping must detect every positive, and the impaired case must behave differently, by
+missing a positive or matching more events. Variants that fail verification are discarded, with
+their reason counted.
+
+Case folders contain raw event values. They are written privately on the cluster
+(directory 0700, files 0600) and never committed. The aggregate report has counts only.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from collections import Counter
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from aegissec.core.errors import Rejected
+from aegissec.detect.engine import Elasticsearch
+from aegissec.detect.fixtures import Event
+from aegissec.detect.mapping import FieldMapping, to_lucene
+from aegissec.detect.repair import condition_mutations
+from aegissec.detect.rule import Predicate, Rule, Selection, parse_rule
+
+from .positives import PoolEvent, otrf_events, sigma_events
+
+# Sysmon EID 1 field -> ECS-style index field (the healthy mapping).
+ECS: dict[str, str] = {
+    "Image": "process.executable",
+    "CommandLine": "process.command_line",
+    "CurrentDirectory": "process.working_directory",
+    "OriginalFileName": "process.pe.original_file_name",
+    "Company": "process.pe.company",
+    "Product": "process.pe.product",
+    "Description": "process.pe.description",
+    "FileVersion": "process.pe.file_version",
+    "Hashes": "process.hash.raw",
+    "ProcessId": "process.pid",
+    "ParentImage": "process.parent.executable",
+    "ParentCommandLine": "process.parent.command_line",
+    "ParentProcessId": "process.parent.pid",
+    "ParentUser": "process.parent.user.name",
+    "User": "user.name",
+    "LogonId": "winlog.logon.id",
+    "IntegrityLevel": "winlog.event_data.IntegrityLevel",
+}
+HEALTHY = FieldMapping("bench-ecs", dict(ECS))
+# Field preference for mapping / telemetry faults: the fields detections lean on most.
+FAULT_FIELDS = ("CommandLine", "Image", "ParentImage", "OriginalFileName", "ParentCommandLine", "User")
+NEGATIVES_PER_ROOT = 12
+
+
+@dataclass(frozen=True)
+class Variant:
+    kind: str
+    rule: Rule
+    mapping: FieldMapping
+    events: tuple[Event, ...]
+    detail: str
+    expected: dict[str, str]
+
+
+def to_ecs(flat: dict[str, str]) -> dict[str, Any]:
+    nested: dict[str, Any] = {"event": {"code": "1"}}
+    for field, value in flat.items():
+        if field not in ECS:
+            continue
+        *parents, leaf = ECS[field].split(".")
+        node = nested
+        for part in parents:
+            node = node.setdefault(part, {})
+        node[leaf] = value
+    return nested
+
+
+def _drop(data: dict[str, Any], dotted: str) -> dict[str, Any]:
+    out = json.loads(json.dumps(data))
+    *parents, leaf = dotted.split(".")
+    node = out
+    for part in parents:
+        node = node.get(part, {})
+    node.pop(leaf, None)
+    return dict(out)
+
+
+def _rank(seed: str, key: str) -> str:
+    return hashlib.sha256(f"{seed}:{key}".encode()).hexdigest()
+
+
+def fixtures(root_id: str, positives: list[PoolEvent], negatives: list[PoolEvent], benign: set[str]) -> list[Event]:
+    """Positives get one scenario each; negatives keep their reviewed label or ``unknown``."""
+    events = [
+        Event(f"{root_id}:p{i}", "malicious", f"S-{root_id}-{i}", to_ecs(p.event.data)) for i, p in enumerate(positives)
+    ]
+    events += [
+        Event(f"{root_id}:n{i}", "benign" if n.event.event_id in benign else "unknown", None, to_ecs(n.event.data))
+        for i, n in enumerate(negatives)
+    ]
+    return events
+
+
+def _logic_rules(rule: Rule) -> Iterator[tuple[Rule, str]]:
+    for cond in condition_mutations(rule.condition):
+        yield replace(rule, condition=cond), "condition edited by one AST operation"
+    for name, sel in rule.selections.items():
+        for p in sel.predicates:
+            if p.modifier == "endswith" and not p.match_all:
+                exact = Predicate(p.field, "equals", p.values)
+                branches = tuple(tuple(exact if q is p else q for q in b) for b in sel.branches)
+                yield (
+                    replace(rule, selections={**rule.selections, name: Selection(branches)}),
+                    f"{name}.{p.field} endswith became an exact match",
+                )
+
+
+def candidates_for(rule: Rule, events: list[Event]) -> Iterator[Variant]:
+    used = [f for f in FAULT_FIELDS if f in rule.fields]
+    for field in used[:1]:
+        yield Variant(
+            "mapping",
+            rule,
+            HEALTHY.with_field(field, f"winlog.event_data.{field}"),
+            tuple(events),
+            f"{field} mapped to winlog.event_data.{field}; data uses {ECS[field]}",
+            {"outcome": "repaired", "family": "mapping", "patch_kind": "mapping"},
+        )
+        yield Variant(
+            "missing_telemetry",
+            rule,
+            HEALTHY,
+            tuple(replace(e, data=_drop(e.data, ECS[field])) for e in events),
+            f"{field} ({ECS[field]}) is not collected",
+            {"outcome": "insufficient_evidence", "family": "missing_telemetry"},
+        )
+    for impaired, detail in _logic_rules(rule):
+        yield Variant("logic", impaired, HEALTHY, tuple(events), detail, {"outcome": "repaired", "family": "logic"})
+
+
+def _matched(es: Elasticsearch, index: str, rule: Rule, mapping: FieldMapping) -> frozenset[str]:
+    return es.search_ids(index, to_lucene(parse_rule(rule.to_yaml()), mapping)).matched_ids
+
+
+def verify(
+    es: Elasticsearch, rule: Rule, events: list[Event], variants: Iterable[Variant]
+) -> tuple[list[Variant], Counter[str]]:
+    """Keep at most one effective variant per kind; count why the others were discarded."""
+    discarded: Counter[str] = Counter()
+    kept: dict[str, Variant] = {}
+    malicious = {e.event_id for e in events if e.label == "malicious"}
+    with es.replay_index(events) as index:
+        healthy = _matched(es, index, rule, HEALTHY)
+    if not malicious <= healthy:
+        discarded["healthy_reference_misses_positive"] += 1
+        return [], discarded
+    for variant in variants:
+        if variant.kind in kept:
+            continue
+        try:
+            with es.replay_index(list(variant.events)) as index:
+                got = _matched(es, index, variant.rule, variant.mapping)
+        except Rejected as exc:
+            discarded[f"engine:{exc.reason}"] += 1
+            continue
+        if got == healthy:
+            discarded[f"{variant.kind}:no_behavior_change"] += 1
+            continue
+        # A lost or renamed field must cost detections; behaving differently only by matching
+        # more (a field used just in a filter) is not the fault the expected outcome describes.
+        if variant.kind in ("mapping", "missing_telemetry") and malicious <= got:
+            discarded[f"{variant.kind}:positives_still_detected"] += 1
+            continue
+        kept[variant.kind] = variant
+    return list(kept.values()), discarded
+
+
+def _private(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+def _jsonl(events: Iterable[Event]) -> str:
+    return "".join(
+        json.dumps(
+            {"event_id": e.event_id, "label": e.label, "scenario_id": e.scenario_id, "data": e.data}, sort_keys=True
+        )
+        + "\n"
+        for e in events
+    )
+
+
+def _mapping_yaml(mapping: FieldMapping) -> str:
+    return yaml.safe_dump(mapping.to_yaml_dict(), sort_keys=False)
+
+
+def write_case(out: Path, root_id: str, split: str, variant: Variant, healthy: Rule) -> str:
+    """One case folder in the format ``aegis-sec detect`` reads. Positives alternate between
+    development and validation when there are two or more; otherwise there is no validation suite
+    and any repair is reported as provisional."""
+    case_id = f"{root_id}-{variant.kind}"
+    d = out / split / case_id
+    positives = [e for e in variant.events if e.label == "malicious"]
+    negatives = [e for e in variant.events if e.label != "malicious"]
+    dev = positives[::2] + negatives[::2]
+    val = positives[1::2] + negatives[1::2] if len(positives) >= 2 else []
+    _private(d / "rule.yml", variant.rule.to_yaml())
+    _private(d / "healthy_rule.yml", healthy.to_yaml())
+    _private(d / "mapping.yml", _mapping_yaml(variant.mapping))
+    _private(d / "healthy_mapping.yml", _mapping_yaml(HEALTHY))
+    _private(d / "development.jsonl", _jsonl(dev))
+    if val:
+        _private(d / "validation.jsonl", _jsonl(val))
+    manifest = {
+        "case_id": case_id,
+        "root_id": root_id,
+        "split": split,
+        "provenance": "synthetic",
+        "fault": {"kind": variant.kind, "detail": variant.detail},
+        "expected": variant.expected,
+        "validation": bool(val),
+    }
+    _private(d / "case.yml", yaml.safe_dump(manifest, sort_keys=False))
+    return case_id
+
+
+def build(
+    root: Path, manifest: dict[str, Any], report: dict[str, Any], *, benign: set[str], es: Elasticsearch, seed: str
+) -> dict[str, object]:
+    pool = {p.event.event_id: p for p in [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]}
+    otrf_ids = sorted(k for k, p in pool.items() if p.pool == "otrf")
+    out = root / "benchmark" / "cases"
+    kinds: Counter[str] = Counter()
+    discarded: Counter[str] = Counter()
+    per_split: Counter[str] = Counter()
+    without_validation = 0
+    roots_without_variants = 0
+    for split, groups in manifest["splits"].items():
+        if split == "reserve":
+            continue
+        for group in groups:
+            for entry in group["rules"]:
+                rule = parse_rule((root / "sigma" / entry["path"]).read_text(encoding="utf-8"))
+                positives = [pool[e] for e in entry["positive_event_ids"]]
+                matched = set(report["per_rule"].get(entry["id"], {}).get("matched_event_ids", []))
+                confounders = [pool[e] for e in sorted(matched & benign)]
+                background = sorted(
+                    (e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, entry["id"] + e)
+                )
+                negatives = confounders + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
+                events = fixtures(entry["id"], positives, negatives, benign)
+                kept, why = verify(es, rule, events, candidates_for(rule, events))
+                discarded.update(why)
+                roots_without_variants += not kept
+                for variant in kept:
+                    write_case(out, entry["id"], split, variant, rule)
+                    kinds[variant.kind] += 1
+                    per_split[split] += 1
+                    without_validation += len(positives) < 2
+    return {
+        "schema_version": 1,
+        "seed": seed,
+        "cases": sum(kinds.values()),
+        "cases_by_kind": dict(sorted(kinds.items())),
+        "cases_by_split": dict(sorted(per_split.items())),
+        "cases_without_validation_suite": without_validation,
+        "roots_without_variants": roots_without_variants,
+        "discarded": dict(sorted(discarded.items())),
+    }
