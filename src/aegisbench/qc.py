@@ -11,6 +11,7 @@ import hashlib
 import json
 import zipfile
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,7 @@ def _regression_events(case_dir: Path, info: dict[str, Any]) -> tuple[list[str],
             if not (isinstance(system, dict) and isinstance(data, dict)):
                 problems.append(f"{case_dir.name}: {path.name} has a record without Event.System/EventData")
                 continue
-            if str(system.get("EventID")) == "1" and system.get("Channel") == SYSMON_CHANNEL:
+            if is_sysmon_process_creation(system):
                 events += 1
     return ids, events, problems
 
@@ -176,34 +177,42 @@ def qc_sigma(root: Path) -> dict[str, object]:
     }
 
 
+def is_sysmon_process_creation(fields: dict[str, Any]) -> bool:
+    return str(fields.get("EventID")) == "1" and fields.get("Channel") == SYSMON_CHANNEL
+
+
+def iter_zip_records(path: Path) -> Iterator[tuple[str, Any]]:
+    """Yield ``(member name, record)`` from every JSON-lines member of an OTRF archive.
+
+    Raises ``ValueError`` on a malformed line and ``zipfile.BadZipFile``/``OSError`` on a bad archive."""
+    with zipfile.ZipFile(path) as archive:
+        for member in archive.infolist():
+            if member.is_dir() or member.file_size > MAX_ZIP_MEMBER_BYTES:
+                continue
+            name = member.filename.rsplit("/", 1)[-1]
+            if member.filename.startswith("__MACOSX/") or name.startswith("._"):
+                continue  # macOS archive metadata, not telemetry
+            if not name.endswith((".json", ".jsonl")):
+                continue
+            with archive.open(member) as fh:
+                for line in fh:
+                    if not line.strip():
+                        continue
+                    try:
+                        yield member.filename, json.loads(line)
+                    except ValueError:
+                        raise ValueError(f"{path.name}: {member.filename} has a malformed line") from None
+
+
 def _zip_eid1_count(path: Path) -> tuple[int, int, str | None]:
-    """Count (records, Sysmon EID 1 records) across JSON-lines members; return an error string on failure."""
+    """Count (records, Sysmon EID 1 records); return an error string on failure."""
     records = eid1 = 0
     try:
-        with zipfile.ZipFile(path) as archive:
-            for member in archive.infolist():
-                if member.is_dir() or member.file_size > MAX_ZIP_MEMBER_BYTES:
-                    continue
-                name = member.filename.rsplit("/", 1)[-1]
-                if member.filename.startswith("__MACOSX/") or name.startswith("._"):
-                    continue  # macOS archive metadata, not telemetry
-                if not name.endswith((".json", ".jsonl")):
-                    continue
-                with archive.open(member) as fh:
-                    for line in fh:
-                        if not line.strip():
-                            continue
-                        try:
-                            rec = json.loads(line)
-                        except ValueError:
-                            return records, eid1, f"{path.name}: {member.filename} has a malformed line"
-                        records += 1
-                        if (
-                            isinstance(rec, dict)
-                            and str(rec.get("EventID")) == "1"
-                            and rec.get("Channel") == SYSMON_CHANNEL
-                        ):
-                            eid1 += 1
+        for _, rec in iter_zip_records(path):
+            records += 1
+            eid1 += isinstance(rec, dict) and is_sysmon_process_creation(rec)
+    except ValueError as exc:
+        return records, eid1, str(exc)
     except (zipfile.BadZipFile, OSError) as exc:
         return records, eid1, f"{path.name}: {type(exc).__name__}"
     return records, eid1, None

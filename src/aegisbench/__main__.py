@@ -1,7 +1,8 @@
-"""``python -m aegisbench {acquire,qc} --root DIR [--source NAME ...]``.
+"""``python -m aegisbench {acquire,qc,replay} --root DIR [--source NAME ...] [--es-url URL]``.
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
+``replay`` runs every supported Sigma rule on the pinned engine and writes ``reports/replay-positives.json``.
 Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
 standard library, so it runs on the cluster transfer node without the project environment.
 """
@@ -28,17 +29,39 @@ def _write_json(path: Path, obj: object) -> None:
     os.replace(tmp, path)
 
 
+def _replay(root: Path, es_url: str) -> int:
+    from aegissec.core.errors import Rejected
+    from aegissec.detect.engine import Elasticsearch
+
+    from .positives import run
+
+    es = Elasticsearch(es_url, timeout=120.0)
+    try:
+        report = run(root, es)
+    except Rejected as exc:
+        print(f"replay: FAILED {exc.reason}: {exc.detail}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    _write_json(root / "reports" / "replay-positives.json", report)
+    print(f"replay: {report['rules_replayed']} rules; fidelity {report['fidelity']}; summary {report['summary']}")
+    return 1 if report["engine_errors"] else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aegisbench")
-    parser.add_argument("command", choices=["acquire", "qc"])
+    parser.add_argument("command", choices=["acquire", "qc", "replay"])
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
     parser.add_argument("--source", action="append", choices=[s.name for s in SOURCES])
+    parser.add_argument("--es-url", default="http://127.0.0.1:9200", help="pinned Elasticsearch for replay")
     args = parser.parse_args(argv)
     root: Path = args.root.resolve()
     repo = Path(__file__).resolve().parents[2]
     if (repo / ".git").exists() and root.is_relative_to(repo):
         parser.error("--root must be outside the repository working tree")
     selected = [by_name(n) for n in args.source] if args.source else list(SOURCES)
+    if args.command == "replay":
+        return _replay(root, args.es_url)
 
     failed = False
     for source in selected:
