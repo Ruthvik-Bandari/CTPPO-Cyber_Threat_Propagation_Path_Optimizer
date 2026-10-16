@@ -1,4 +1,4 @@
-"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants,evaluate,sft,train-m1} --root DIR [--source NAME ...] [--es-url URL]``.
+"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants,evaluate,sft,train-m1,compare} --root DIR [--source NAME ...] [--es-url URL]``.
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
@@ -8,7 +8,8 @@
 ``benchmark/split-manifest.json`` once. ``variants`` writes impairment cases (private) and
 ``reports/variants.json``. ``evaluate`` scores a repair system on the cases (train and development;
 ``--locked`` adds the test split) into ``reports/eval-<system>.json``. ``sft`` writes M1 training
-examples (train and development); ``train-m1`` fits the LoRA adapter on a GPU.
+examples (train and development); ``train-m1`` fits the LoRA adapter on a GPU. ``compare`` pairs
+evaluated systems on identical cases (``reports/comparison.{json,md}``).
 Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
 standard library, so it runs on the cluster transfer node without the project environment.
 """
@@ -68,6 +69,22 @@ def _reviewed(root: Path, report: dict[str, object]) -> dict[str, str]:
     if problems:
         raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
     return labels
+
+
+def _compare(root: Path, systems: list[str], baseline: str, *, locked: bool) -> int:
+    from .compare import CompareError, compare, markdown
+
+    suffix = "-locked" if locked else ""
+    try:
+        reports = {s: json.loads((root / "reports" / f"eval-{s}{suffix}.json").read_text()) for s in systems}
+        result = compare(reports, baseline)
+    except (CompareError, OSError, ValueError) as exc:
+        print(f"compare: FAILED {exc}", file=sys.stderr)
+        return 1
+    _write_json(root / "reports" / f"comparison{suffix}.json", result)
+    (root / "reports" / f"comparison{suffix}.md").write_text(markdown(result))
+    print(markdown(result))
+    return 0
 
 
 def _sft(root: Path, es_url: str) -> int:
@@ -234,25 +251,26 @@ def _review(root: Path, command: str) -> int:
     return 1 if result["problems"] else 0
 
 
-def main(argv: list[str] | None = None) -> int:
+COMMANDS = (
+    "acquire",
+    "qc",
+    "replay",
+    "review-sheet",
+    "review-status",
+    "review-next",
+    "review-label",
+    "split",
+    "variants",
+    "evaluate",
+    "sft",
+    "train-m1",
+    "compare",
+)
+
+
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aegisbench")
-    parser.add_argument(
-        "command",
-        choices=[
-            "acquire",
-            "qc",
-            "replay",
-            "review-sheet",
-            "review-status",
-            "review-next",
-            "review-label",
-            "split",
-            "variants",
-            "evaluate",
-            "sft",
-            "train-m1",
-        ],
-    )
+    parser.add_argument("command", choices=COMMANDS)
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
     parser.add_argument("--source", action="append", choices=[s.name for s in SOURCES])
     parser.add_argument("--es-url", default="http://127.0.0.1:9200", help="pinned Elasticsearch for replay")
@@ -260,65 +278,73 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", default=SPLIT_SEED, help="split: assignment seed")
     parser.add_argument("--manifest", type=Path, help="variants: split manifest (default: the frozen one)")
     parser.add_argument("--system", default="b0", help="evaluate: repair system")
-    parser.add_argument("--locked", action="store_true", help="evaluate: include the locked test split")
+    parser.add_argument("--locked", action="store_true", help="evaluate/compare: include the locked test split")
     parser.add_argument("--max-steps", type=int, default=0, help="train-m1: stop after N steps (smoke run)")
     parser.add_argument("--train-seed", type=int, default=1, help="train-m1: training seed")
+    parser.add_argument("--systems", nargs="+", default=["b0", "b1", "b2"], help="compare: evaluated systems")
+    parser.add_argument("--baseline", default="b0", help="compare: baseline system")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
     parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
     parser.add_argument("--reviewer", default=os.environ.get("AEGIS_REVIEWER", ""), help="review-label: initials")
+    return parser
+
+
+def _sources(root: Path, command: str, names: list[str] | None) -> int:
+    failed = False
+    for source in [by_name(n) for n in names] if names else list(SOURCES):
+        dest = root / source.name
+        try:
+            if command == "acquire":
+                checkout(source, dest)
+                record = manifest(source, dest)
+                _write_json(root / "manifests" / f"{source.name}.json", record)
+                print(f"{source.name}: {record['file_count']} files, content {str(record['content_sha256'])[:12]}")
+                continue
+            from .qc import QC  # needs the project environment; acquire needs only the stdlib
+
+            recorded = json.loads((root / "manifests" / f"{source.name}.json").read_text())
+            current = manifest(source, dest)
+            if current["files"] != recorded["files"]:
+                raise AcquisitionError(f"{source.name}: files changed since acquisition")
+            report = {
+                "schema_version": 1,
+                "source": source.name,
+                "commit": source.commit,
+                "content_sha256": current["content_sha256"],
+                "checks": QC[source.name](dest),
+            }
+            _write_json(root / "reports" / f"qc-{source.name}.json", report)
+            print(f"{source.name}: QC report written")
+        except (AcquisitionError, OSError, ValueError) as exc:
+            failed = True
+            print(f"{source.name}: FAILED {exc}", file=sys.stderr)
+    return 1 if failed else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _parser()
     args = parser.parse_args(argv)
     root: Path = args.root.resolve()
     repo = Path(__file__).resolve().parents[2]
     if (repo / ".git").exists() and root.is_relative_to(repo):
         parser.error("--root must be outside the repository working tree")
-    selected = [by_name(n) for n in args.source] if args.source else list(SOURCES)
-    if args.command == "replay":
-        return _replay(root, args.es_url)
-    if args.command in ("review-sheet", "review-status"):
-        return _review(root, args.command)
-    if args.command in ("review-next", "review-label"):
-        return _label(root, args)
-    if args.command == "split":
-        return _split(root, args.seed, args.freeze)
-    if args.command == "sft":
-        return _sft(root, args.es_url)
-    if args.command == "train-m1":
-        return _train_m1(root, args.max_steps, args.train_seed)
-    if args.command == "evaluate":
-        return _evaluate(root, args.system, args.es_url, locked=args.locked)
-    if args.command == "variants":
-        return _variants(root, args.manifest, args.es_url, args.seed)
-
-    failed = False
-    for source in selected:
-        dest = root / source.name
-        try:
-            if args.command == "acquire":
-                checkout(source, dest)
-                record = manifest(source, dest)
-                _write_json(root / "manifests" / f"{source.name}.json", record)
-                print(f"{source.name}: {record['file_count']} files, content {str(record['content_sha256'])[:12]}")
-            else:
-                from .qc import QC  # needs the project environment; acquire needs only the stdlib
-
-                recorded = json.loads((root / "manifests" / f"{source.name}.json").read_text())
-                current = manifest(source, dest)
-                if current["files"] != recorded["files"]:
-                    raise AcquisitionError(f"{source.name}: files changed since acquisition")
-                report = {
-                    "schema_version": 1,
-                    "source": source.name,
-                    "commit": source.commit,
-                    "content_sha256": current["content_sha256"],
-                    "checks": QC[source.name](dest),
-                }
-                _write_json(root / "reports" / f"qc-{source.name}.json", report)
-                print(f"{source.name}: QC report written")
-        except (AcquisitionError, OSError, ValueError) as exc:
-            failed = True
-            print(f"{source.name}: FAILED {exc}", file=sys.stderr)
-    return 1 if failed else 0
+    dispatch = {
+        "replay": lambda: _replay(root, args.es_url),
+        "review-sheet": lambda: _review(root, args.command),
+        "review-status": lambda: _review(root, args.command),
+        "review-next": lambda: _label(root, args),
+        "review-label": lambda: _label(root, args),
+        "split": lambda: _split(root, args.seed, args.freeze),
+        "variants": lambda: _variants(root, args.manifest, args.es_url, args.seed),
+        "evaluate": lambda: _evaluate(root, args.system, args.es_url, locked=args.locked),
+        "sft": lambda: _sft(root, args.es_url),
+        "train-m1": lambda: _train_m1(root, args.max_steps, args.train_seed),
+        "compare": lambda: _compare(root, args.systems, args.baseline, locked=args.locked),
+    }
+    if args.command in dispatch:
+        return dispatch[args.command]()
+    return _sources(root, args.command, args.source)
 
 
 if __name__ == "__main__":
