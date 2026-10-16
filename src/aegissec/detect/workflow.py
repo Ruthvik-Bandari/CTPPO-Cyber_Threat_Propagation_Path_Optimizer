@@ -25,7 +25,7 @@ from .diagnose import Family, Hypothesis, coverage, guidance, hypotheses
 from .engine import PINNED_IMAGE, Elasticsearch
 from .fixtures import Dataset, load_dataset, profile
 from .mapping import FieldMapping, parse_mapping
-from .repair import generate
+from .repair import Generator, generate
 from .replay import Replayer, ReplayResult
 from .rule import Rule, parse_rule
 
@@ -113,7 +113,8 @@ class _Screened:
 class _Run:
     """One workflow execution; accumulates the report so every exit returns the same shape."""
 
-    def __init__(self, inputs: Inputs, engine: Elasticsearch) -> None:
+    def __init__(self, inputs: Inputs, engine: Elasticsearch, generator: Generator) -> None:
+        self.generator = generator
         self.started = now()
         self.t0 = time.perf_counter()
         self.inputs = inputs
@@ -180,7 +181,9 @@ class _Run:
                 )
             if not hyps:
                 return self.finish(Outcome.UNCHANGED, "original rule meets expectations on the development fixtures")
-            screened, rejected = _screen(rule, mapping, dev, hyps, original=original, replayer=replayer)
+            screened, rejected = _screen(
+                rule, mapping, dev, hyps, original=original, replayer=replayer, generator=self.generator
+            )
             self.report["candidates"] = [s.entry for s in screened]
             self.report["rejected_candidates"] = rejected
 
@@ -239,9 +242,12 @@ class _Run:
         )
 
 
-def run(inputs: Inputs, engine: Elasticsearch) -> dict[str, Any]:
-    """Run the full workflow. Invalid inputs raise ``Rejected``; everything else is an outcome."""
-    return _Run(inputs, engine).execute()
+def run(inputs: Inputs, engine: Elasticsearch, generator: Generator = generate) -> dict[str, Any]:
+    """Run the full workflow. Invalid inputs raise ``Rejected``; everything else is an outcome.
+
+    ``generator`` proposes candidates (default: the deterministic B0). Research systems swap it,
+    and every candidate still goes through the same contract, screening, freeze and validation."""
+    return _Run(inputs, engine, generator).execute()
 
 
 def _screen(
@@ -252,11 +258,12 @@ def _screen(
     *,
     original: ReplayResult,
     replayer: Replayer,
+    generator: Generator,
 ) -> tuple[list[_Screened], list[dict[str, str]]]:
     """Replay every generated candidate on development fixtures and keep the ones that improve
     without losing attacks. Returns the best ``MAX_CANDIDATES`` and a record of every rejection."""
     kept, rejected = [], []
-    for cand in generate(rule, mapping, dev, hyps, original.matched_ids):
+    for cand in generator(rule, mapping, dev, hyps, original.matched_ids):
         try:
             new_rule, new_mapping = apply(rule, mapping, cand)
         except Rejected as exc:

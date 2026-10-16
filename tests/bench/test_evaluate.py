@@ -75,7 +75,7 @@ def test_b0_runs_generated_cases_and_skips_locked_test(tmp_path):
         shutil.copytree(cases / "development", cases / "test")  # a locked split that must stay unread
         for case_yml in (cases / "test").glob("*/case.yml"):
             case_yml.write_text(case_yml.read_text().replace("split: development", "split: test"))
-        rows = run_cases(cases, SYSTEMS["b0"], es)
+        rows = run_cases(cases, SYSTEMS["b0"](cases), es)
         assert {r["split"] for r in rows} == {"development"}
         by_kind = {r["kind"]: r for r in rows}
         assert by_kind["healthy"]["outcome"] == "unchanged" and by_kind["healthy"]["success"]
@@ -83,7 +83,7 @@ def test_b0_runs_generated_cases_and_skips_locked_test(tmp_path):
         assert by_kind["missing_telemetry"]["outcome"] == "insufficient_evidence"
         assert all(r["error"] is None for r in rows)
         assert "certutil" not in json.dumps(rows)
-        assert {r["split"] for r in run_cases(cases, SYSTEMS["b0"], es, locked=True)} == {"development", "test"}
+        assert {r["split"] for r in run_cases(cases, SYSTEMS["b0"](cases), es, locked=True)} == {"development", "test"}
     finally:
         es.close()
 

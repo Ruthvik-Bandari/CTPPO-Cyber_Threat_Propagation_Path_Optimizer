@@ -33,7 +33,21 @@ from aegissec.detect.workflow import Inputs
 from aegissec.detect.workflow import run as b0_run
 
 System = Callable[[Inputs, Elasticsearch], dict[str, Any]]
-SYSTEMS: dict[str, System] = {"b0": b0_run}
+
+
+def _b0(cases_root: Path) -> System:
+    return b0_run
+
+
+def _b1(cases_root: Path) -> System:
+    from .b1 import build_memory, generator
+
+    propose = generator(build_memory(cases_root))  # train split only
+    return lambda inputs, es: b0_run(inputs, es, generator=propose)
+
+
+# System factories: each builds its system from the case root (B1 reads its train-split memory).
+SYSTEMS: dict[str, Callable[[Path], System]] = {"b0": _b0, "b1": _b1}
 BOOTSTRAP_REPS = 2000
 OPEN_SPLITS = ("train", "development")
 

@@ -1,0 +1,62 @@
+import os
+
+import pytest
+
+from aegisbench.b1 import build_memory, edit_signature
+from aegissec.detect.engine import Elasticsearch
+from aegissec.detect.rule import parse_condition
+
+ES_URL = os.environ.get("AEGIS_ES_URL", "http://127.0.0.1:9200")
+NAMES = ["a", "b", "c"]
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "signature"),
+    [
+        ("a and b", "a or b", "swap:And->Or"),
+        ("a and not b", "a and b", "drop_not:Ref"),
+        ("a and b", "a and not b", "add_not:Ref"),
+        ("(a or b) and c", "(a and b) and c", "swap:Or->And"),
+        ("a", "a", "none"),
+        ("a and b", "c", "other"),
+    ],
+)
+def test_edit_signature(before, after, signature):
+    assert edit_signature(parse_condition(before, NAMES), parse_condition(after, NAMES)) == signature
+
+
+def _cases(tmp_path, split):
+    from aegisbench.variants import build
+    from tests.bench.test_variants import make_root, split_manifest
+
+    data = make_root(tmp_path / split)
+    manifest = split_manifest()
+    manifest["splits"] = {split: manifest["splits"]["development"], "reserve": []}
+    return data, manifest, build
+
+
+@pytest.mark.engine
+def test_memory_reads_train_only_and_b1_repairs_by_analogy(tmp_path):
+    from aegisbench.evaluate import SYSTEMS, run_cases
+
+    es = Elasticsearch(ES_URL)
+    try:
+        data, manifest, build = _cases(tmp_path, "train")
+        build(data, manifest, {"per_rule": {}}, benign=set(), es=es, seed="s")
+        cases = data / "benchmark/cases"
+        memory = build_memory(cases)
+        kinds = sorted({m.kind for m in memory})
+        assert kinds == ["mapping", "rule"]  # healthy and missing-telemetry cases have nothing to learn
+        assert any(m.signature == "CommandLine->process.command_line" for m in memory)
+
+        # Same root's development variants, judged with a memory that only saw train.
+        dev_data, dev_manifest, _ = _cases(tmp_path, "development")
+        build(dev_data, dev_manifest, {"per_rule": {}}, benign=set(), es=es, seed="s")
+        dev_cases = dev_data / "benchmark/cases"
+        (dev_cases / "train").symlink_to(cases / "train")
+        rows = {r["kind"]: r for r in run_cases(dev_cases, SYSTEMS["b1"](dev_cases), es)}
+        assert rows["mapping"]["success"]
+        assert rows["healthy"]["outcome"] == "unchanged"
+        assert rows["missing_telemetry"]["outcome"] == "insufficient_evidence"
+    finally:
+        es.close()

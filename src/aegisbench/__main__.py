@@ -81,7 +81,8 @@ def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool) -> int
     es = Elasticsearch(es_url, timeout=120.0)
     try:
         es.require_pinned()
-        rows = run_cases(root / "benchmark" / "cases", SYSTEMS[system_name], es, locked=locked)
+        cases = root / "benchmark" / "cases"
+        rows = run_cases(cases, SYSTEMS[system_name](cases), es, locked=locked)
     except (Rejected, OSError, ValueError) as exc:
         print(f"evaluate: FAILED {exc}", file=sys.stderr)
         return 1

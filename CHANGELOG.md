@@ -17,6 +17,8 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 - The website check adds `hsts.disabled` (`max-age=0`), `hsts.not_preload_ready` (info) and `cookie.prefix_violation` (`__Host-` and `__Secure-` rules).
 - `scripts/webcheck_conformance.py` is a live conformance run against badssl.com endpoints. A table of known-bad header pages is also tested through the full scan.
 
+- `aegis-sec detect`'s workflow accepts a pluggable candidate generator, with the deterministic B0 as the default. Research systems reuse the same candidate contract, screening, freeze and validation.
+
 ### Fixed
 
 - The detection engine client no longer sends traffic through `HTTP_PROXY` / `HTTPS_PROXY`. On a machine with a proxy set and no `NO_PROXY`, requests to the local Elasticsearch, including 127.0.0.1, were routed to the proxy and failed.

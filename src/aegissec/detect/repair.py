@@ -7,7 +7,7 @@ measured results improve without losing detected attack scenarios.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 from .candidate import (
     MAX_CANDIDATES,
@@ -131,6 +131,10 @@ def logic_candidates(rule: Rule) -> list[Candidate]:
                 )
             )
     return out
+
+
+# A candidate generator: (rule, mapping, development fixtures, hypotheses, original matches) -> candidates.
+Generator = Callable[[Rule, FieldMapping, Dataset, list[Hypothesis], frozenset[str]], list[Candidate]]
 
 
 def generate(
