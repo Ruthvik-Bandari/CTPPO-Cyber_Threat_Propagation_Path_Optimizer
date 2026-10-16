@@ -164,6 +164,31 @@ export interface WebFinding {
   explanation: string;
   recommendation: string;
   evidence: string | null;
+  /** Set when the site profile changed the severity: the checklist severity and why. */
+  baseline_severity?: Severity | null;
+  context?: string | null;
+}
+
+export type SiteKind = "static" | "static_api" | "dynamic";
+
+export interface SiteProfile {
+  kind: SiteKind;
+  detected: SiteKind;
+  declared: SiteKind | null;
+  reasons: string[];
+  evidence: {
+    html: boolean;
+    forms: number;
+    post_forms: number;
+    password_fields: number;
+    input_fields: number;
+    cookies: number;
+    scripts_inline: number;
+    scripts_external: number;
+    third_party_script_hosts: string[];
+    iframes: number;
+    api_markers: number;
+  };
 }
 
 export type TlsStatus =
@@ -196,6 +221,7 @@ export interface WebReport {
   score: number;
   findings: WebFinding[];
   timings: { total_ms: number; http_ms: number; tls_ms: number };
+  profile?: SiteProfile | null;
 }
 
 // Forensics ------------------------------------------------------------------

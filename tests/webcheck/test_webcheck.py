@@ -1,5 +1,3 @@
-import socket
-
 import httpx
 import pytest
 from fastapi import FastAPI
@@ -163,23 +161,6 @@ def test_tls_findings():
 
 
 # ---------------------------------------------------------------- network layer (mocked)
-@pytest.fixture
-def fake_dns(monkeypatch):
-    real = socket.getaddrinfo
-
-    def fake(host, port, *args, **kwargs):
-        try:
-            socket.inet_pton(socket.AF_INET6 if ":" in host else socket.AF_INET, host.strip("[]"))
-            return real(host.strip("[]"), port, *args, **kwargs)
-        except OSError:
-            pass
-        if host not in DNS:
-            raise socket.gaierror(host)
-        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port)) for ip in DNS[host]]
-
-    monkeypatch.setattr(socket, "getaddrinfo", fake)
-
-
 def ok_probe(host, ip, port, timeout):
     return TlsInfo(host=host, status="ok", protocol="TLSv1.3", days_remaining=60)
 
@@ -260,8 +241,8 @@ def test_private_targets_allowed_on_request(fake_dns):
 def test_api_and_cli(monkeypatch):
     from aegissec.webcheck import api, cli
 
-    monkeypatch.setattr(api, "scan", lambda url, allow_private: _fake_report())
-    monkeypatch.setattr(cli, "scan", lambda url, allow_private: _fake_report())
+    monkeypatch.setattr(api, "scan", lambda url, allow_private, site_type: _fake_report())
+    monkeypatch.setattr(cli, "scan", lambda url, allow_private, site_type: _fake_report())
     app = FastAPI()
     app.include_router(api.router)
     body = TestClient(app).post("/api/webcheck", json={"url": "https://site.test"}).json()
@@ -291,7 +272,7 @@ def _fake_report():
 def test_cli_rejected_exit_code(monkeypatch):
     from aegissec.webcheck import cli
 
-    def boom(url, allow_private):
+    def boom(url, allow_private, site_type):
         raise Rejected(Reason.TARGET_NOT_ALLOWED, "private")
 
     monkeypatch.setattr(cli, "scan", boom)

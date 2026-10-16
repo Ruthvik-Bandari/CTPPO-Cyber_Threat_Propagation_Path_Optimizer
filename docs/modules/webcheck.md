@@ -10,12 +10,14 @@ Each problem comes with a recommendation, and the result is an A to F grade from
 aegis-sec webcheck scan https://your-site.example
 aegis-sec webcheck scan http://192.168.1.20:8080 --allow-private   # a lab host you own
 aegis-sec webcheck scan https://your-site.example --json
+aegis-sec webcheck scan https://your-site.example --site-type dynamic   # it has a login the page doesn't show
 ```
 
 | Option | Effect |
 | --- | --- |
 | `--allow-private` | Allows targets that resolve to private, loopback, link-local or other non-public addresses. Off by default. |
 | `--json` | Prints the full report as JSON and skips the notice line. |
+| `--site-type static\|static_api\|dynamic` | Declares what you know the site is. It can raise the detected profile, never lower it (see [Site profile](#site-profile)). |
 
 | Exit code | Meaning ([`cli.py`](../../src/aegissec/webcheck/cli.py)) |
 | --- | --- |
@@ -33,12 +35,36 @@ The fetch logic is in [`fetch.py`](../../src/aegissec/webcheck/fetch.py).
   - only `http` and `https` URLs with a host, at most 2,048 characters, with no credentials in the URL;
   - every resolved address must be public unless `--allow-private` is set. This refuses private, loopback, link-local (which includes cloud metadata at 169.254.169.254), multicast and reserved ranges, including IPv4 addresses embedded in IPv6 forms.
 - **Connect to the validated IP.** The request goes to the first validated address in sorted order. The `Host` header and TLS SNI carry the real hostname, so a DNS answer that changes between the check and the connection cannot redirect the request.
-- **One GET per hop.** The request has `User-Agent: aegis-sec-webcheck/<version>`, no proxy settings from the environment, and certificate verification on. At most 1 MiB of each response body is read, and the body is discarded.
+- **One GET per hop.** The request has `User-Agent: aegis-sec-webcheck/<version>`, no proxy settings from the environment, and certificate verification on. It asks for an uncompressed response (`Accept-Encoding: identity`) and reads raw bytes, so nothing is decompressed. At most 1 MiB of the final page is kept for the [site profile](#site-profile); bodies of redirect hops are discarded.
 - **Redirects.** Up to 5 redirects (301, 302, 303, 307, 308) are followed. More than that fails with `upstream_error`.
 - **Time limit.** 10 seconds for the whole redirect chain, and 10 seconds for the TLS probe.
 - **TLS probe.** When the final URL is `https`, one more verified handshake is made against the same validated IP. It records the protocol version, issuer, expiry date and days remaining.
 
 If the HTTPS connection fails during the TLS handshake, the report still comes back with `status_code: null` and `headers_checked: false`, and only the HTTPS and TLS checks are applied.
+
+## Site profile
+
+A missing CSP or framing protection matters most where there is something to steal or click: logins, forms, sessions and API calls. On a static page the same gaps are real but carry less risk. Before grading, the check profiles the site from the page it already fetched ([`profile.py`](../../src/aegissec/webcheck/profile.py)):
+
+| Profile | Assigned when |
+| --- | --- |
+| `dynamic` | The page has a form, a password field or a `Set-Cookie`. |
+| `static_api` | No forms or cookies, but inline scripts call APIs (`fetch`, XHR, `axios`, `/api/`, GraphQL, WebSockets), or the URL returns JSON. |
+| `static` | None of the above. |
+
+The parser is Python's `html.parser`. It runs on at most 1 MiB, never executes anything, and counts only tags, attributes and short markers in inline scripts, capped at 200,000 characters. The report's `profile` field lists the evidence and the reasons. The evidence covers forms, password and input fields, cookies, inline and external scripts, third-party script hosts, iframes and API markers.
+
+**How severities change.** A few findings depend on what the site does. Their severity is re-weighed for the profile, and only ever lowered:
+
+| Finding | static | static_api | dynamic |
+| --- | --- | --- | --- |
+| `csp.missing`, `csp.report_only`, `csp.no_script_restriction` | low (stays medium if scripts load from a third-party host) | unchanged | unchanged |
+| `framing.unprotected` | info | low | unchanged |
+| `referrer.weak` | info | unchanged | unchanged |
+
+Every other finding keeps its checklist severity on every profile, including all HTTPS, TLS, HSTS and cookie findings. A re-weighed finding keeps its original severity in `baseline_severity`, and `context` explains the change.
+
+**Limits and the owner's declaration.** One page cannot show everything: a login behind a link, or API calls made by an external bundle, are invisible to it. With `--site-type` (or `site_type` in the API, or the "What is this site?" field in the dashboard) the owner can say what the site really is. A declaration can raise the profile but never lower it below what the page shows. Declaring `static` on a page with a password field keeps `dynamic`, and the report says so. A page therefore cannot be argued into a better grade.
 
 ## Grading rubric
 
@@ -127,6 +153,7 @@ These checks run on every `Set-Cookie` header of the final response.
 | `grade`, `score` | The letter and the 0 to 100 score. |
 | `findings` | Sorted high, medium, low, info. |
 | `timings` | `total_ms`, `http_ms`, `tls_ms`. |
+| `profile` | `kind` (the profile used for grading), `detected`, `declared`, `reasons` and `evidence`. `null` when headers were not checked. |
 
 ## Limits
 

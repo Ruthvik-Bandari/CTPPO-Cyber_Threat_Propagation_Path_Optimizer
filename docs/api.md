@@ -164,7 +164,7 @@ The route is in [`webcheck/api.py`](../src/aegissec/webcheck/api.py); behavior a
 
 | Route | Request | Response |
 | --- | --- | --- |
-| `POST /api/webcheck` | `{"url": string (1 to 2,048 characters), "allow_private": bool = false}` | `Report`: `notice`, `requested_url`, `final_url`, `status_code`, `headers_checked`, `redirect_chain`, `tls`, `grade`, `score`, `findings`, `timings` |
+| `POST /api/webcheck` | `{"url": string (1 to 2,048 characters), "allow_private": bool = false, "site_type": "static" \| "static_api" \| "dynamic" \| null = null}` | `Report`: `notice`, `requested_url`, `final_url`, `status_code`, `headers_checked`, `redirect_chain`, `tls`, `grade`, `score`, `findings` (each may carry `baseline_severity` and `context`), `timings`, `profile` |
 
 A target that resolves to a non-public address returns 403 `target_not_allowed` unless `allow_private` is true. Connection failures and timeouts return 502 `target_unreachable`; too many redirects and other HTTP failures return 502 `upstream_error`.
 

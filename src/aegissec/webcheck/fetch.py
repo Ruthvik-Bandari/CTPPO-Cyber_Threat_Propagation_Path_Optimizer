@@ -52,6 +52,7 @@ class FetchResult:
     final_host: str = ""
     final_ip: str = ""
     final_port: int = 443
+    body: bytes = b""  # final response only, at most MAX_BODY_BYTES; parsed for the site profile
 
 
 def _is_tls_error(exc: BaseException) -> bool:
@@ -90,7 +91,13 @@ def fetch(
             request = httpx.Request(
                 "GET",
                 target.copy_with(host=ips[0]),
-                headers={"Host": target.netloc.decode(), "User-Agent": USER_AGENT, "Accept": "text/html,*/*"},
+                headers={
+                    "Host": target.netloc.decode(),
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,*/*",
+                    # Uncompressed, so the bounded body read is the real page size.
+                    "Accept-Encoding": "identity",
+                },
                 extensions={"sni_hostname": host, "timeout": httpx.Timeout(remaining).as_dict()},
             )
             started = time.monotonic()
@@ -104,11 +111,11 @@ def fetch(
                 raise Rejected(Reason.TARGET_UNREACHABLE, f"{host} timed out") from None
             except httpx.HTTPError as exc:
                 raise Rejected(Reason.UPSTREAM_ERROR, type(exc).__name__) from None
+            body = bytearray()
             try:
-                read = 0
-                for chunk in resp.iter_raw():
-                    read += len(chunk)
-                    if read >= MAX_BODY_BYTES:
+                for chunk in resp.iter_raw():  # raw, never decompressed: no decompression bombs
+                    body += chunk[: MAX_BODY_BYTES - len(body)]
+                    if len(body) >= MAX_BODY_BYTES:
                         break
             finally:
                 resp.close()
@@ -124,7 +131,7 @@ def fetch(
             if resp.status_code in _REDIRECTS and location:
                 url = str(target.join(location))
                 continue
-            return FetchResult(url, resp.status_code, _headers(resp), chain, host, ips[0], port)
+            return FetchResult(url, resp.status_code, _headers(resp), chain, host, ips[0], port, bytes(body))
     raise Rejected(Reason.UPSTREAM_ERROR, f"more than {MAX_REDIRECTS} redirects")
 
 

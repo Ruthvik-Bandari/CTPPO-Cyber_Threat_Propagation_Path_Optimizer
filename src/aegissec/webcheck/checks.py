@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 
 from .models import Finding, Severity, TlsInfo
+from .profile import SiteProfile
 
 Headers = dict[str, list[str]]  # lower-cased name -> every value received
 
@@ -466,3 +467,33 @@ def evaluate(headers: Headers, final_scheme: str, tls: TlsInfo) -> list[Finding]
         + check_simple_headers(headers)
         + check_disclosure(headers)
     )
+
+
+# Severity by site profile, for findings whose risk depends on what the site does. A missing
+# entry keeps the checklist severity. Entries only ever lower severity, and only with evidence.
+_BY_PROFILE: dict[str, dict[str, Severity]] = {
+    "csp.missing": {"static": "low"},
+    "csp.report_only": {"static": "low"},
+    "csp.no_script_restriction": {"static": "low"},
+    "framing.unprotected": {"static": "info", "static_api": "low"},
+    "referrer.weak": {"static": "info"},
+}
+_CSP_IDS = frozenset({"csp.missing", "csp.report_only", "csp.no_script_restriction"})
+_RANK: dict[Severity, int] = {"info": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def apply_profile(findings: list[Finding], profile: SiteProfile) -> list[Finding]:
+    """Re-weigh context-dependent findings for the site profile, recording the original severity."""
+    out = []
+    why = "; ".join(profile.reasons)
+    for f in findings:
+        target = _BY_PROFILE.get(f.id, {}).get(profile.kind)
+        # Third-party scripts are exactly what a CSP constrains, so a static site that loads them keeps the CSP severity.
+        if f.id in _CSP_IDS and profile.evidence.third_party_script_hosts:
+            target = None
+        if target is None or _RANK[target] >= _RANK[f.severity]:
+            out.append(f)
+            continue
+        context = f"{f.severity.capitalize()} on sites with logins, forms or sessions; {target} here: {profile.kind.replace('_', ' + ')} site ({why})."
+        out.append(f.model_copy(update={"severity": target, "baseline_severity": f.severity, "context": context}))
+    return out

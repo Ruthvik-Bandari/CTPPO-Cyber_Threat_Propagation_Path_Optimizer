@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { slug } from "../../lib/download";
 import { plural } from "../../lib/format";
 import { scrollBehavior } from "../../lib/motion";
-import type { TlsStatus, WebFinding, WebReport } from "../../lib/types";
+import type { SiteKind, SiteProfile, TlsStatus, WebFinding, WebReport } from "../../lib/types";
 import { useTitle } from "../../lib/useTitle";
 
 /** Mirrors webcheck.models.NOTICE; the report repeats the server's own copy. */
@@ -47,6 +47,48 @@ function headline(report: WebReport): string {
   if (actionable === 0) return `${host} earns an ${report.grade}: no issues worth fixing were found.`;
   const article = report.grade === "A" || report.grade === "F" ? "an" : "a";
   return `${host} earns ${article} ${report.grade}: ${plural(actionable, "issue")} worth fixing.`;
+}
+
+const siteKindText: Record<SiteKind, { label: string; explain: string }> = {
+  static: { label: "Static site", explain: "No forms, cookies or API calls were found on this page." },
+  static_api: { label: "Static + API", explain: "No forms or cookies, but the page's scripts call APIs." },
+  dynamic: { label: "Dynamic site", explain: "The page has forms, password fields or cookies." },
+};
+
+function ProfilePanel({ profile }: { profile: SiteProfile }) {
+  const text = siteKindText[profile.kind];
+  const ev = profile.evidence;
+  const facts: [string, number][] = [
+    ["Forms", ev.forms],
+    ["Password fields", ev.password_fields],
+    ["Cookies set", ev.cookies],
+    ["Scripts (inline / external)", ev.scripts_inline + ev.scripts_external],
+    ["Third-party script hosts", ev.third_party_script_hosts.length],
+    ["API calls in scripts", ev.api_markers],
+  ];
+  return (
+    <section aria-labelledby="profile-title" className="panel p-5 lg:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="profile-title" className="font-semibold">
+          Site profile
+        </h3>
+        <Badge tone={profile.kind === "dynamic" ? "med" : "ok"}>{text.label}</Badge>
+      </div>
+      <p className="mt-2 max-w-[72ch] text-ink-2">
+        {text.explain} Findings whose risk depends on what a site does are weighed for this profile; each one says
+        when it was. HSTS, TLS and cookie flags are never lowered.
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[0.875rem] sm:grid-cols-3">
+        {facts.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3 border-b border-line py-1">
+            <dt className="text-ink-3">{label}</dt>
+            <dd className="font-mono">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-[0.8125rem] text-ink-3">Why: {profile.reasons.join("; ")}.</p>
+    </section>
+  );
 }
 
 function GradeBadge({ report }: { report: WebReport }) {
@@ -96,6 +138,12 @@ function FindingItem({ finding }: { finding: WebFinding }) {
         <span className="font-medium">How to fix: </span>
         <span className="text-ink-2">{finding.recommendation}</span>
       </p>
+      {finding.context ? (
+        <p className="mt-2 max-w-[72ch] text-[0.8125rem] text-ink-3">
+          <span className="font-medium text-ink-2">Weighed for this site: </span>
+          {finding.context}
+        </p>
+      ) : null}
       {finding.evidence ? (
         <p className="mt-2 text-[0.8125rem] text-ink-3">
           Seen: <code className="break-all text-ink-2">{finding.evidence}</code>
@@ -170,6 +218,8 @@ function Report({ report }: { report: WebReport }) {
           </dl>
         </section>
 
+        {report.profile ? <ProfilePanel profile={report.profile} /> : null}
+
         <section aria-labelledby="redirect-title" className="panel p-5">
           <h3 id="redirect-title" className="font-semibold">
             Redirect chain
@@ -237,8 +287,10 @@ export default function WebcheckPage() {
   const [url, setUrl] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [allowPrivate, setAllowPrivate] = useState(false);
+  const [siteType, setSiteType] = useState<SiteKind | "">("");
   const scan = useMutation({
-    mutationFn: (input: { url: string; allowPrivate: boolean }) => api.webcheck(input.url, input.allowPrivate),
+    mutationFn: (input: { url: string; allowPrivate: boolean; siteType: SiteKind | null }) =>
+      api.webcheck(input.url, input.allowPrivate, input.siteType),
   });
   const canScan = authorized && url.trim().length > 0 && !scan.isPending;
 
@@ -246,7 +298,7 @@ export default function WebcheckPage() {
     event.preventDefault();
     if (!canScan) return;
     const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
-    scan.mutate({ url: target, allowPrivate });
+    scan.mutate({ url: target, allowPrivate, siteType: siteType || null });
   }
 
   return (
@@ -275,6 +327,26 @@ export default function WebcheckPage() {
             aria-describedby="webcheck-url-hint"
             placeholder="https://"
           />
+        </Field>
+        <Field
+          htmlFor="webcheck-site-type"
+          label="What is this site? (optional)"
+          hint="Detected from the page if left blank. Choosing a type can only make the check stricter, never more lenient."
+        >
+          <select
+            id="webcheck-site-type"
+            className="field"
+            value={siteType}
+            aria-describedby="webcheck-site-type-hint"
+            onChange={(e) => {
+              setSiteType(e.target.value as SiteKind | "");
+            }}
+          >
+            <option value="">Detect from the page</option>
+            <option value="static">Static: pages only, no logins or forms</option>
+            <option value="static_api">Static + API: pages that call a backend API</option>
+            <option value="dynamic">Dynamic: logins, forms, accounts or checkout</option>
+          </select>
         </Field>
         <div className="space-y-3">
           <label className="flex cursor-pointer gap-3">

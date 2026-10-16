@@ -19,6 +19,12 @@ All notable changes to Aegis-Sec are recorded here. The format follows [Keep a C
 
 - `aegis-sec detect`'s workflow accepts a pluggable candidate generator, with the deterministic B0 as the default. Research systems reuse the same candidate contract, screening, freeze and validation.
 
+- The website check profiles the site before grading (`static`, `static_api` or `dynamic`), using bounded, non-executing parsing of the page it already fetches.
+  - CSP, framing and referrer findings are re-weighed for the profile, and only ever lowered, with the original severity and a reason recorded.
+  - HTTPS, TLS, HSTS and cookie findings never change.
+  - The owner can declare a site type (`--site-type`, `site_type`, or the dashboard field). A declaration can raise the profile but never lower it below the page's evidence.
+  - The body is now read uncompressed (`Accept-Encoding: identity`), so the 1 MiB read limit cannot be bypassed by compression.
+
 ### Fixed
 
 - The detection engine client no longer sends traffic through `HTTP_PROXY` / `HTTPS_PROXY`. On a machine with a proxy set and no `NO_PROXY`, requests to the local Elasticsearch, including 127.0.0.1, were routed to the proxy and failed.

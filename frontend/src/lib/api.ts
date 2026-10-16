@@ -11,6 +11,7 @@ import type {
   RunBody,
   ScanResult,
   Settings,
+  SiteKind,
   UrlReport,
   WebReport,
 } from "./types";
@@ -101,8 +102,8 @@ export const api = {
   parseRule: (rule: string) => post<ParsedRule>("/api/detect/parse", { rule }),
   runRule: (body: RunBody) => post<DetectReport>("/api/detect/run", body),
 
-  webcheck: (url: string, allowPrivate: boolean) =>
-    post<WebReport>("/api/webcheck", { url, allow_private: allowPrivate }),
+  webcheck: (url: string, allowPrivate: boolean, siteType: SiteKind | null = null) =>
+    post<WebReport>("/api/webcheck", { url, allow_private: allowPrivate, site_type: siteType }),
 
   analyzeFile: (file: File) => {
     const form = new FormData();

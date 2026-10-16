@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from .profile import SiteProfile
+
 Severity = Literal["info", "low", "medium", "high"]
 TlsStatus = Literal[
     "ok",
@@ -28,6 +30,9 @@ class Finding(BaseModel):
     explanation: str
     recommendation: str
     evidence: str | None = None
+    # Set when the site profile changed the severity: the checklist severity and why it changed.
+    baseline_severity: Severity | None = None
+    context: str | None = None
 
 
 class Hop(BaseModel):
@@ -65,3 +70,4 @@ class Report(BaseModel):
     score: int
     findings: list[Finding]
     timings: Timings
+    profile: SiteProfile | None = None
