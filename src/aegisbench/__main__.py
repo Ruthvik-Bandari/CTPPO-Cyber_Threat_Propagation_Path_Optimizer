@@ -1,4 +1,4 @@
-"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants} --root DIR [--source NAME ...] [--es-url URL]``.
+"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants,evaluate} --root DIR [--source NAME ...] [--es-url URL]``.
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
@@ -6,7 +6,8 @@
 ``review-sheet`` writes the private OTRF candidate review files; ``review-status`` validates labels (counts only).
 ``split`` previews the root-grouped split (``reports/split-preview.json``); ``--freeze`` writes
 ``benchmark/split-manifest.json`` once. ``variants`` writes impairment cases (private) and
-``reports/variants.json``.
+``reports/variants.json``. ``evaluate`` scores a repair system on the cases (train and development;
+``--locked`` adds the test split) into ``reports/eval-<system>.json``.
 Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
 standard library, so it runs on the cluster transfer node without the project environment.
 """
@@ -66,6 +67,32 @@ def _reviewed(root: Path, report: dict[str, object]) -> dict[str, str]:
     if problems:
         raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
     return labels
+
+
+def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool) -> int:
+    from aegissec.core.errors import Rejected
+    from aegissec.detect.engine import Elasticsearch
+
+    from .evaluate import SYSTEMS, run_cases, summarize
+
+    if system_name not in SYSTEMS:
+        print(f"evaluate: unknown system {system_name!r}; choose from {sorted(SYSTEMS)}", file=sys.stderr)
+        return 2
+    es = Elasticsearch(es_url, timeout=120.0)
+    try:
+        es.require_pinned()
+        rows = run_cases(root / "benchmark" / "cases", SYSTEMS[system_name], es, locked=locked)
+    except (Rejected, OSError, ValueError) as exc:
+        print(f"evaluate: FAILED {exc}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    suffix = "-locked" if locked else ""
+    summary = summarize(rows)
+    result = {"schema_version": 1, "system": system_name, "locked_test_included": locked, "summary": summary}
+    _write_json(root / "reports" / f"eval-{system_name}{suffix}.json", {**result, "cases": rows})
+    print(f"evaluate: {json.dumps(summary['overall'])}")
+    return 0
 
 
 def _variants(root: Path, manifest_path: Path | None, es_url: str, seed: str) -> int:
@@ -169,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
             "review-label",
             "split",
             "variants",
+            "evaluate",
         ],
     )
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
@@ -177,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--freeze", action="store_true", help="split: write the frozen manifest (never overwritten)")
     parser.add_argument("--seed", default=SPLIT_SEED, help="split: assignment seed")
     parser.add_argument("--manifest", type=Path, help="variants: split manifest (default: the frozen one)")
+    parser.add_argument("--system", default="b0", help="evaluate: repair system")
+    parser.add_argument("--locked", action="store_true", help="evaluate: include the locked test split")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
     parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
@@ -195,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
         return _label(root, args)
     if args.command == "split":
         return _split(root, args.seed, args.freeze)
+    if args.command == "evaluate":
+        return _evaluate(root, args.system, args.es_url, locked=args.locked)
     if args.command == "variants":
         return _variants(root, args.manifest, args.es_url, args.seed)
 

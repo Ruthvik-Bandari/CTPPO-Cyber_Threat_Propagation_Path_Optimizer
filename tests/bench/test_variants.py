@@ -46,8 +46,8 @@ def _sysmon(image, cmd):
     }
 
 
-@pytest.fixture
-def root(tmp_path):
+def make_root(tmp_path):
+    """One root (certutil download) with two SigmaHQ positives and three OTRF background events."""
     sigma = tmp_path / "sigma"
     (sigma / SIGMA_RULES).mkdir(parents=True)
     (sigma / SIGMA_RULES / "proc_creation_win_certutil_download.yml").write_text(RULE)
@@ -81,7 +81,12 @@ def root(tmp_path):
     return tmp_path
 
 
-def _manifest():
+@pytest.fixture
+def root(tmp_path):
+    return make_root(tmp_path)
+
+
+def split_manifest():
     rule = {"id": RID, "path": f"{SIGMA_RULES}/proc_creation_win_certutil_download.yml"}
     rule["positive_event_ids"] = [f"sigma:{RID}:0", f"sigma:{RID}:1"]
     return {"splits": {"development": [{"rules": [rule]}], "reserve": []}}
@@ -94,9 +99,9 @@ def test_variants_are_verified_written_privately_and_repairable(root):
     report = {"per_rule": {RID: {"matched_event_ids": [f"sigma:{RID}:0", f"sigma:{RID}:1"]}}}
     es = Elasticsearch(ES_URL)
     try:
-        result = build(root, _manifest(), report, benign=set(), es=es, seed="s")
-        assert result["cases_by_kind"] == {"logic": 1, "mapping": 1, "missing_telemetry": 1}
-        assert result["cases_by_split"] == {"development": 3}
+        result = build(root, split_manifest(), report, benign=set(), es=es, seed="s")
+        assert result["cases_by_kind"] == {"healthy": 1, "logic": 1, "mapping": 1, "missing_telemetry": 1}
+        assert result["cases_by_split"] == {"development": 4}
         assert result["cases_without_validation_suite"] == 0
         assert result["roots_without_variants"] == 0
         assert "certutil" not in json.dumps(result)  # counts only

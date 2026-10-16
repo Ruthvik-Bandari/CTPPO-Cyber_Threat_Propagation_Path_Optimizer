@@ -1,7 +1,7 @@
 """Impairment variants for each benchmark root (plan section 11, "Version one benchmark").
 
-For every root rule in the split manifest, up to three faults are injected into a healthy
-reference, each recorded with fault provenance ``synthetic``:
+For every root rule in the split manifest, a healthy control (expected: unchanged) is written and
+up to three faults are injected into the healthy reference, each with fault provenance ``synthetic``:
 
 - ``mapping``: one field the rule uses is mapped to a stale index name (expected repair: mapping);
 - ``missing_telemetry``: that field is removed from every event (expected: insufficient evidence);
@@ -130,6 +130,7 @@ def _logic_rules(rule: Rule) -> Iterator[tuple[Rule, str]]:
 
 
 def candidates_for(rule: Rule, events: list[Event]) -> Iterator[Variant]:
+    yield Variant("healthy", rule, HEALTHY, tuple(events), "no fault: healthy control", {"outcome": "unchanged"})
     used = [f for f in FAULT_FIELDS if f in rule.fields]
     for field in used[:1]:
         yield Variant(
@@ -170,6 +171,9 @@ def verify(
         return [], discarded
     for variant in variants:
         if variant.kind in kept:
+            continue
+        if variant.kind == "healthy":
+            kept["healthy"] = variant  # the reference itself; verified above
             continue
         try:
             with es.replay_index(list(variant.events)) as index:

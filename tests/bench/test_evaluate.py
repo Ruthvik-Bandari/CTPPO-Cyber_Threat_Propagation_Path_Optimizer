@@ -1,0 +1,98 @@
+import json
+import os
+import shutil
+
+import pytest
+
+from aegisbench.evaluate import bootstrap, run_cases, score, summarize
+from aegissec.detect.engine import Elasticsearch
+
+ES_URL = os.environ.get("AEGIS_ES_URL", "http://127.0.0.1:9200")
+
+
+def _manifest(kind, expected, validation=True, root="r1"):
+    return {
+        "case_id": f"{root}-{kind}",
+        "root_id": root,
+        "split": "development",
+        "fault": {"kind": kind},
+        "expected": expected,
+        "validation": validation,
+    }
+
+
+MAPPING = {"outcome": "repaired", "family": "mapping", "patch_kind": "mapping"}
+
+
+@pytest.mark.parametrize(
+    ("expected", "report", "success", "wrong"),
+    [
+        (MAPPING, {"outcome": "repaired", "provisional": False, "artifact": {"kind": "mapping"}}, True, False),
+        (MAPPING, {"outcome": "repaired", "provisional": True, "artifact": {"kind": "mapping"}}, False, False),
+        (MAPPING, {"outcome": "repaired", "provisional": False, "artifact": {"kind": "rule"}}, False, True),
+        (MAPPING, {"outcome": "abstained"}, False, False),
+        ({"outcome": "insufficient_evidence"}, {"outcome": "insufficient_evidence"}, True, False),
+        ({"outcome": "insufficient_evidence"}, {"outcome": "repaired", "artifact": {"kind": "rule"}}, False, True),
+        ({"outcome": "unchanged"}, {"outcome": "unchanged"}, True, False),
+        ({"outcome": "unchanged"}, {"outcome": "repaired", "artifact": {"kind": "rule"}}, False, True),
+    ],
+)
+def test_scoring_rules(expected, report, success, wrong):
+    row = score(_manifest("x", expected), report)
+    assert (row["success"], row["wrong_change"]) == (success, wrong)
+
+
+def test_engine_errors_are_failures_not_passes():
+    row = score(_manifest("healthy", {"outcome": "unchanged"}), None, "engine_unavailable: down")
+    assert (row["outcome"], row["success"], row["error"]) == ("error", False, "engine_unavailable: down")
+
+
+def test_bootstrap_resamples_roots_and_summary_keeps_failures_in_denominator():
+    rows = [
+        score(
+            _manifest("a", {"outcome": "unchanged"}, root=f"r{i}"), {"outcome": "unchanged" if i % 2 else "abstained"}
+        )
+        for i in range(10)
+    ]
+    ci = bootstrap(rows, "success", seed=1, reps=500)
+    assert ci is not None and 0.0 <= ci[0] <= 0.5 <= ci[1] <= 1.0
+    assert bootstrap(rows[:1], "success") is None  # one root has no between-root variation
+    overall = summarize(rows)["overall"]
+    assert (overall["cases"], overall["success_rate"], overall["abstention_rate"]) == (10, 0.5, 0.5)
+
+
+@pytest.mark.engine
+def test_b0_runs_generated_cases_and_skips_locked_test(tmp_path):
+    from aegisbench.evaluate import SYSTEMS
+    from aegisbench.variants import build
+    from tests.bench.test_variants import make_root, split_manifest
+
+    data = make_root(tmp_path)
+    es = Elasticsearch(ES_URL)
+    try:
+        build(data, split_manifest(), {"per_rule": {}}, benign=set(), es=es, seed="s")
+        cases = data / "benchmark/cases"
+        shutil.copytree(cases / "development", cases / "test")  # a locked split that must stay unread
+        for case_yml in (cases / "test").glob("*/case.yml"):
+            case_yml.write_text(case_yml.read_text().replace("split: development", "split: test"))
+        rows = run_cases(cases, SYSTEMS["b0"], es)
+        assert {r["split"] for r in rows} == {"development"}
+        by_kind = {r["kind"]: r for r in rows}
+        assert by_kind["healthy"]["outcome"] == "unchanged" and by_kind["healthy"]["success"]
+        assert by_kind["mapping"]["success"]
+        assert by_kind["missing_telemetry"]["outcome"] == "insufficient_evidence"
+        assert all(r["error"] is None for r in rows)
+        assert "certutil" not in json.dumps(rows)
+        assert {r["split"] for r in run_cases(cases, SYSTEMS["b0"], es, locked=True)} == {"development", "test"}
+    finally:
+        es.close()
+
+
+def test_split_mismatch_is_refused(tmp_path):
+    case = tmp_path / "train" / "c1"
+    case.mkdir(parents=True)
+    (case / "case.yml").write_text("case_id: c1\nsplit: test\n")
+    for name in ("rule.yml", "mapping.yml", "development.jsonl"):
+        (case / name).write_text("")
+    with pytest.raises(ValueError, match="folder says 'train'"):
+        run_cases(tmp_path, lambda inputs, es: {}, None)  # type: ignore[arg-type]
