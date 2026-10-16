@@ -216,11 +216,20 @@ def _mapping_yaml(mapping: FieldMapping) -> str:
     return yaml.safe_dump(mapping.to_yaml_dict(), sort_keys=False)
 
 
-def write_case(out: Path, root_id: str, split: str, variant: Variant, healthy: Rule) -> str:
+def write_case(
+    out: Path,
+    root_id: str,
+    split: str,
+    variant: Variant,
+    healthy: Rule,
+    *,
+    case_id: str | None = None,
+    provenance: str = "synthetic",
+) -> str:
     """One case folder in the format ``aegis-sec detect`` reads. Positives alternate between
     development and validation when there are two or more; otherwise there is no validation suite
     and any repair is reported as provisional."""
-    case_id = f"{root_id}-{variant.kind}"
+    case_id = case_id or f"{root_id}-{variant.kind}"
     d = out / split / case_id
     positives = [e for e in variant.events if e.label == "malicious"]
     negatives = [e for e in variant.events if e.label != "malicious"]
@@ -237,7 +246,7 @@ def write_case(out: Path, root_id: str, split: str, variant: Variant, healthy: R
         "case_id": case_id,
         "root_id": root_id,
         "split": split,
-        "provenance": "synthetic",
+        "provenance": provenance,
         "fault": {"kind": variant.kind, "detail": variant.detail},
         "expected": variant.expected,
         "validation": bool(val),

@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -69,6 +70,62 @@ def _reviewed(root: Path, report: dict[str, object]) -> dict[str, str]:
     if problems:
         raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
     return labels
+
+
+def _natural_mine(root: Path, history: Path | None) -> int:
+    from .natural import mine, summarize_mining, to_record
+    from .positives import supported_rules
+    from .sources import by_name
+
+    git_dir = history or root / "sigma-history.git"
+    pinned = by_name("sigma").commit
+    try:
+        rules, _ = supported_rules(root / "sigma")
+        changes, skipped = mine(git_dir, pinned, set(rules))
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"natural-mine: FAILED {exc}", file=sys.stderr)
+        return 1
+    out = root / "benchmark" / "natural" / "changes.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(to_record(c), sort_keys=True) + "\n" for c in changes), encoding="utf-8")
+    summary = summarize_mining(changes, skipped, pinned)
+    _write_json(root / "reports" / "natural-mining.json", summary)
+    print(f"natural-mine: {json.dumps(summary)}")
+    return 0
+
+
+def _natural_build(root: Path, manifest_path: Path | None, es_url: str, seed: str) -> int:
+    import shutil
+
+    from aegissec.core.errors import Rejected
+    from aegissec.detect.engine import Elasticsearch
+
+    from .natural import build
+    from .review import ReviewError
+
+    frozen = root / "benchmark" / "split-manifest.json"
+    path = manifest_path or frozen
+    es = Elasticsearch(es_url, timeout=120.0)
+    try:
+        es.require_pinned()
+        manifest = json.loads(path.read_text())
+        report = json.loads((root / "reports" / "replay-positives.json").read_text())
+        benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
+        lines = (root / "benchmark" / "natural" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
+        changes = [json.loads(line) for line in lines if line]
+        for stale in (root / "benchmark" / "cases").glob("*/*-natural-*"):
+            shutil.rmtree(stale)  # regenerate natural cases; synthetic variants are left alone
+        result = build(root, changes, manifest, report, benign=benign, es=es, seed=seed)
+    except (Rejected, ReviewError, OSError, ValueError) as exc:
+        print(f"natural-build: FAILED {exc}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    result["manifest"] = path.name
+    result["from_frozen_split"] = path.resolve() == frozen.resolve()
+    _write_json(root / "reports" / "natural-cases.json", result)
+    print(f"natural-build: {json.dumps(result)}")
+    return 0
 
 
 def _compare(root: Path, systems: list[str], baseline: str, *, locked: bool) -> int:
@@ -181,7 +238,9 @@ def _variants(root: Path, manifest_path: Path | None, es_url: str, seed: str) ->
         manifest = json.loads(path.read_text())
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
         benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
-        shutil.rmtree(root / "benchmark" / "cases", ignore_errors=True)  # regenerate deterministically
+        for stale in (root / "benchmark" / "cases").glob("*/*"):
+            if "-natural-" not in stale.name:
+                shutil.rmtree(stale)  # regenerate synthetic variants; natural cases are left alone
         result = build(root, manifest, report, benign=benign, es=es, seed=seed)
     except (Rejected, ReviewError, OSError, ValueError) as exc:
         print(f"variants: FAILED {exc}", file=sys.stderr)
@@ -265,6 +324,8 @@ COMMANDS = (
     "sft",
     "train-m1",
     "compare",
+    "natural-mine",
+    "natural-build",
 )
 
 
@@ -283,6 +344,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-seed", type=int, default=1, help="train-m1: training seed")
     parser.add_argument("--systems", nargs="+", default=["b0", "b1", "b2"], help="compare: evaluated systems")
     parser.add_argument("--baseline", default="b0", help="compare: baseline system")
+    parser.add_argument("--history", type=Path, help="natural-mine: bare clone of SigmaHQ with full history")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
     parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
@@ -341,6 +403,8 @@ def main(argv: list[str] | None = None) -> int:
         "sft": lambda: _sft(root, args.es_url),
         "train-m1": lambda: _train_m1(root, args.max_steps, args.train_seed),
         "compare": lambda: _compare(root, args.systems, args.baseline, locked=args.locked),
+        "natural-mine": lambda: _natural_mine(root, args.history),
+        "natural-build": lambda: _natural_build(root, args.manifest, args.es_url, args.seed),
     }
     if args.command in dispatch:
         return dispatch[args.command]()

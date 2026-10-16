@@ -12,6 +12,7 @@ This runbook covers the detection-repair research track from plan sections 11 to
 | 4 | Review OTRF candidates (owner) | `review-next` / `review-label` ([`data/review.md`](data/review.md)) | `review/labels.csv` (private) |
 | 5 | Split preview, then freeze | `hpc/review_split.sbatch`, then `split --freeze` | `benchmark/split-manifest.json` |
 | 6 | Impairment variants | `hpc/variants.sbatch` | `benchmark/cases/` (private), `reports/variants.json` |
+| 6b | Natural faults from SigmaHQ history | `hpc/fetch_history.sh`, then `hpc/natural.sbatch` (after the variants) | `reports/natural-mining.json`, `reports/natural-cases.json`, natural cases |
 | 7 | Baselines B0, B1 | `hpc/evaluate.sbatch b0`, `hpc/evaluate.sbatch b1` | `reports/eval-b0.json`, `reports/eval-b1.json` |
 | 8 | Baseline B2 | `hpc/fetch_model.sh`, `bash hpc/setup_env.sh gpu`, `hpc/b2.sbatch` | `reports/eval-b2.json` |
 | 9 | M1 data and training | `hpc/sft.sbatch`, `hpc/m1.sbatch --max-steps 5` (smoke), then `hpc/m1.sbatch --train-seed {1,2,3}` | `sft/*.jsonl`, `models/m1-seed*`, `reports/m1-*-training.json` |
@@ -55,5 +56,8 @@ Confidence intervals come from a bootstrap that resamples *roots*, because the v
 - The split is assigned by root, and frozen before any variant is generated (`split --freeze`). Related rules and rules that share an event stay in one split.
 - B1's memory and M1's training data come from the train split only. Development is used for monitoring and selection. The test split is read only with `--locked`, after a system is chosen. `sft` refuses to read it.
 - Prompts hold rule text, field names, coverage and counts, but never event values.
-- Every fault is synthetic (provenance `synthetic`). Results describe controlled robustness, not naturally occurring maintenance failures (plan section 11).
+- Two fault provenances, always reported separately (plan section 11):
+  - `synthetic` faults are generated, and measure controlled robustness;
+  - `natural` faults are real SigmaHQ maintenance commits. The rule before the commit is the impaired one, and the maintainers' version after it is the reference.
+- A natural pair becomes a case only when the fix detects a verified positive that the earlier version misses. False-positive fixes are counted but not used until reviewed benign events exist.
 - If M1 does not credibly beat B2, the stronger baseline ships and the result is reported as it is (plan section 13).
