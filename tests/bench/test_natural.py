@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from aegisbench.natural import build, classify, mine, summarize_mining, to_record
+from aegisbench.natural import build, classify, extra_roots, is_refactor, mine, summarize_mining, to_record, verify_all
 from aegisbench.qc import SIGMA_REGRESSION, SIGMA_RULES, SYSMON_CHANNEL
 from aegissec.detect.engine import Elasticsearch
 from aegissec.detect.rule import parse_rule
@@ -87,39 +87,45 @@ def test_mine_follows_renames_and_skips_noise(history):
     assert json.loads(json.dumps(to_record(changes[0])))["rule_id"] == RID
 
 
+def test_refactor_detection():
+    base = parse_rule(rule(["a.exe"], "sel and not f", "  f: {User: s}\n"))
+    renamed = parse_rule(rule(["a.exe"], "sel and not filter_main", "  filter_main: {User: s}\n"))
+    assert is_refactor(base, renamed)
+    assert not is_refactor(base, parse_rule(rule(["a.exe"], "sel and f", "  f: {User: s}\n")))
+
+
 @pytest.mark.engine
-def test_build_keeps_only_fixes_verified_by_a_missed_positive(tmp_path, history):
+def test_verify_against_the_global_pool_then_place_by_split(tmp_path, history):
     from aegisbench.evaluate import load_case
 
     bare, pinned = history
-    changes, _ = mine(bare, pinned, {RID})
+    changes = [to_record(c) for c in mine(bare, pinned, {RID})[0]]
     root = tmp_path / "data"
-    case = root / "sigma" / SIGMA_REGRESSION / "lolbin"
+    case = root / "sigma" / SIGMA_REGRESSION / "other_rule"  # a recording made for a different rule
     case.mkdir(parents=True)
-    (case / "info.yml").write_text(f"rule_metadata:\n  - id: {RID}\n")
+    other = "00000000-0000-4000-8000-0000000000dd"
+    (case / "info.yml").write_text(f"rule_metadata:\n  - id: {other}\n")
     event = {"Event": {"System": {"EventID": 1, "Channel": SYSMON_CHANNEL}, "EventData": {"Image": "C:\\b.exe"}}}
-    (case / f"{RID}.json").write_text(json.dumps(event))
+    (case / f"{other}.json").write_text(json.dumps(event))
     (root / "otrf/datasets/atomic/windows").mkdir(parents=True)
-    manifest = {
-        "splits": {
-            "train": [{"rules": [{"id": RID, "path": "x", "positive_event_ids": [f"sigma:{RID}:0"]}]}],
-            "reserve": [],
-        }
-    }
     es = Elasticsearch(ES_URL)
     try:
-        result = build(root, [to_record(c) for c in changes], manifest, {"per_rule": {}}, benign=set(), es=es, seed="s")
+        verified = verify_all(root, changes, set(), es)
     finally:
         es.close()
-    # The b.exe coverage fix is observable on the positive; the FP filter is not (no benign evidence).
-    # With no benign events in this pool, the FP filter changes nothing observable.
-    assert result["verification"] == {"no_behavior_change": 1, "verified": 1}
-    assert result["cases_by_split"] == {"train": 1}
-    cases = list((root / "benchmark/cases/train").glob("*-natural-*"))
-    assert len(cases) == 1
-    manifest_case, _ = load_case(cases[0])
-    assert manifest_case["provenance"] == "natural" and manifest_case["fault"]["kind"] == "natural"
-    assert "fix: cover b.exe" in manifest_case["fault"]["detail"]
+    # Only the b.exe coverage fix catches a pool event the old version missed.
+    assert verified["verdicts"] == {"not_a_coverage_fix": 1, "verified": 1}
+    assert extra_roots(verified) == {RID: [f"sigma:{other}:0"]}
+
+    manifest = {"splits": {"train": [{"rules": [{"id": RID, "path": "x", "positive_event_ids": []}]}], "reserve": []}}
+    result = build(root, changes, verified, manifest, {"per_rule": {}}, benign=set(), seed="s")
+    assert result["placement"] == {"written": 1} and result["cases_by_split"] == {"train": 1}
+    manifest_case, _ = load_case(next((root / "benchmark/cases/train").glob("*-natural-*")))
+    assert manifest_case["provenance"] == "natural" and "fix: cover b.exe" in manifest_case["fault"]["detail"]
+    reserve = {"splits": {"reserve": manifest["splits"]["train"]}}
+    assert build(root, changes, verified, reserve, {"per_rule": {}}, benign=set(), seed="s")["placement"] == {
+        "root_not_in_split": 1
+    }
 
 
 def test_history_script_pins_the_same_commit():

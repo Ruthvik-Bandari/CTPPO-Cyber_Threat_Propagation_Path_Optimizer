@@ -78,3 +78,12 @@ def test_build_refuses_roots_without_rule_files(tmp_path):
     report = {"per_rule": {"r0": {"matched_event_ids": ["sigma:r0:0"]}, "zz": {"matched_event_ids": ["sigma:zz:0"]}}}
     with pytest.raises(SplitError, match="no file"):
         build(sigma, report, set(), "seed")
+
+
+def test_natural_roots_join_and_group_by_shared_events(tmp_path):
+    sigma = _sigma(tmp_path / "sigma", 3)
+    report = {"per_rule": {"r0": {"matched_event_ids": ["sigma:r0:0"]}}}
+    manifest = build(sigma, report, set(), "seed", extra={"r1": ["sigma:r0:0"], "r2": ["sigma:x:0"]})
+    assert manifest["eligible_roots"] == 3 and manifest["natural_roots_added"] == 2
+    groups = [sorted(r["id"] for r in g["rules"]) for gs in manifest["splits"].values() for g in gs]
+    assert ["r0", "r1"] in groups  # r1's fix detects r0's recording, so they never split apart

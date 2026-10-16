@@ -6,12 +6,11 @@
 #SBATCH --mem=12G
 #SBATCH --time=02:00:00
 #SBATCH --output=/scratch/%u/aegis-sec/logs/%x-%j.out
-# Mines SigmaHQ history for natural maintenance faults (shareable reports/natural-mining.json),
-# then verifies them on a job-scoped pinned engine and writes natural cases (private). Uses the
-# frozen split, else pass a manifest:  sbatch hpc/natural.sbatch reports/split-preview.json
+# Mines SigmaHQ history for natural maintenance faults (reports/natural-mining.json) and verifies
+# every pair against the global pool of verified positives (reports/natural-verified.json, ids only).
+# Run before hpc/review_split.sbatch so verified rules join the split; hpc/variants.sbatch then
+# writes the natural cases.
 set -euo pipefail
 source "$HOME/aegis-sec/hpc/engine.sh"
 uv run --no-sync python -m aegisbench natural-mine --root "$DATA"
-ARGS=()
-[ $# -ge 1 ] && ARGS=(--manifest "$DATA/$1")
-uv run --no-sync python -m aegisbench natural-build --root "$DATA" --es-url "$ES_URL" "${ARGS[@]}"
+uv run --no-sync python -m aegisbench natural-verify --root "$DATA" --es-url "$ES_URL"

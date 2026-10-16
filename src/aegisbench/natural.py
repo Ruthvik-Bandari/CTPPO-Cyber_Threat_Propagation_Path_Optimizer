@@ -16,11 +16,17 @@ Each pair is also scored with an approximate AST edit count, and ``within_contra
 the fix fits the repair contract: at most 3 edits, no removed selection, and at most 8 values per
 changed predicate.
 
-Stage 2 (``build``) verifies each pair on the pinned engine. A pair becomes a case only when the fix
-detects a verified positive that the impaired version misses. Fixes that only remove matches
-(false-positive fixes) cannot be verified without reviewed benign events, so they are counted and
-not guessed at. A case inherits its root's split from the frozen manifest, and reserve roots never
-enter the benchmark.
+Pure renamings of selections are skipped as refactors.
+
+Stage 2 (``verify_all``) replays every pair against one global pool of verified positives: every
+SigmaHQ regression event (a real attack recording) and every OTRF event a reviewer labeled
+malicious. A pair is *verified* when the fix detects a pool event that the earlier version misses,
+which is a real coverage fault and its real fix. False-positive fixes cannot be verified without
+reviewed benign events, so they are counted and never guessed at. The split builder adds verified
+rules as roots, grouped with any rule that shares their events, so no event leaks across splits.
+
+Stage 3 (``build``) writes one case per verified pair whose root landed in the train, development
+or test split. Reserve roots never enter the benchmark.
 
 The rule texts come from a public repository, so the mining output is shareable. Case folders hold
 event values and stay private on the cluster.
@@ -39,11 +45,11 @@ from aegissec.core.errors import Rejected
 from aegissec.detect.candidate import condition_edits
 from aegissec.detect.engine import Elasticsearch
 from aegissec.detect.fixtures import Event
-from aegissec.detect.rule import Rule, parse_rule, render_condition
+from aegissec.detect.rule import And, Cond, Not, Or, Ref, Rule, parse_rule, render_condition
 
-from .positives import PoolEvent, otrf_events, sigma_events
+from .positives import otrf_events, sigma_events
 from .qc import SIGMA_RULES
-from .variants import HEALTHY, NEGATIVES_PER_ROOT, Variant, _matched, _rank, fixtures, write_case
+from .variants import HEALTHY, NEGATIVES_PER_ROOT, Variant, _matched, _rank, fixtures, to_ecs, write_case
 
 GIT_TIMEOUT_S = 600
 MAX_RULE_BYTES = 100 * 1024
@@ -129,6 +135,28 @@ def _predicates(rule: Rule) -> dict[tuple[str, int, str], tuple[str, bool, froze
     return out
 
 
+def _rename(cond: Cond, names: dict[str, str]) -> Cond:
+    match cond:
+        case Ref(name):
+            return Ref(names.get(name, name))
+        case Not(op):
+            return Not(_rename(op, names))
+        case And(ops):
+            return And(tuple(_rename(o, names) for o in ops))
+        case Or(ops):
+            return Or(tuple(_rename(o, names) for o in ops))
+    raise TypeError(cond)
+
+
+def is_refactor(before: Rule, after: Rule) -> bool:
+    """True when the versions differ only by selection names (a restyling, not a fault)."""
+    if sorted(map(repr, before.selections.values())) != sorted(map(repr, after.selections.values())):
+        return False
+    by_body = {repr(sel): name for name, sel in after.selections.items()}
+    names = {name: by_body.get(repr(sel), name) for name, sel in before.selections.items()}
+    return _rename(before.condition, names) == after.condition
+
+
 def classify(before: Rule, after: Rule) -> tuple[tuple[str, ...], int, bool]:
     """Change kinds, approximate AST edits, and whether the fix fits the repair contract."""
     kinds: set[str] = set()
@@ -188,6 +216,9 @@ def mine(git_dir: Path, pinned: str, supported_ids: set[str]) -> tuple[list[Chan
         if before.selections == after.selections and before.condition == after.condition:
             skipped["metadata_only"] += 1
             continue
+        if is_refactor(before, after):
+            skipped["refactor_renamed_selections"] += 1
+            continue
         kinds, edits, within = classify(before, after)
         changes.append(
             Change(commit, date, subject, new, rule_id, kinds, edits, within, before.to_yaml(), after.to_yaml())
@@ -213,76 +244,102 @@ def to_record(change: Change) -> dict[str, Any]:
     return asdict(change)
 
 
+def verify_all(
+    root: Path, changes: list[dict[str, Any]], malicious_otrf: set[str], es: Elasticsearch
+) -> dict[str, Any]:
+    """Check every mined pair against the global pool of verified positives, in one index.
+
+    The pool holds every SigmaHQ regression event (real attack recordings) and every OTRF event a
+    reviewer labeled malicious. A pair is *verified* when the fix detects a pool event that the
+    earlier version misses. The result holds ids only."""
+    pool = [
+        p
+        for p in [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]
+        if p.pool == "sigma" or p.event.event_id in malicious_otrf
+    ]
+    events = [Event(p.event.event_id, "malicious", None, to_ecs(p.event.data)) for p in pool]
+    verdicts: Counter[str] = Counter()
+    verified: list[dict[str, Any]] = []
+    with es.replay_index(events) as index:
+        for i, change in enumerate(changes):
+            try:
+                fixed = _matched(es, index, parse_rule(change["after"]), HEALTHY)
+                broken = _matched(es, index, parse_rule(change["before"]), HEALTHY)
+            except Rejected as exc:
+                verdicts[f"engine:{exc.reason}"] += 1
+                continue
+            gained = sorted(fixed - broken)
+            if not fixed:
+                verdicts["fix_detects_no_positive"] += 1
+            elif not gained:
+                verdicts["not_a_coverage_fix"] += 1
+            else:
+                verdicts["verified"] += 1
+                verified.append(
+                    {"change": i, "rule_id": change["rule_id"], "commit": change["commit"], "positives": gained}
+                )
+    return {
+        "schema_version": 1,
+        "pool_events": len(events),
+        "verdicts": dict(sorted(verdicts.items())),
+        "verified": verified,
+        "verified_rules": len({v["rule_id"] for v in verified}),
+    }
+
+
+def extra_roots(verified: dict[str, Any]) -> dict[str, list[str]]:
+    """Rule id -> pool events that verified natural fixes newly detect, for the split builder."""
+    out: dict[str, set[str]] = {}
+    for v in verified["verified"]:
+        out.setdefault(v["rule_id"], set()).update(v["positives"])
+    return {k: sorted(v) for k, v in out.items()}
+
+
 def build(
     root: Path,
     changes: list[dict[str, Any]],
+    verified: dict[str, Any],
     manifest: dict[str, Any],
     report: dict[str, Any],
     *,
     benign: set[str],
-    es: Elasticsearch,
     seed: str,
 ) -> dict[str, Any]:
-    """Verify mined pairs on the engine and write natural cases for roots in the split."""
-    split_of = {r["id"]: (s, r) for s, groups in manifest["splits"].items() for g in groups for r in g["rules"]}
+    """Write a case for every verified pair whose root is in the train, development or test split."""
+    split_of = {r["id"]: s for s, groups in manifest["splits"].items() for g in groups for r in g["rules"]}
     pool = {p.event.event_id: p for p in [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]}
     otrf_ids = sorted(k for k, p in pool.items() if p.pool == "otrf")
     out = root / "benchmark" / "cases"
-    result: Counter[str] = Counter()
+    placement: Counter[str] = Counter()
     kinds: Counter[str] = Counter()
     per_split: Counter[str] = Counter()
-    for change in changes:
-        placed = split_of.get(change["rule_id"])
-        if placed is None or placed[0] == "reserve":
-            result["root_not_in_split"] += 1
+    for v in verified["verified"]:
+        change = changes[v["change"]]
+        split = split_of.get(v["rule_id"])
+        if split is None or split == "reserve":
+            placement["root_not_in_split"] += 1
             continue
-        split, entry = placed
         before, after = parse_rule(change["before"]), parse_rule(change["after"])
-        positives: list[PoolEvent] = [pool[e] for e in entry["positive_event_ids"] if e in pool]
-        matched = set(report["per_rule"].get(change["rule_id"], {}).get("matched_event_ids", []))
-        background = sorted((e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, change["rule_id"] + e))
+        matched = set(report["per_rule"].get(v["rule_id"], {}).get("matched_event_ids", []))
+        background = sorted((e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, v["rule_id"] + e))
         negatives = [pool[e] for e in sorted(matched & benign)] + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
-        events = fixtures(change["rule_id"], positives, negatives, benign)
-        verdict, kept = _verify(es, before, after, events)
-        result[verdict] += 1
-        if kept is None:
-            continue
+        events = fixtures(v["rule_id"], [pool[e] for e in v["positives"]], negatives, benign)
         variant = Variant(
             "natural",
             before,
             HEALTHY,
-            tuple(kept),
+            tuple(events),
             f"SigmaHQ {change['commit'][:10]} ({change['date'][:10]}): {change['subject'][:120]}",
             {"outcome": "repaired", "family": "logic"},
         )
-        case_id = f"{change['rule_id']}-natural-{change['commit'][:10]}"
-        write_case(out, change["rule_id"], split, variant, after, case_id=case_id, provenance="natural")
+        case_id = f"{v['rule_id']}-natural-{change['commit'][:10]}"
+        write_case(out, v["rule_id"], split, variant, after, case_id=case_id, provenance="natural")
+        placement["written"] += 1
         kinds.update(change["kinds"])
         per_split[split] += 1
     return {
         "schema_version": 1,
-        "verification": dict(sorted(result.items())),
+        "placement": dict(sorted(placement.items())),
         "cases_by_split": dict(sorted(per_split.items())),
         "case_change_kinds": dict(sorted(kinds.items())),
     }
-
-
-def _verify(es: Elasticsearch, before: Rule, after: Rule, events: list[Event]) -> tuple[str, list[Event] | None]:
-    """A pair is a case only if the fix detects a verified positive the impaired version misses.
-    Positives the fix itself misses are dropped (the pinned rule may postdate the fix)."""
-    malicious = {e.event_id for e in events if e.label == "malicious"}
-    if not malicious:
-        return "no_verified_positives", None
-    try:
-        with es.replay_index(events) as index:
-            fixed = _matched(es, index, after, HEALTHY)
-            broken = _matched(es, index, before, HEALTHY)
-    except Rejected as exc:
-        return f"engine:{exc.reason}", None
-    detected = malicious & fixed
-    if not detected:
-        return "fix_detects_no_positive", None
-    if detected <= broken:
-        return "fp_only_or_unobservable" if broken != fixed else "no_behavior_change", None
-    keep = [e for e in events if e.label != "malicious" or e.event_id in detected]
-    return "verified", keep

@@ -113,8 +113,17 @@ def assign(grouped: list[list[str]], seed: str) -> dict[str, list[list[str]]]:
     return splits
 
 
-def build(sigma_root: Path, report: dict[str, Any], malicious: set[str], seed: str) -> dict[str, object]:
+def build(
+    sigma_root: Path,
+    report: dict[str, Any],
+    malicious: set[str],
+    seed: str,
+    extra: dict[str, list[str]] | None = None,
+) -> dict[str, object]:
+    """``extra``: more roots with verified positives, such as rules whose natural fixes detect pool events."""
     positives = roots(report, malicious)
+    for rule_id, events in (extra or {}).items():
+        positives[rule_id] = sorted(set(positives.get(rule_id, [])) | set(events))
     paths = rule_paths(sigma_root, set(positives))
     missing = sorted(set(positives) - set(paths))
     if missing:
@@ -134,6 +143,7 @@ def build(sigma_root: Path, report: dict[str, Any], malicious: set[str], seed: s
         "seed": seed,
         "reviewed_malicious_events": len(malicious),
         "eligible_roots": len(positives),
+        "natural_roots_added": len(set(extra or {}) - set(roots(report, malicious))),
         "largest_group": largest,
         "summary": summary,
         "splits": {

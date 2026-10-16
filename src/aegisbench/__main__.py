@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from .acquire import AcquisitionError, checkout, manifest
 from .sources import SOURCES, by_name
@@ -94,33 +95,53 @@ def _natural_mine(root: Path, history: Path | None) -> int:
     return 0
 
 
-def _natural_build(root: Path, manifest_path: Path | None, es_url: str, seed: str) -> int:
-    import shutil
+def _natural_changes(root: Path) -> list[dict[str, Any]]:
+    lines = (root / "benchmark" / "natural" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line]
 
+
+def _natural_verify(root: Path, es_url: str) -> int:
     from aegissec.core.errors import Rejected
     from aegissec.detect.engine import Elasticsearch
+
+    from .natural import verify_all
+    from .review import ReviewError
+
+    es = Elasticsearch(es_url, timeout=120.0)
+    try:
+        es.require_pinned()
+        report = json.loads((root / "reports" / "replay-positives.json").read_text())
+        malicious = {e for e, label in _reviewed(root, report).items() if label == "malicious"}
+        result = verify_all(root, _natural_changes(root), malicious, es)
+    except (Rejected, ReviewError, OSError, ValueError) as exc:
+        print(f"natural-verify: FAILED {exc}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    _write_json(root / "reports" / "natural-verified.json", result)
+    print(f"natural-verify: {json.dumps({k: v for k, v in result.items() if k != 'verified'})}")
+    return 0
+
+
+def _natural_build(root: Path, manifest_path: Path | None, seed: str) -> int:
+    import shutil
 
     from .natural import build
     from .review import ReviewError
 
     frozen = root / "benchmark" / "split-manifest.json"
     path = manifest_path or frozen
-    es = Elasticsearch(es_url, timeout=120.0)
     try:
-        es.require_pinned()
         manifest = json.loads(path.read_text())
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
+        verified = json.loads((root / "reports" / "natural-verified.json").read_text())
         benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
-        lines = (root / "benchmark" / "natural" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
-        changes = [json.loads(line) for line in lines if line]
         for stale in (root / "benchmark" / "cases").glob("*/*-natural-*"):
             shutil.rmtree(stale)  # regenerate natural cases; synthetic variants are left alone
-        result = build(root, changes, manifest, report, benign=benign, es=es, seed=seed)
-    except (Rejected, ReviewError, OSError, ValueError) as exc:
+        result = build(root, _natural_changes(root), verified, manifest, report, benign=benign, seed=seed)
+    except (ReviewError, OSError, ValueError) as exc:
         print(f"natural-build: FAILED {exc}", file=sys.stderr)
         return 1
-    finally:
-        es.close()
     result["manifest"] = path.name
     result["from_frozen_split"] = path.resolve() == frozen.resolve()
     _write_json(root / "reports" / "natural-cases.json", result)
@@ -255,13 +276,16 @@ def _variants(root: Path, manifest_path: Path | None, es_url: str, seed: str) ->
 
 
 def _split(root: Path, seed: str, frozen: bool) -> int:
+    from .natural import extra_roots
     from .review import ReviewError
     from .split import SplitError, build, freeze
 
     try:
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
         malicious = {e for e, label in _reviewed(root, report).items() if label == "malicious"}
-        manifest = build(root / "sigma", report, malicious, seed)
+        natural = root / "reports" / "natural-verified.json"
+        extra = extra_roots(json.loads(natural.read_text())) if natural.exists() else {}
+        manifest = build(root / "sigma", report, malicious, seed, extra=extra)
         if frozen:
             digest = freeze(manifest, root / "sigma", root / "benchmark" / "split-manifest.json")
             print(f"split: frozen, sha256 {digest}")
@@ -325,6 +349,7 @@ COMMANDS = (
     "train-m1",
     "compare",
     "natural-mine",
+    "natural-verify",
     "natural-build",
 )
 
@@ -404,7 +429,8 @@ def main(argv: list[str] | None = None) -> int:
         "train-m1": lambda: _train_m1(root, args.max_steps, args.train_seed),
         "compare": lambda: _compare(root, args.systems, args.baseline, locked=args.locked),
         "natural-mine": lambda: _natural_mine(root, args.history),
-        "natural-build": lambda: _natural_build(root, args.manifest, args.es_url, args.seed),
+        "natural-verify": lambda: _natural_verify(root, args.es_url),
+        "natural-build": lambda: _natural_build(root, args.manifest, args.seed),
     }
     if args.command in dispatch:
         return dispatch[args.command]()
