@@ -14,6 +14,7 @@
   "cases_without_validation_suite": 202,
   "discarded": {
     "logic:no_behavior_change": 29,
+    "logic:positives_still_detected": 13,
     "mapping:no_behavior_change": 15,
     "missing_telemetry:no_behavior_change": 15
   },

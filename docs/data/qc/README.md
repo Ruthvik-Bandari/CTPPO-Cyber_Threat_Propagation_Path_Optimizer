@@ -127,3 +127,31 @@ To reach 60 roots with two variants, the remaining options are:
 - **144 of the 153 cases have no validation suite.** Their root has a single verified positive, so there is no independent attack event to hold out. The workflow reports their repairs as provisional.
 
 Only reviewed OTRF positives, or documented synthetic second variants, can close that gap. This run used the unreviewed preview, so the cases are regenerated after review and the split freeze.
+
+## First baselines: B0 and B1 (Slurm jobs 11138719, 11138730, 11138731, 2026-10-16)
+
+The variants were regenerated with healthy controls and the fairness rule that every fault must lose a detection. That gave 214 cases: 61 healthy, 61 logic, 46 mapping and 46 missing telemetry. B0 and B1 then ran on the 170 train and development cases from 49 roots. The test split was not read. The full results are in `comparison.md`.
+
+| System | Validated success | Outcome match (incl. provisional) | Wrong change | Abstained |
+| --- | --- | --- | --- | --- |
+| B0 | 0.529 (95% CI 0.494–0.574) | 0.988 | 0.000 | 0.006 |
+| B1 | 0.529 | 0.988 | 0.000 | 0.006 |
+
+Outcome match by fault, for both systems:
+
+- healthy 1.00;
+- logic 1.00;
+- mapping 0.97;
+- missing telemetry 0.97.
+
+**What this shows.**
+
+1. **The synthetic benchmark is too easy for B0, and it is circular.**
+   - The logic faults are made with the same one-edit condition mutations that B0 searches, so B0 always finds the inverse edit.
+   - The mapping faults use a stale `winlog.event_data.*` name, while the right field is observed in the data, which is exactly B0's alternative-field diagnosis.
+   - With the deterministic baseline at 0.99 outcome match, B1, B2 and M1 have no room to show a gain on these faults. This is the measured gap gate in plan section 12: M1 is not justified on this benchmark.
+2. **Validated success is capped by evidence, not by repair ability.** 78 of 84 repairs were correct but provisional, because their root has a single verified positive and no validation suite. Reviewed OTRF positives raise this number directly.
+3. **The next benchmark needs faults B0 does not generate:**
+   - natural maintenance faults mined from SigmaHQ's own history, where a rule was later fixed (plan section 11 provenance `natural`);
+   - multi-edit faults;
+   - mappings where the replacement field is renamed differently from the stale one.
