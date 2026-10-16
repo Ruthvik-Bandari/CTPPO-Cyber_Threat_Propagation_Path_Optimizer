@@ -114,7 +114,7 @@ describe("site profile", () => {
           recommendation: "y",
           evidence: null,
           context:
-            "Medium on sites with logins, forms or sessions; low here: static site (no forms).",
+            "Medium on sites with logins or sessions; low here, a static site (no forms).",
         },
       ],
       timings: { total_ms: 1, http_ms: 1, tls_ms: 0 },
@@ -160,7 +160,7 @@ describe("site profile", () => {
     expect(await screen.findByText("Static site")).toBeTruthy();
     expect(
       screen.getByText(/Weighed for this site/).parentElement?.textContent,
-    ).toMatch(/low here: static site/);
+    ).toMatch(/low here, a static site/);
     const [, init] = fetchMock.mock.calls[0] as unknown as [
       string,
       RequestInit,

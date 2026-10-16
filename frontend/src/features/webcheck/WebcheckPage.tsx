@@ -1,38 +1,93 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { Icon } from "../../components/Icon";
-import { Badge, cx, ErrorState, Field, PageHeader, RawJson, SectionTitle, Spinner, Verdict } from "../../components/ui";
-import { severityLabel, severityOrder, severityTone, tones, type Tone } from "../../components/tone";
+import {
+  Badge,
+  cx,
+  ErrorState,
+  Field,
+  PageHeader,
+  RawJson,
+  SectionTitle,
+  Spinner,
+  Verdict,
+} from "../../components/ui";
+import {
+  severityLabel,
+  severityOrder,
+  severityTone,
+  tones,
+  type Tone,
+} from "../../components/tone";
 import { api } from "../../lib/api";
 import { slug } from "../../lib/download";
 import { plural } from "../../lib/format";
 import { scrollBehavior } from "../../lib/motion";
-import type { SiteKind, SiteProfile, TlsStatus, WebFinding, WebReport } from "../../lib/types";
+import type {
+  SiteKind,
+  SiteProfile,
+  TlsStatus,
+  WebFinding,
+  WebReport,
+} from "../../lib/types";
 import { useTitle } from "../../lib/useTitle";
 
 /** Mirrors webcheck.models.NOTICE; the report repeats the server's own copy. */
 export const NOTICE =
   "Only check websites you own or are authorized to assess. Aegis-Sec sends one GET request (plus redirects) and one TLS handshake.";
 
-const gradeTone: Record<WebReport["grade"], Tone> = { A: "ok", B: "ok", C: "med", D: "high", F: "crit" };
+const gradeTone: Record<WebReport["grade"], Tone> = {
+  A: "ok",
+  B: "ok",
+  C: "med",
+  D: "high",
+  F: "crit",
+};
 
-const tlsText: Record<TlsStatus, { label: string; tone: Tone; explain: string }> = {
-  ok: { label: "Valid", tone: "ok", explain: "The certificate is trusted, current and matches the host name." },
-  not_https: { label: "Not HTTPS", tone: "crit", explain: "The final page is served without encryption." },
-  expired: { label: "Expired", tone: "crit", explain: "The certificate has expired; browsers will show a warning." },
-  not_yet_valid: { label: "Not yet valid", tone: "crit", explain: "The certificate's start date is in the future." },
+const tlsText: Record<
+  TlsStatus,
+  { label: string; tone: Tone; explain: string }
+> = {
+  ok: {
+    label: "Valid",
+    tone: "ok",
+    explain: "The certificate is trusted, current and matches the host name.",
+  },
+  not_https: {
+    label: "Not HTTPS",
+    tone: "crit",
+    explain: "The final page is served without encryption.",
+  },
+  expired: {
+    label: "Expired",
+    tone: "crit",
+    explain: "The certificate has expired; browsers will show a warning.",
+  },
+  not_yet_valid: {
+    label: "Not yet valid",
+    tone: "crit",
+    explain: "The certificate's start date is in the future.",
+  },
   hostname_mismatch: {
     label: "Wrong host name",
     tone: "crit",
     explain: "The certificate was issued for a different name than this site.",
   },
-  untrusted: { label: "Untrusted", tone: "crit", explain: "The certificate is not signed by an authority browsers trust." },
+  untrusted: {
+    label: "Untrusted",
+    tone: "crit",
+    explain: "The certificate is not signed by an authority browsers trust.",
+  },
   outdated_protocol: {
     label: "Outdated protocol",
     tone: "high",
     explain: "The server negotiated an old TLS version with known weaknesses.",
   },
-  handshake_failed: { label: "Handshake failed", tone: "crit", explain: "A secure connection could not be set up." },
+  handshake_failed: {
+    label: "Handshake failed",
+    tone: "crit",
+    explain: "A secure connection could not be set up.",
+  },
 };
 
 function headline(report: WebReport): string {
@@ -43,16 +98,29 @@ function headline(report: WebReport): string {
       return report.final_url;
     }
   })();
-  const actionable = report.findings.filter((f) => f.severity !== "info").length;
-  if (actionable === 0) return `${host} earns an ${report.grade}: no issues worth fixing were found.`;
+  const actionable = report.findings.filter(
+    (f) => f.severity !== "info",
+  ).length;
+  if (actionable === 0)
+    return `${host} earns an ${report.grade}: no issues worth fixing were found.`;
   const article = report.grade === "A" || report.grade === "F" ? "an" : "a";
   return `${host} earns ${article} ${report.grade}: ${plural(actionable, "issue")} worth fixing.`;
 }
 
 const siteKindText: Record<SiteKind, { label: string; explain: string }> = {
-  static: { label: "Static site", explain: "No forms, cookies or API calls were found on this page." },
-  static_api: { label: "Static + API", explain: "No forms or cookies, but the page's scripts call APIs." },
-  dynamic: { label: "Dynamic site", explain: "The page has forms, password fields or cookies." },
+  static: {
+    label: "Static site",
+    explain: "No forms, cookies or API calls were found on this page.",
+  },
+  static_api: {
+    label: "Static + backend",
+    explain:
+      "A form or API calls send data to a backend, but there is no login and no cookies.",
+  },
+  dynamic: {
+    label: "Dynamic site",
+    explain: "The page has a login (password field) or sets cookies.",
+  },
 };
 
 function ProfilePanel({ profile }: { profile: SiteProfile }) {
@@ -67,26 +135,37 @@ function ProfilePanel({ profile }: { profile: SiteProfile }) {
     ["API calls in scripts", ev.api_markers],
   ];
   return (
-    <section aria-labelledby="profile-title" className="panel p-5 lg:col-span-2">
+    <section
+      aria-labelledby="profile-title"
+      className="panel p-5 lg:col-span-2"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id="profile-title" className="font-semibold">
           Site profile
         </h3>
-        <Badge tone={profile.kind === "dynamic" ? "med" : "ok"}>{text.label}</Badge>
+        <Badge tone={profile.kind === "dynamic" ? "med" : "ok"}>
+          {text.label}
+        </Badge>
       </div>
       <p className="mt-2 max-w-[72ch] text-ink-2">
-        {text.explain} Findings whose risk depends on what a site does are weighed for this profile; each one says
-        when it was. HSTS, TLS and cookie flags are never lowered.
+        {text.explain} Findings whose risk depends on what a site does are
+        weighed for this profile; each one says when it was. HSTS, TLS and
+        cookie flags are never lowered.
       </p>
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[0.875rem] sm:grid-cols-3">
         {facts.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-3 border-b border-line py-1">
+          <div
+            key={label}
+            className="flex justify-between gap-3 border-b border-line py-1"
+          >
             <dt className="text-ink-3">{label}</dt>
             <dd className="font-mono">{value}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-[0.8125rem] text-ink-3">Why: {profile.reasons.join("; ")}.</p>
+      <p className="mt-3 text-[0.8125rem] text-ink-3">
+        Why: {profile.reasons.join("; ")}.
+      </p>
     </section>
   );
 }
@@ -119,7 +198,10 @@ function GradeBadge({ report }: { report: WebReport }) {
           aria-valuemax={100}
           aria-valuenow={report.score}
         >
-          <div className={cx("h-full rounded-full", style.mark)} style={{ width: `${report.score}%` }} />
+          <div
+            className={cx("h-full rounded-full", style.mark)}
+            style={{ width: `${report.score}%` }}
+          />
         </div>
       </div>
     </div>
@@ -130,7 +212,9 @@ function FindingItem({ finding }: { finding: WebFinding }) {
   return (
     <li className="px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={severityTone[finding.severity]}>{severityLabel[finding.severity]}</Badge>
+        <Badge tone={severityTone[finding.severity]}>
+          {severityLabel[finding.severity]}
+        </Badge>
         <h4 className="font-semibold">{finding.title}</h4>
       </div>
       <p className="mt-2 max-w-[72ch] text-ink-2">{finding.explanation}</p>
@@ -140,7 +224,9 @@ function FindingItem({ finding }: { finding: WebFinding }) {
       </p>
       {finding.context ? (
         <p className="mt-2 max-w-[72ch] text-[0.8125rem] text-ink-3">
-          <span className="font-medium text-ink-2">Weighed for this site: </span>
+          <span className="font-medium text-ink-2">
+            Weighed for this site:{" "}
+          </span>
           {finding.context}
         </p>
       ) : null}
@@ -162,19 +248,34 @@ function Report({ report }: { report: WebReport }) {
   const tls = tlsText[report.tls.status];
 
   return (
-    <section aria-labelledby="web-result" className="reveal mt-10 scroll-mt-6 border-t border-line pt-8">
+    <section
+      aria-labelledby="web-result"
+      className="reveal mt-10 scroll-mt-6 border-t border-line pt-8"
+    >
       <h2 id="web-result" ref={ref} tabIndex={-1} className="sr-only">
         Result for {report.final_url}
       </h2>
       <div className="grid gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
         <GradeBadge report={report} />
         <Verdict tone={gradeTone[report.grade]} title={headline(report)}>
-          {report.grade === "F" && (report.tls.status !== "ok" || !report.final_url.startsWith("https:")) ? (
-            <p>The grade is capped at F because the connection itself is not secure; every other protection depends on it.</p>
+          {report.grade === "F" &&
+          (report.tls.status !== "ok" ||
+            !report.final_url.startsWith("https:")) ? (
+            <p>
+              The grade is capped at F because the connection itself is not
+              secure; every other protection depends on it.
+            </p>
           ) : (
-            <p>Grades start at 100 and lose 25 per high, 10 per medium and 4 per low finding.</p>
+            <p>
+              Grades start at 100 and lose 25 per high, 10 per medium and 4 per
+              low finding.
+            </p>
           )}
-          {!report.headers_checked ? <p className="mt-1">The page could not be fetched, so headers were not checked.</p> : null}
+          {!report.headers_checked ? (
+            <p className="mt-1">
+              The page could not be fetched, so headers were not checked.
+            </p>
+          ) : null}
         </Verdict>
       </div>
 
@@ -206,9 +307,19 @@ function Report({ report }: { report: WebReport }) {
               <>
                 <dt className="text-ink-3">Expires</dt>
                 <dd>
-                  {new Date(report.tls.not_after).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                  {new Date(report.tls.not_after).toLocaleDateString(
+                    undefined,
+                    { dateStyle: "medium" },
+                  )}
                   {report.tls.days_remaining !== null ? (
-                    <span className={cx("ml-2", report.tls.days_remaining < 14 ? "font-medium text-high" : "text-ink-3")}>
+                    <span
+                      className={cx(
+                        "ml-2",
+                        report.tls.days_remaining < 14
+                          ? "font-medium text-high"
+                          : "text-ink-3",
+                      )}
+                    >
                       ({plural(report.tls.days_remaining, "day")} left)
                     </span>
                   ) : null}
@@ -234,9 +345,12 @@ function Report({ report }: { report: WebReport }) {
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-mono text-[0.8125rem] break-all text-ink">{hop.url}</p>
+                    <p className="font-mono text-[0.8125rem] break-all text-ink">
+                      {hop.url}
+                    </p>
                     <p className="text-[0.8125rem] text-ink-3">
-                      HTTP {hop.status_code} · {hop.address} · {hop.elapsed_ms} ms
+                      HTTP {hop.status_code} · {hop.address} · {hop.elapsed_ms}{" "}
+                      ms
                     </p>
                   </div>
                 </li>
@@ -249,15 +363,22 @@ function Report({ report }: { report: WebReport }) {
       <section aria-labelledby="findings-title" className="mt-10">
         <SectionTitle id="findings-title">Findings</SectionTitle>
         {report.findings.length === 0 ? (
-          <p className="text-ink-2">Nothing to report: every header check passed.</p>
+          <p className="text-ink-2">
+            Nothing to report: every header check passed.
+          </p>
         ) : (
           <div className="space-y-6">
             {severityOrder.map((severity) => {
-              const group = report.findings.filter((f) => f.severity === severity);
+              const group = report.findings.filter(
+                (f) => f.severity === severity,
+              );
               if (group.length === 0) return null;
               return (
                 <section key={severity} aria-labelledby={`sev-${severity}`}>
-                  <h3 id={`sev-${severity}`} className="mb-2 text-[0.9375rem] font-semibold text-ink-2">
+                  <h3
+                    id={`sev-${severity}`}
+                    className="mb-2 text-[0.9375rem] font-semibold text-ink-2"
+                  >
                     {severityLabel[severity]} · {group.length}
                   </h3>
                   <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
@@ -274,9 +395,13 @@ function Report({ report }: { report: WebReport }) {
 
       <div className="mt-10 space-y-3">
         <p className="text-[0.8125rem] text-ink-3">
-          Took {report.timings.total_ms} ms (HTTP {report.timings.http_ms} ms, TLS {report.timings.tls_ms} ms). {report.notice}
+          Took {report.timings.total_ms} ms (HTTP {report.timings.http_ms} ms,
+          TLS {report.timings.tls_ms} ms). {report.notice}
         </p>
-        <RawJson data={report} filename={`aegis-webcheck-${slug(report.final_url)}.json`} />
+        <RawJson
+          data={report}
+          filename={`aegis-webcheck-${slug(report.final_url)}.json`}
+        />
       </div>
     </section>
   );
@@ -289,15 +414,20 @@ export default function WebcheckPage() {
   const [allowPrivate, setAllowPrivate] = useState(false);
   const [siteType, setSiteType] = useState<SiteKind | "">("");
   const scan = useMutation({
-    mutationFn: (input: { url: string; allowPrivate: boolean; siteType: SiteKind | null }) =>
-      api.webcheck(input.url, input.allowPrivate, input.siteType),
+    mutationFn: (input: {
+      url: string;
+      allowPrivate: boolean;
+      siteType: SiteKind | null;
+    }) => api.webcheck(input.url, input.allowPrivate, input.siteType),
   });
   const canScan = authorized && url.trim().length > 0 && !scan.isPending;
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
     if (!canScan) return;
-    const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+    const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(url.trim())
+      ? url.trim()
+      : `https://${url.trim()}`;
     scan.mutate({ url: target, allowPrivate, siteType: siteType || null });
   }
 
@@ -307,12 +437,23 @@ export default function WebcheckPage() {
         title="Web check"
         lede="A passive check of a website's HTTPS setup and browser security headers, with a grade and a fix for every issue."
       />
-      <form onSubmit={submit} className="panel max-w-3xl space-y-5 p-5 sm:p-6" aria-describedby="webcheck-notice">
-        <p id="webcheck-notice" className="flex gap-2 rounded-lg bg-inset px-3 py-2.5 text-[0.875rem] text-ink-2">
+      <form
+        onSubmit={submit}
+        className="panel max-w-3xl space-y-5 p-5 sm:p-6"
+        aria-describedby="webcheck-notice"
+      >
+        <p
+          id="webcheck-notice"
+          className="flex gap-2 rounded-lg bg-inset px-3 py-2.5 text-[0.875rem] text-ink-2"
+        >
           <Icon name="info" size={18} className="mt-0.5 flex-none text-ink-3" />
           {NOTICE}
         </p>
-        <Field htmlFor="webcheck-url" label="Website address" hint="For example example.com or https://example.com/login">
+        <Field
+          htmlFor="webcheck-url"
+          label="Website address"
+          hint="For example example.com or https://example.com/login"
+        >
           <input
             id="webcheck-url"
             className="field"
@@ -343,9 +484,15 @@ export default function WebcheckPage() {
             }}
           >
             <option value="">Detect from the page</option>
-            <option value="static">Static: pages only, no logins or forms</option>
-            <option value="static_api">Static + API: pages that call a backend API</option>
-            <option value="dynamic">Dynamic: logins, forms, accounts or checkout</option>
+            <option value="static">
+              Static: pages only, no logins or forms
+            </option>
+            <option value="static_api">
+              Static + backend: a contact form or API calls, no accounts
+            </option>
+            <option value="dynamic">
+              Dynamic: logins, accounts, sessions or checkout
+            </option>
           </select>
         </Field>
         <div className="space-y-3">
@@ -359,8 +506,13 @@ export default function WebcheckPage() {
               }}
             />
             <span>
-              <span className="font-medium">I own this site or am authorized to test it</span>
-              <span className="hint block">Required. Scanning sites without permission may break their terms or the law.</span>
+              <span className="font-medium">
+                I own this site or am authorized to test it
+              </span>
+              <span className="hint block">
+                Required. Scanning sites without permission may break their
+                terms or the law.
+              </span>
             </span>
           </label>
           <label className="flex cursor-pointer gap-3">
@@ -373,8 +525,13 @@ export default function WebcheckPage() {
               }}
             />
             <span>
-              <span className="font-medium">Allow private and local addresses</span>
-              <span className="hint block">For a lab or home server you own, such as 192.168.x.x or localhost.</span>
+              <span className="font-medium">
+                Allow private and local addresses
+              </span>
+              <span className="hint block">
+                For a lab or home server you own, such as 192.168.x.x or
+                localhost.
+              </span>
             </span>
           </label>
         </div>
@@ -383,12 +540,20 @@ export default function WebcheckPage() {
             {scan.isPending ? <Spinner /> : <Icon name="search" size={16} />}
             {scan.isPending ? "Scanning…" : "Scan"}
           </button>
-          {!authorized ? <span className="hint">Confirm authorization to enable scanning.</span> : null}
+          {!authorized ? (
+            <span className="hint">
+              Confirm authorization to enable scanning.
+            </span>
+          ) : null}
         </div>
       </form>
 
       <div aria-live="polite" className="sr-only">
-        {scan.isPending ? "Scanning the site…" : scan.isSuccess ? "Scan finished. Results below." : ""}
+        {scan.isPending
+          ? "Scanning the site…"
+          : scan.isSuccess
+            ? "Scan finished. Results below."
+            : ""}
       </div>
       {scan.isError ? (
         <div className="mt-8">

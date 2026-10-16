@@ -19,6 +19,11 @@ LOGIN = b"<form method='post' action='/login'><input name='u'><input type='passw
         (HTML, STATIC, "static"),
         (HTML, API, "static_api"),
         (HTML, LOGIN, "dynamic"),
+        (
+            HTML,
+            b"<form><input name='name'><input type='email' name='email'><textarea name='m'></textarea></form>",
+            "static_api",
+        ),
         ({**HTML, "set-cookie": ["sid=1; Secure"]}, STATIC, "dynamic"),
         ({"content-type": ["application/json"]}, b'{"a": 1}', "static_api"),
     ],
@@ -45,7 +50,7 @@ def test_declaration_can_raise_but_never_lower():
 
 
 def test_hostile_markup_is_counted_not_run():
-    body = b"<scr<script>ipt>alert(1)</script><form><input type=password" + b"<div>" * 50_000
+    body = b"<scr<script>ipt>alert(1)</script><form><input type=password>" + b"<div>" * 50_000
     profile = profile_site(HTML, body, "https://site.test/")
     assert profile.kind == "dynamic"  # the password field still counts
     assert profile_site(HTML, b"\xff\xfe\x00garbage<<<>>>", "https://site.test/").kind == "static"
@@ -70,7 +75,7 @@ def test_static_lowers_context_findings_with_an_explanation():
     }
     assert (found["csp.missing"].severity, found["csp.missing"].baseline_severity) == ("low", "medium")
     assert found["framing.unprotected"].severity == "info"
-    assert "static site" in found["framing.unprotected"].context
+    assert "a static site (" in found["framing.unprotected"].context
     assert found["hsts.missing"].severity == "medium" and found["hsts.missing"].baseline_severity is None
 
 

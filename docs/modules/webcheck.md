@@ -48,9 +48,9 @@ A missing CSP or framing protection matters most where there is something to ste
 
 | Profile | Assigned when |
 | --- | --- |
-| `dynamic` | The page has a form, a password field or a `Set-Cookie`. |
-| `static_api` | No forms or cookies, but inline scripts call APIs (`fetch`, XHR, `axios`, `/api/`, GraphQL, WebSockets), or the URL returns JSON. |
-| `static` | None of the above. |
+| `dynamic` | Accounts or sessions: the page has a password field or sets a cookie. |
+| `static_api` | A backend but no accounts: a data-entry form (a contact form, say), inline scripts that call APIs (`fetch`, XHR, `axios`, `/api/`, GraphQL, WebSockets), or a JSON response. |
+| `static` | Pages only: none of the above. |
 
 The parser is Python's `html.parser`. It runs on at most 1 MiB, never executes anything, and counts only tags, attributes and short markers in inline scripts, capped at 200,000 characters. The report's `profile` field lists the evidence and the reasons. The evidence covers forms, password and input fields, cookies, inline and external scripts, third-party script hosts, iframes and API markers.
 

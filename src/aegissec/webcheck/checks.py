@@ -478,6 +478,7 @@ _BY_PROFILE: dict[str, dict[str, Severity]] = {
     "framing.unprotected": {"static": "info", "static_api": "low"},
     "referrer.weak": {"static": "info"},
 }
+_KIND_TEXT = {"static": "static site", "static_api": "static site with a backend", "dynamic": "dynamic site"}
 _CSP_IDS = frozenset({"csp.missing", "csp.report_only", "csp.no_script_restriction"})
 _RANK: dict[Severity, int] = {"info": 0, "low": 1, "medium": 2, "high": 3}
 
@@ -494,6 +495,6 @@ def apply_profile(findings: list[Finding], profile: SiteProfile) -> list[Finding
         if target is None or _RANK[target] >= _RANK[f.severity]:
             out.append(f)
             continue
-        context = f"{f.severity.capitalize()} on sites with logins, forms or sessions; {target} here: {profile.kind.replace('_', ' + ')} site ({why})."
+        context = f"{f.severity.capitalize()} on sites with logins or sessions; {target} here, a {_KIND_TEXT[profile.kind]} ({why})."
         out.append(f.model_copy(update={"severity": target, "baseline_severity": f.severity, "context": context}))
     return out

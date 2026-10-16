@@ -4,10 +4,10 @@ A missing CSP or framing protection matters most where there is something to ste
 logins, forms, sessions and API calls. The profile reads the one HTML response the check already
 fetched, with a bounded, non-executing parser (``html.parser``), and classifies the site:
 
-- ``static``: no forms, no cookies and no sign of API calls;
-- ``static_api``: no forms or cookies, but the page's scripts call APIs (``fetch``, XHR, ``/api/``,
-  GraphQL);
-- ``dynamic``: forms, password fields or cookies.
+- ``static``: pages only, with no forms, cookies or sign of API calls;
+- ``static_api``: a backend but no accounts. That means data-entry forms (a contact form, say) or
+  scripts that call APIs (``fetch``, XHR, ``/api/``, GraphQL), with no password field and no cookies;
+- ``dynamic``: accounts or sessions, meaning a password field or cookies.
 
 The page is untrusted data: nothing is executed, only tags, attributes and short inline-script
 markers are counted, and every input is size-bounded. One page cannot see everything. A login
@@ -131,17 +131,18 @@ def profile_site(
     reasons: list[str] = []
     if ev.password_fields:
         reasons.append(f"{ev.password_fields} password field(s)")
-    if ev.forms:
-        reasons.append(f"{ev.forms} form(s), {ev.input_fields} input field(s)")
     if ev.cookies:
         reasons.append(f"{ev.cookies} cookie(s) set")
-    if reasons:
-        detected: SiteKind = "dynamic"
-    elif ev.api_markers or "json" in ctype:
-        detected = "static_api"
-        reasons.append("scripts call APIs" if ev.api_markers else "the URL returns JSON")
-    else:
-        detected = "static"
+    detected: SiteKind = "dynamic" if reasons else "static"
+    if detected == "static":
+        if ev.forms:
+            reasons.append(f"{ev.forms} form(s) with {ev.input_fields} input field(s), no login or cookies")
+        if ev.api_markers:
+            reasons.append("scripts call APIs")
+        elif "json" in ctype:
+            reasons.append("the URL returns JSON")
+        detected = "static_api" if reasons else "static"
+    if not reasons:
         reasons.append("no forms, cookies or API calls on this page")
     if ev.third_party_script_hosts:
         reasons.append(f"scripts from {len(ev.third_party_script_hosts)} third-party host(s)")
