@@ -11,6 +11,7 @@
 # throughput:  sbatch hpc/m1.sbatch --max-steps 5      Full run:  sbatch hpc/m1.sbatch --train-seed 1
 set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH" UV_OFFLINE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+source "$HOME/aegis-sec/hpc/gpu_env.sh"
 export AEGIS_B2_SNAPSHOT="/scratch/$USER/aegis-sec/models/Qwen2.5-Coder-7B-Instruct@c03e6d358207e414f1eca0bb1891e29f1db0e242"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 uv run --no-sync python -m aegisbench train-m1 --root "/scratch/$USER/aegis-sec/data" "$@"

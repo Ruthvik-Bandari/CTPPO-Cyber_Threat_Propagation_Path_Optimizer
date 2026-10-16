@@ -59,6 +59,7 @@ H200 nodes; the smoke job ran on a Tesla V100-SXM2-32GB, driver 545.23.08, with 
 ## Constraints
 
 - No work on login nodes. Jobs only, via Slurm.
+- The home quota cannot hold torch and its CUDA libraries. The GPU environment (`venv-gpu`) and uv's cache live on scratch (`hpc/gpu_env.sh`); re-run `bash hpc/setup_env.sh gpu` after a scratch purge.
 - `/scratch` is purged on the first Tuesday of each month, and the cluster is unavailable during
   that maintenance. Sources are re-fetchable from pins; anything that must survive goes to `/work`.
 - Batch scripts start with `#!/bin/bash -l` so `module` is available.

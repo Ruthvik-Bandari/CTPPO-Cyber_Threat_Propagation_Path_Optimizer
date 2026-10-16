@@ -11,6 +11,7 @@
 # Needs hpc/fetch_model.sh and `bash hpc/setup_env.sh gpu`. Add --locked only for the final test run.
 set -euo pipefail
 source "$HOME/aegis-sec/hpc/engine.sh"
+source "$HOME/aegis-sec/hpc/gpu_env.sh"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export AEGIS_B2_SNAPSHOT="/scratch/$USER/aegis-sec/models/Qwen2.5-Coder-7B-Instruct@c03e6d358207e414f1eca0bb1891e29f1db0e242"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader

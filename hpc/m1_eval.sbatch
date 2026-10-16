@@ -10,6 +10,7 @@
 # Evaluates M1 (base + LoRA adapter) like B2:  sbatch hpc/m1_eval.sbatch m1-seed1 [--locked]
 set -euo pipefail
 source "$HOME/aegis-sec/hpc/engine.sh"
+source "$HOME/aegis-sec/hpc/gpu_env.sh"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export AEGIS_B2_SNAPSHOT="/scratch/$USER/aegis-sec/models/Qwen2.5-Coder-7B-Instruct@c03e6d358207e414f1eca0bb1891e29f1db0e242"
 export AEGIS_M1_ADAPTER="$DATA/models/${1:?adapter name, e.g. m1-seed1}"

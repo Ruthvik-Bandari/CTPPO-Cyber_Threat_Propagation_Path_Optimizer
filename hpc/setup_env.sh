@@ -5,6 +5,9 @@
 set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 if [ "${1:-}" = "gpu" ]; then
+  # torch + CUDA libraries are several GB: keep the GPU environment and uv's cache on scratch, not
+  # in the home quota. Scratch is purged monthly; re-run this script after a purge.
+  source "$(dirname "$0")/gpu_env.sh"
   uv sync --frozen --no-dev --group gpu
 else
   uv sync --frozen --no-dev
