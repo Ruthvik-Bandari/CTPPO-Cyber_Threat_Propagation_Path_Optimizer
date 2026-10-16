@@ -274,6 +274,7 @@ manifests, and writes aggregate QC reports. Related docs:
 - [docs/data/policy.md](docs/data/policy.md): the data and model guardrails.
 - [docs/data/compliance.md](docs/data/compliance.md): the approvals checklist.
 - [docs/hpc.md](docs/hpc.md): cluster jobs and choosing GPUs by task.
+- [docs/research.md](docs/research.md): the research pipeline end to end (benchmark → B0/B1/B2 → M1 → locked comparison).
 
 ## Credits and license
 
