@@ -60,6 +60,8 @@ Claude Code sends conversation content to Anthropic. It may read code, pins, doc
 
 Cluster jobs write aggregate reports, and only those are reviewed in sessions.
 
+**Exception, approved by the owner on 2026-10-16:** the OTRF review packet may be labeled by AI reviewers in a Claude Code session. That data is public lab recordings, not institutional telemetry. The labels carry `ai-` reviewer provenance and are reported separately, and a human checks every adjudicated label plus a 10% sample before the split is frozen ([`review.md`](review.md)). The exception does not cover institutional data, credentials or locked test results.
+
 ## 7. Lab testing (Atomic Red Team)
 
 Running a test, as opposed to reading its definition, requires all of the following:

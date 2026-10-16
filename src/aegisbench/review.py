@@ -154,6 +154,7 @@ def status(root: Path, report: dict[str, Any]) -> dict[str, object]:
         "reviewed": len(labels),
         "unreviewed": len(found) - len(labels),
         "labels": dict(sorted(Counter(labels.values()).items())),
+        "ai_assisted": _ai_assisted(root / "review" / "labels.csv", set(labels)),
         "problems": problems,
         "roots": {
             "with_1plus_verified_positive": sum(n >= 1 for n in verified.values()),
@@ -254,3 +255,52 @@ def set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: s
     writer.writeheader()
     writer.writerows(rows)
     _private_write(root / "review" / "labels.csv", buf.getvalue())
+
+
+AI_REVIEWER_PREFIX = "ai-"
+
+
+def import_labels(root: Path, rows: list[dict[str, str]]) -> dict[str, int]:
+    """Bulk-record ``event_id, label, rationale, reviewer`` rows. Every row is validated first; any
+    invalid row aborts the whole import. A label a human already set is never overwritten."""
+    _, current = _load_sheet(root)
+    by_id = {r["event_id"]: r for r in current}
+    problems = []
+    for n, row in enumerate(rows, 1):
+        if row.get("event_id") not in by_id:
+            problems.append(f"row {n}: unknown event id")
+        elif problem := label_problem(
+            row.get("label", "").strip().lower(), row.get("rationale", "").strip(), row.get("reviewer", "").strip()
+        ):
+            problems.append(f"row {n}: {problem}")
+    if problems:
+        raise ReviewError("; ".join(problems[:10]))
+    counts = {"imported": 0, "kept_existing_human_label": 0}
+    for row in rows:
+        existing = by_id[row["event_id"]]
+        human = (existing.get("label") or "").strip() and not (existing.get("reviewer") or "").startswith(
+            AI_REVIEWER_PREFIX
+        )
+        if human:
+            counts["kept_existing_human_label"] += 1
+            continue
+        existing.update(
+            label=row["label"].strip().lower(), rationale=row["rationale"].strip(), reviewer=row["reviewer"].strip()
+        )
+        counts["imported"] += 1
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=LABEL_COLUMNS, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(current)
+    _private_write(root / "review" / "labels.csv", buf.getvalue())
+    return counts
+
+
+def _ai_assisted(path: Path, reviewed: set[str]) -> int:
+    """How many reviewed rows came from an AI reviewer (reported apart from human labels)."""
+    with path.open(encoding="utf-8", newline="") as fh:
+        return sum(
+            1
+            for r in csv.DictReader(fh)
+            if r.get("event_id") in reviewed and (r.get("reviewer") or "").startswith(AI_REVIEWER_PREFIX)
+        )

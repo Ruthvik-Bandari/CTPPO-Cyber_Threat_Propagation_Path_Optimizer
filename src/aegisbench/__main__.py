@@ -300,6 +300,21 @@ def _split(root: Path, seed: str, frozen: bool) -> int:
     return 0
 
 
+def _import(root: Path, labels: Path | None) -> int:
+    from .review import ReviewError, import_labels
+
+    try:
+        if labels is None:
+            raise ReviewError("review-import needs --labels")
+        rows = json.loads(labels.read_text(encoding="utf-8"))
+        counts = import_labels(root, rows)
+    except (ReviewError, OSError, ValueError) as exc:
+        print(f"review-import: FAILED {exc}", file=sys.stderr)
+        return 1
+    print(f"review-import: {counts}")
+    return 0
+
+
 def _label(root: Path, args: argparse.Namespace) -> int:
     """Interactive labelling. Prints raw event values: for the reviewer's own terminal only."""
     from .review import ReviewError, format_candidate, next_candidate, set_label
@@ -342,6 +357,7 @@ COMMANDS = (
     "review-status",
     "review-next",
     "review-label",
+    "review-import",
     "split",
     "variants",
     "evaluate",
@@ -369,6 +385,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-seed", type=int, default=1, help="train-m1: training seed")
     parser.add_argument("--systems", nargs="+", default=["b0", "b1", "b2"], help="compare: evaluated systems")
     parser.add_argument("--baseline", default="b0", help="compare: baseline system")
+    parser.add_argument("--labels", type=Path, help="review-import: JSON list of {event_id,label,rationale,reviewer}")
     parser.add_argument("--history", type=Path, help="natural-mine: bare clone of SigmaHQ with full history")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
@@ -422,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         "review-status": lambda: _review(root, args.command),
         "review-next": lambda: _label(root, args),
         "review-label": lambda: _label(root, args),
+        "review-import": lambda: _import(root, args.labels),
         "split": lambda: _split(root, args.seed, args.freeze),
         "variants": lambda: _variants(root, args.manifest, args.es_url, args.seed),
         "evaluate": lambda: _evaluate(root, args.system, args.es_url, locked=args.locked),

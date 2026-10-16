@@ -136,3 +136,20 @@ def test_label_loop_walks_candidates_and_keeps_other_rows(root, capsys):
     assert "Every candidate is labelled." in capsys.readouterr().out
     result = status(root, _report())
     assert result["labels"] == {"malicious": 1, "unknown": 1} and result["problems"] == []
+
+
+def test_import_keeps_human_labels_and_rejects_a_bad_batch_atomically(root):
+    from aegisbench.review import import_labels, set_label
+
+    write_sheet(root, _report())
+    set_label(root, E0, "benign", "updater", "rb")  # a human decision
+    rows = [
+        {"event_id": E0, "label": "malicious", "rationale": "ai says so", "reviewer": "ai-consensus"},
+        {"event_id": E1, "label": "malicious", "rationale": "launcher child", "reviewer": "ai-consensus"},
+    ]
+    assert import_labels(root, rows) == {"imported": 1, "kept_existing_human_label": 1}
+    result = status(root, _report())
+    assert result["labels"] == {"benign": 1, "malicious": 1} and result["ai_assisted"] == 1
+    with pytest.raises(ReviewError, match="row 1"):
+        import_labels(root, [{"event_id": E1, "label": "evil", "rationale": "", "reviewer": "ai-x"}])
+    assert status(root, _report())["labels"] == {"benign": 1, "malicious": 1}  # nothing half-applied

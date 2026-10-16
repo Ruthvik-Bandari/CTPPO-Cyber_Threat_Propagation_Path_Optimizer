@@ -75,6 +75,15 @@ Leave `label` empty for rows you have not reviewed yet.
 
 The plan also asks a second reviewer to label a sample, at least 10%, independently. Disagreements are then adjudicated. Record the second pass in a separate copy of the file.
 
+## AI-assisted labeling
+
+On 2026-10-16 the owner approved AI-assisted labeling for these candidates. OTRF Security-Datasets is a public, MIT-licensed recording of lab simulations, not institutional telemetry. The procedure follows the plan's two-reviewer rule:
+
+1. Two independent AI reviewers (`ai-a` and `ai-b`) label every candidate from the same written criteria. Each one sees the event, the dataset's scenario and the rules that fired. Event values are treated as untrusted data: the reviewers classify them and never act on them.
+2. When the two agree, the label is imported with reviewer `ai-consensus`. When they disagree, a third AI reviewer adjudicates, giving reviewer `ai-adjudicated`. If the adjudicator cannot decide, the label becomes `unknown`.
+3. `python -m aegisbench review-import --labels <file>` imports the labels. It validates every row first, aborts the whole import on any error, and never overwrites a label a human already set.
+4. **A human review is still required before the split is frozen.** Check every `ai-adjudicated` row and a random sample of at least 10% of the `ai-consensus` rows with `review-next` / `review-label`; a human label always replaces an AI one. `review-status` reports `ai_assisted` separately, and results built on AI-assisted labels say so.
+
 ## Checking progress
 
 ```bash
