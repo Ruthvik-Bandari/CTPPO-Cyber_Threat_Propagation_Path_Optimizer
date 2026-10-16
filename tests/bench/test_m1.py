@@ -77,7 +77,9 @@ def test_sft_examples_are_valid_and_value_free(tmp_path):
     es = Elasticsearch(ES_URL)
     try:
         build_variants(data, manifest, {"per_rule": {}}, benign=set(), es=es, seed="s")
-        rows = {r["kind"]: r for r in build(data / "benchmark/cases", "train", es)}
+        built, skipped = build(data / "benchmark/cases", "train", es)
+        rows = {r["kind"]: r for r in built}
+        assert skipped == 0
     finally:
         es.close()
     assert sorted(rows) == ["healthy", "logic", "mapping", "missing_telemetry"]
@@ -87,3 +89,21 @@ def test_sft_examples_are_valid_and_value_free(tmp_path):
     candidates, dropped = parse(rows["mapping"]["completion"], rule, "a" * 64)
     assert len(candidates) == 1 and dropped == 0 and candidates[0].patch_kind == "mapping"
     assert all("-urlcache" not in r["prompt"].split("EVIDENCE")[1] for r in rows.values())  # no event values
+
+
+def test_reference_repair_skips_fixes_outside_the_contract():
+    added = parse_rule(
+        HEAD
+        + "  a: {Image|endswith: '\\\\x.exe'}\n  b: {User: s}\n  c: {Company: z}\n  condition: a and not b and not c\n"
+    )
+    assert reference_repair(HEALTHY, MAP, added, MAP) is None  # a new selection is not a candidate edit
+    reshaped = parse_rule(
+        HEAD + "  a: {Image|endswith: '\\\\x.exe', CommandLine: q}\n  b: {User: s}\n  condition: a and not b\n"
+    )
+    assert reference_repair(HEALTHY, MAP, reshaped, MAP) is None  # fields changed inside a selection
+    wider = parse_rule(
+        HEAD + "  a: {Image|endswith: ['\\\\x.exe', '\\\\y.exe']}\n  b: {User: s}\n  condition: a and not b\n"
+    )
+    op = reference_repair(HEALTHY, MAP, wider, MAP)["candidates"][0]["patch"][0]
+    assert op["kind"] == "set_predicate" and len(op["predicate"]["values"]) == 2
+    assert op["predicate"]["values"][1].endswith("y.exe")

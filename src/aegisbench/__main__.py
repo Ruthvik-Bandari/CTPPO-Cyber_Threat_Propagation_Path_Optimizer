@@ -172,11 +172,12 @@ def _sft(root: Path, es_url: str) -> int:
     from .sft import build
 
     es = Elasticsearch(es_url, timeout=120.0)
-    counts = {}
+    counts: dict[str, int] = {}
     try:
         es.require_pinned()
         for split in ("train", "development"):
-            rows = build(root / "benchmark" / "cases", split, es)
+            rows, skipped = build(root / "benchmark" / "cases", split, es)
+            counts[f"{split}_skipped_outside_contract"] = skipped
             out = root / "sft" / f"{split}.jsonl"
             out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             out.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8")
