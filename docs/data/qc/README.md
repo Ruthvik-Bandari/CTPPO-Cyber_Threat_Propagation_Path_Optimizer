@@ -215,3 +215,17 @@ These are paired results on 173 train and development cases from 48 roots. The t
 **Reading the natural row.** On 2 natural cases, B0's selected repair bought coverage with new false alarms on development events, so it weakened the rule (`adds_false_alarms`). B1 abstained on the same 2 cases. Their scores are equal, but B1's behavior is the safe one.
 
 Natural faults are where the deterministic baseline stops being perfect. For example, a fix that adds a new value cannot be produced by B0's operators. Five open natural cases are far too few for a conclusion, though. Every reviewed malicious OTRF event enlarges the positive pool and lets more of the 1,156 currently unobservable fixes be verified.
+
+## AI-assisted labeling of the OTRF candidates (2026-10-16)
+
+The owner approved AI-assisted labeling for this public dataset; the procedure is in [`../review.md`](../review.md#ai-assisted-labeling).
+
+The 175 candidates were split into four chunks. Two independent AI reviewers labeled each chunk from the same written criteria.
+
+- **Agreement:** 165 of 175 events (94.3%); Cohen's κ = 0.53, which is depressed by the skew toward "malicious".
+- **All 10 disagreements had the same shape:** reviewer A said malicious and reviewer B said unknown. Most were `conhost.exe` launched by a bare shell. A third reviewer adjudicated all 10 as `unknown`, because nothing tied the parent shell to the attack step.
+- **Imported labels:**
+  - malicious: 159 (`ai-consensus`);
+  - benign: 3 (`ai-consensus`);
+  - unknown: 13 (3 `ai-consensus`, 10 `ai-adjudicated`).
+- **Still to do before the split is frozen:** the human check. The owner re-labels the 10 adjudicated events and a seeded 10% sample of the consensus labels (17 events). The 27 event ids are in `review/human-check.txt` on the cluster. A human label always replaces an AI one, and results built on these labels report `ai_assisted` separately.
