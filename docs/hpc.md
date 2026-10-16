@@ -24,6 +24,9 @@ Every job charges the Slurm account `aai6610.202610` (`#SBATCH --account`).
 | `hpc/evaluate.sbatch <system> [--locked]` | `short` | 4 CPU, 12 GB, 4 h | Score a repair system on the train and development cases and write `reports/eval-<system>.json`. `--locked` adds the test split; run it once, after a system is chosen |
 | `hpc/fetch_model.sh` | transfer node | n/a | Download the B2 base model at its pinned revision (weights, config and tokenizer only) and write `MANIFEST.sha256` |
 | `hpc/b2.sbatch [--locked]` | `gpu`, V100-SXM2 32 GB | 4 CPU, 48 GB, 8 h | Evaluate B2 (unmodified Qwen2.5-Coder-7B-Instruct, fp16, greedy decoding) on the cases; needs `bash hpc/setup_env.sh gpu` |
+| `hpc/sft.sbatch` | `short` | 4 CPU, 12 GB, 2 h | Build M1 training examples from the train and development cases (never test) into `sft/` |
+| `hpc/m1.sbatch [--max-steps N] [--train-seed S]` | `gpu`, A100 | 8 CPU, 64 GB, 8 h | LoRA fine-tuning (bf16). Smoke with `--max-steps 5` first to measure memory and throughput. Writes the adapter to `models/` and `reports/m1-*-training.json` |
+| `hpc/m1_eval.sbatch <adapter> [--locked]` | `gpu`, V100-SXM2 | 4 CPU, 48 GB, 8 h | Evaluate base model plus adapter, the same way as B2 |
 
 The cluster has no Docker, so jobs run Elasticsearch from Elastic's official tarball with its
 bundled JDK. That is the same 8.19.3 release the local Docker image pins by digest. The engine

@@ -51,7 +51,7 @@ module-name = "aegissec"
 dev = ["pytest>=9", "pytest-cov>=6", "ruff>=0.14", "mypy>=1.18", "types-pyyaml"]
 # Cluster-only research inference (B2/M1); never part of the published wheel.
 # torch 2.6 wheels target CUDA 12.4: they run on the cluster driver (545, CUDA 12.3) and still support V100 (sm_70).
-gpu = ["torch>=2.6,<2.7", "transformers>=4.46,<5", "accelerate>=1.0"]
+gpu = ["torch>=2.6,<2.7", "transformers>=4.46,<5", "accelerate>=1.0", "peft>=0.13"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -82,5 +82,5 @@ mypy_path = "src"
 
 [[tool.mypy.overrides]]
 # GPU-only research dependencies (the "gpu" group), not installed in CI.
-module = ["torch", "transformers"]
+module = ["torch", "transformers", "peft"]
 ignore_missing_imports = true

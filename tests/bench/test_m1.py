@@ -1,0 +1,89 @@
+import json
+import os
+
+import pytest
+
+from aegisbench.m1 import encode
+from aegisbench.sft import build, reference_repair
+from aegissec.detect.engine import Elasticsearch
+from aegissec.detect.mapping import FieldMapping
+from aegissec.detect.rule import parse_rule
+
+ES_URL = os.environ.get("AEGIS_ES_URL", "http://127.0.0.1:9200")
+HEAD = "title: t\nlogsource: {category: process_creation, product: windows}\ndetection:\n"
+HEALTHY = parse_rule(HEAD + "  a: {Image|endswith: '\\\\x.exe'}\n  b: {User: s}\n  condition: a and not b\n")
+MAP = FieldMapping("m", {"Image": "process.executable", "User": "user.name"})
+
+
+def test_reference_repair_recovers_each_fault_kind():
+    stale = MAP.with_field("Image", "winlog.event_data.Image")
+    assert reference_repair(HEALTHY, stale, HEALTHY, MAP) == {
+        "candidates": [
+            {
+                "patch_kind": "mapping",
+                "patch": [
+                    {
+                        "kind": "mapping",
+                        "sigma_field": "Image",
+                        "from_field": "winlog.event_data.Image",
+                        "to_field": "process.executable",
+                    }
+                ],
+            }
+        ]
+    }
+    flipped = parse_rule(HEAD + "  a: {Image|endswith: '\\\\x.exe'}\n  b: {User: s}\n  condition: a and b\n")
+    op = reference_repair(flipped, MAP, HEALTHY, MAP)["candidates"][0]["patch"][0]
+    assert op == {"kind": "set_condition", "condition": "a and not b"}
+    exact = parse_rule(HEAD + "  a: {Image: '\\\\x.exe'}\n  b: {User: s}\n  condition: a and not b\n")
+    op = reference_repair(exact, MAP, HEALTHY, MAP)["candidates"][0]["patch"][0]
+    assert op["kind"] == "set_predicate" and op["predicate"]["modifier"] == "endswith"
+    assert reference_repair(HEALTHY, MAP, HEALTHY, MAP) == {"candidates": []}
+
+
+def test_sft_never_reads_the_locked_split(tmp_path):
+    with pytest.raises(ValueError, match="locked"):
+        build(tmp_path, "test", None)  # type: ignore[arg-type]
+
+
+class _Tok:
+    eos_token = "<e>"
+
+    def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+        return "U:" + messages[0]["content"] + "|A:"
+
+    def __call__(self, text, add_special_tokens):
+        return {"input_ids": [ord(c) for c in text]}
+
+
+def test_encode_masks_the_prompt_and_truncates_from_the_left():
+    ids, labels, cut = encode(_Tok(), {"prompt": "abc", "completion": "XY"}, max_tokens=100)
+    assert not cut and len(ids) == len(labels)
+    assert labels[: len("U:abc|A:")] == [-100] * len("U:abc|A:")
+    assert labels[-5:] == [ord(c) for c in "XY<e>"]
+    ids, labels, cut = encode(_Tok(), {"prompt": "a" * 50, "completion": "XY"}, max_tokens=10)
+    assert cut and len(ids) == 10 and labels[-5:] == [ord(c) for c in "XY<e>"]  # the target survives
+
+
+@pytest.mark.engine
+def test_sft_examples_are_valid_and_value_free(tmp_path):
+    from aegisbench.b2 import parse
+    from aegisbench.variants import build as build_variants
+    from tests.bench.test_variants import make_root, split_manifest
+
+    data = make_root(tmp_path)
+    manifest = split_manifest()
+    manifest["splits"] = {"train": manifest["splits"]["development"], "reserve": []}
+    es = Elasticsearch(ES_URL)
+    try:
+        build_variants(data, manifest, {"per_rule": {}}, benign=set(), es=es, seed="s")
+        rows = {r["kind"]: r for r in build(data / "benchmark/cases", "train", es)}
+    finally:
+        es.close()
+    assert sorted(rows) == ["healthy", "logic", "mapping", "missing_telemetry"]
+    assert json.loads(rows["healthy"]["completion"]) == {"candidates": []}
+    assert json.loads(rows["missing_telemetry"]["completion"]) == {"candidates": []}
+    rule = parse_rule((next((data / "benchmark/cases/train").glob("*-mapping")) / "rule.yml").read_text())
+    candidates, dropped = parse(rows["mapping"]["completion"], rule, "a" * 64)
+    assert len(candidates) == 1 and dropped == 0 and candidates[0].patch_kind == "mapping"
+    assert all("-urlcache" not in r["prompt"].split("EVIDENCE")[1] for r in rows.values())  # no event values

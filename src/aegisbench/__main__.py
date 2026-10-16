@@ -1,4 +1,4 @@
-"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants,evaluate} --root DIR [--source NAME ...] [--es-url URL]``.
+"""``python -m aegisbench {acquire,qc,replay,review-sheet,review-status,split,variants,evaluate,sft,train-m1} --root DIR [--source NAME ...] [--es-url URL]``.
 
 ``acquire`` writes ``<root>/<source>/`` checkouts and ``<root>/manifests/<source>.json``.
 ``qc`` re-verifies each manifest against disk, then writes ``<root>/reports/qc-<source>.json``.
@@ -7,7 +7,8 @@
 ``split`` previews the root-grouped split (``reports/split-preview.json``); ``--freeze`` writes
 ``benchmark/split-manifest.json`` once. ``variants`` writes impairment cases (private) and
 ``reports/variants.json``. ``evaluate`` scores a repair system on the cases (train and development;
-``--locked`` adds the test split) into ``reports/eval-<system>.json``.
+``--locked`` adds the test split) into ``reports/eval-<system>.json``. ``sft`` writes M1 training
+examples (train and development); ``train-m1`` fits the LoRA adapter on a GPU.
 Exit status is 1 if any source fails, so a Slurm job fails visibly. ``acquire`` uses only the
 standard library, so it runs on the cluster transfer node without the project environment.
 """
@@ -67,6 +68,50 @@ def _reviewed(root: Path, report: dict[str, object]) -> dict[str, str]:
     if problems:
         raise ReviewError(f"{len(problems)} invalid label rows; run review-status")
     return labels
+
+
+def _sft(root: Path, es_url: str) -> int:
+    from aegissec.core.errors import Rejected
+    from aegissec.detect.engine import Elasticsearch
+
+    from .sft import build
+
+    es = Elasticsearch(es_url, timeout=120.0)
+    counts = {}
+    try:
+        es.require_pinned()
+        for split in ("train", "development"):
+            rows = build(root / "benchmark" / "cases", split, es)
+            out = root / "sft" / f"{split}.jsonl"
+            out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            out.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8")
+            counts[split] = len(rows)
+    except (Rejected, OSError, ValueError) as exc:
+        print(f"sft: FAILED {exc}", file=sys.stderr)
+        return 1
+    finally:
+        es.close()
+    print(f"sft: {counts}")
+    return 0
+
+
+def _train_m1(root: Path, max_steps: int, seed: int) -> int:
+    from .m1 import TrainConfig, train
+
+    snapshot = os.environ.get("AEGIS_B2_SNAPSHOT")
+    if not snapshot:
+        print("train-m1: set AEGIS_B2_SNAPSHOT", file=sys.stderr)
+        return 2
+    name = f"m1-seed{seed}" + (f"-smoke{max_steps}" if max_steps else "")
+    cfg = TrainConfig(seed=seed, max_steps=max_steps)
+    manifest = train(
+        Path(snapshot), root / "sft/train.jsonl", root / "sft/development.jsonl", root / "models" / name, cfg
+    )
+    _write_json(root / "reports" / f"{name}-training.json", manifest)
+    print(
+        f"train-m1: {json.dumps({k: manifest[k] for k in ('optimizer_steps', 'history', 'peak_gpu_memory_gb', 'tokens_per_second', 'truncated_examples', 'gpu')})}"
+    )
+    return 0
 
 
 def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool) -> int:
@@ -204,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
             "split",
             "variants",
             "evaluate",
+            "sft",
+            "train-m1",
         ],
     )
     parser.add_argument("--root", type=Path, required=True, help="data root outside the repository")
@@ -214,6 +261,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, help="variants: split manifest (default: the frozen one)")
     parser.add_argument("--system", default="b0", help="evaluate: repair system")
     parser.add_argument("--locked", action="store_true", help="evaluate: include the locked test split")
+    parser.add_argument("--max-steps", type=int, default=0, help="train-m1: stop after N steps (smoke run)")
+    parser.add_argument("--train-seed", type=int, default=1, help="train-m1: training seed")
     parser.add_argument("--event", help="review-label: event id")
     parser.add_argument("--label", choices=["malicious", "benign", "unknown"], help="review-label: decision")
     parser.add_argument("--rationale", default="", help="review-label: what decided it (one line)")
@@ -232,6 +281,10 @@ def main(argv: list[str] | None = None) -> int:
         return _label(root, args)
     if args.command == "split":
         return _split(root, args.seed, args.freeze)
+    if args.command == "sft":
+        return _sft(root, args.es_url)
+    if args.command == "train-m1":
+        return _train_m1(root, args.max_steps, args.train_seed)
     if args.command == "evaluate":
         return _evaluate(root, args.system, args.es_url, locked=args.locked)
     if args.command == "variants":

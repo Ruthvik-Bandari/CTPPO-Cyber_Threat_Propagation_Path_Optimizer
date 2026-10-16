@@ -16,7 +16,8 @@ from .b2 import Model
 MAX_NEW_TOKENS = 768
 
 
-def load(snapshot: Path) -> Model:
+def load(snapshot: Path, adapter: Path | None = None) -> Model:
+    """``adapter``: an M1 LoRA adapter directory to apply on top of the base snapshot."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -25,6 +26,10 @@ def load(snapshot: Path) -> Model:
     model: Any = AutoModelForCausalLM.from_pretrained(
         snapshot, local_files_only=True, trust_remote_code=False, torch_dtype=dtype, device_map="auto"
     )
+    if adapter is not None:
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(model, adapter, is_trainable=False)
     model.eval()
 
     def complete(prompt: str) -> str:
