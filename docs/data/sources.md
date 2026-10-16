@@ -10,6 +10,12 @@ file, then re-run `python -m aegisbench acquire` and `qc`.
 | [OTRF/Security-Datasets](https://github.com/OTRF/Security-Datasets) | commit `d9d40ef123d2c87d5d3df28c96bcab4f0faccc87` (2023-09-20) | MIT | `datasets/atomic/windows` recorded telemetry and the `datasets/atomic/_metadata` ATT&CK mappings | Use, copy, modify and redistribute with the MIT notice. |
 | [redcanaryco/atomic-red-team](https://github.com/redcanaryco/atomic-red-team) | commit `388942adbd9641f4dfdcf079d7efe9a75ec0ac43` (2026-09-05) | MIT | `atomics/` test definitions, read as data | Use with the MIT notice. Running a test is a separate act: it needs an authorized, isolated lab (see `policy.md`). |
 
+## Models
+
+| Model | Pinned revision | License | Use |
+| --- | --- | --- | --- |
+| [Qwen/Qwen2.5-Coder-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct) | `c03e6d358207e414f1eca0bb1891e29f1db0e242` | Apache-2.0 | B2, the unmodified baseline, and the base for M1 LoRA. Only weights, config and tokenizer are fetched (`hpc/fetch_model.sh`); it is loaded with `trust_remote_code=False`. |
+
 ## Recorded per acquisition
 
 `<root>/manifests/<source>.json` records each acquisition:

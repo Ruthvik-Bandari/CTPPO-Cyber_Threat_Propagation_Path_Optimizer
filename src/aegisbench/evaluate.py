@@ -46,8 +46,25 @@ def _b1(cases_root: Path) -> System:
     return lambda inputs, es: b0_run(inputs, es, generator=propose)
 
 
+# Per-run counters a system may record (B2: model calls, valid and dropped proposals).
+SYSTEM_STATS: dict[str, int] = {}
+
+
+def _b2(cases_root: Path) -> System:
+    import os
+
+    from .b2 import generator
+    from .hf import load
+
+    snapshot = os.environ.get("AEGIS_B2_SNAPSHOT")
+    if not snapshot:
+        raise ValueError("set AEGIS_B2_SNAPSHOT to the local model snapshot (hpc/fetch_model.sh)")
+    propose = generator(load(Path(snapshot)), SYSTEM_STATS)
+    return lambda inputs, es: b0_run(inputs, es, generator=propose)
+
+
 # System factories: each builds its system from the case root (B1 reads its train-split memory).
-SYSTEMS: dict[str, Callable[[Path], System]] = {"b0": _b0, "b1": _b1}
+SYSTEMS: dict[str, Callable[[Path], System]] = {"b0": _b0, "b1": _b1, "b2": _b2}
 BOOTSTRAP_REPS = 2000
 OPEN_SPLITS = ("train", "development")
 

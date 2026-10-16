@@ -14,7 +14,7 @@ Every job charges the Slurm account `aai6610.202610` (`#SBATCH --account`).
 | Job | Partition | Resources | Purpose |
 | --- | --- | --- | --- |
 | `hpc/smoke_gpu.sbatch` | `gpu-short` | 1 GPU, 5 min | Record GPU, driver, CUDA and Python |
-| `hpc/setup_env.sh` | login node | n/a | Build the locked environment (`uv sync --frozen`) once per pull |
+| `hpc/setup_env.sh [gpu]` | login node | n/a | Build the locked environment (`uv sync --frozen`) once per pull; `gpu` adds torch 2.6 (CUDA 12.4) and transformers for B2 and M1 |
 | `hpc/acquire.sh` | transfer node | n/a | Fetch pinned sources and write manifests (standard library only) |
 | `hpc/qc.sbatch` | `short` | 2 CPU, 8 GB, 1 h | Offline: verify manifests, write aggregate QC reports |
 | `hpc/fetch_engine.sh` | transfer node | n/a | Download Elasticsearch 8.19.3 (Linux tarball, SHA-512 pinned in the script) to scratch |
@@ -22,6 +22,8 @@ Every job charges the Slurm account `aai6610.202610` (`#SBATCH --account`).
 | `hpc/review_split.sbatch` | `short` | 1 CPU, 4 GB, 30 min | Write the private OTRF review sheet (`review/`, mode 0600), report review progress, and write the split preview |
 | `hpc/variants.sbatch [manifest]` | `short` | 4 CPU, 12 GB, 2 h | Generate and verify the impairment cases for every root in the split (`benchmark/cases/`, private), and write `reports/variants.json`. It uses the frozen split, or a manifest path relative to the data root |
 | `hpc/evaluate.sbatch <system> [--locked]` | `short` | 4 CPU, 12 GB, 4 h | Score a repair system on the train and development cases and write `reports/eval-<system>.json`. `--locked` adds the test split; run it once, after a system is chosen |
+| `hpc/fetch_model.sh` | transfer node | n/a | Download the B2 base model at its pinned revision (weights, config and tokenizer only) and write `MANIFEST.sha256` |
+| `hpc/b2.sbatch [--locked]` | `gpu`, V100-SXM2 32 GB | 4 CPU, 48 GB, 8 h | Evaluate B2 (unmodified Qwen2.5-Coder-7B-Instruct, fp16, greedy decoding) on the cases; needs `bash hpc/setup_env.sh gpu` |
 
 The cluster has no Docker, so jobs run Elasticsearch from Elastic's official tarball with its
 bundled JDK. That is the same 8.19.3 release the local Docker image pins by digest. The engine

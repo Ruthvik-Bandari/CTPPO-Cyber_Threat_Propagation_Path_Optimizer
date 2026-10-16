@@ -73,7 +73,7 @@ def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool) -> int
     from aegissec.core.errors import Rejected
     from aegissec.detect.engine import Elasticsearch
 
-    from .evaluate import SYSTEMS, run_cases, summarize
+    from .evaluate import SYSTEM_STATS, SYSTEMS, run_cases, summarize
 
     if system_name not in SYSTEMS:
         print(f"evaluate: unknown system {system_name!r}; choose from {sorted(SYSTEMS)}", file=sys.stderr)
@@ -90,7 +90,13 @@ def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool) -> int
         es.close()
     suffix = "-locked" if locked else ""
     summary = summarize(rows)
-    result = {"schema_version": 1, "system": system_name, "locked_test_included": locked, "summary": summary}
+    result = {
+        "schema_version": 1,
+        "system": system_name,
+        "locked_test_included": locked,
+        "system_stats": dict(SYSTEM_STATS),
+        "summary": summary,
+    }
     _write_json(root / "reports" / f"eval-{system_name}{suffix}.json", {**result, "cases": rows})
     print(f"evaluate: {json.dumps(summary['overall'])}")
     return 0
