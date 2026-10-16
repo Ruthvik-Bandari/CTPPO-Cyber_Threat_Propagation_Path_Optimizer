@@ -155,3 +155,63 @@ Outcome match by fault, for both systems:
    - natural maintenance faults mined from SigmaHQ's own history, where a rule was later fixed (plan section 11 provenance `natural`);
    - multi-edit faults;
    - mappings where the replacement field is renamed differently from the stale one.
+
+## Natural faults from SigmaHQ history, and the second baseline run (2026-10-16)
+
+### Mining
+
+Jobs 11139335 (mining and verification), 11140135 (cases) and 11140597/8 (evaluation). `python -m aegisbench natural-mine` walked SigmaHQ's history up to the pinned commit (`natural-mining.json`). It found **1,403 detection-changing maintenance commits across 568 supported rules**, and 739 of them fit the repair contract. It skipped:
+
+- 6,508 metadata-only edits;
+- 3,920 versions outside the supported subset;
+- 2,181 changes to rules that are not supported at the pin;
+- selection renames, which are refactors rather than faults.
+
+Classified by AST diff, the change kinds are:
+
+| Kind | Changes |
+| --- | --- |
+| condition | 522 |
+| selection added | 472 |
+| values added | 437 |
+| selection removed | 376 |
+| values changed | 305 |
+| field | 149 |
+| modifier | 129 |
+| values removed | 86 |
+
+### Verification
+
+`natural-verify` replayed every pair against all 137 SigmaHQ regression recordings (`natural-verified.json`).
+
+- **27 pairs in 26 rules are verified.** In each, the maintainers' fix catches a recorded attack that the earlier version missed.
+- In 1,156 pairs the fix matches no recording. These are unobservable with the current positives, not refuted.
+- 216 pairs are not coverage fixes. Most of these are false-positive fixes, which need reviewed benign events to verify.
+- 4 pairs failed pySigma conversion and were counted as errors.
+
+The verified rules joined the split preview as roots, so 112 roots are eligible. Six verified pairs landed in the open and test splits (3 train, 2 development, 1 test); the others are in reserve.
+
+### Reference negatives (fixed)
+
+Background events used to be labeled `unknown`, so a repair that *weakened* a rule until it caught a missed attack was never charged with a false alarm. Negatives are now labeled benign relative to the rule, using the healthy reference as the oracle (plan section 10). A plan section 9 negative-control test proves that an always-true style candidate now fails validation.
+
+### Results
+
+These are paired results on 173 train and development cases from 48 roots. The test split was not read.
+
+| System | Validated success | Outcome match | Wrong change | Abstained |
+| --- | --- | --- | --- | --- |
+| B0 | 0.520 (95% CI 0.480–0.572) | 0.977 | 0.000 | 0.006 |
+| B1 | 0.520 | 0.977 | 0.000 | 0.017 |
+
+| Kind (cases) | B0 success / outcome match | B1 success / outcome match |
+| --- | --- | --- |
+| healthy (48) | 1.00 / 1.00 | 1.00 / 1.00 |
+| logic (48) | 0.06 / 1.00 | 0.06 / 1.00 |
+| mapping (36) | 0.08 / 0.97 | 0.08 / 0.97 |
+| missing telemetry (36) | 0.97 / 0.97 | 0.97 / 0.97 |
+| **natural (5)** | **0.20 / 0.60** | **0.20 / 0.60** |
+
+**Reading the natural row.** On 2 natural cases, B0's selected repair bought coverage with new false alarms on development events, so it weakened the rule (`adds_false_alarms`). B1 abstained on the same 2 cases. Their scores are equal, but B1's behavior is the safe one.
+
+Natural faults are where the deterministic baseline stops being perfect. For example, a fix that adds a new value cannot be produced by B0's operators. Five open natural cases are far too few for a conclusion, though. Every reviewed malicious OTRF event enlarges the positive pool and lets more of the 1,156 currently unobservable fixes be verified.

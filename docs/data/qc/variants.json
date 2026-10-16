@@ -1,19 +1,19 @@
 {
-  "cases": 214,
+  "cases": 210,
   "cases_by_kind": {
-    "healthy": 61,
-    "logic": 61,
-    "mapping": 46,
-    "missing_telemetry": 46
+    "healthy": 60,
+    "logic": 60,
+    "mapping": 45,
+    "missing_telemetry": 45
   },
   "cases_by_split": {
     "development": 40,
-    "test": 44,
-    "train": 130
+    "test": 42,
+    "train": 128
   },
-  "cases_without_validation_suite": 202,
+  "cases_without_validation_suite": 198,
   "discarded": {
-    "logic:no_behavior_change": 29,
+    "logic:no_behavior_change": 25,
     "logic:positives_still_detected": 13,
     "mapping:no_behavior_change": 15,
     "missing_telemetry:no_behavior_change": 15

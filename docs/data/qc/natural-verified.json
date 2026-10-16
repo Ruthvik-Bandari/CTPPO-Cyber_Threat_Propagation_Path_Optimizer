@@ -1,0 +1,250 @@
+{
+  "pool_events": 137,
+  "schema_version": 1,
+  "verdicts": {
+    "engine:conversion_failed": 4,
+    "fix_detects_no_positive": 1156,
+    "not_a_coverage_fix": 216,
+    "verified": 27
+  },
+  "verified": [
+    {
+      "change": 28,
+      "commit": "d4d12bdd13deb0c799dc9a7f603132b53e577397",
+      "positives": [
+        "sigma:ad691d92-15f2-4181-9aa4-723c74f9ddc3:0"
+      ],
+      "rule_id": "ad691d92-15f2-4181-9aa4-723c74f9ddc3"
+    },
+    {
+      "change": 33,
+      "commit": "2022e3b42051f36a94e5870e3278e7e118195c78",
+      "positives": [
+        "sigma:2ddef153-167b-4e89-86b6-757a9e65dcac:0",
+        "sigma:5b80a791-ad9b-4b75-bcc1-ad4e1e89c200:0"
+      ],
+      "rule_id": "8518ed3d-f7c9-4601-a26c-f361a4256a0c"
+    },
+    {
+      "change": 37,
+      "commit": "685194383b4d6e594ec264e7d92270108783197d",
+      "positives": [
+        "sigma:e218595b-bbe7-4ee5-8a96-f32a24ad3468:0"
+      ],
+      "rule_id": "56454143-524f-49fb-b1c6-3fb8b1ad41fb"
+    },
+    {
+      "change": 38,
+      "commit": "c5b881019a6f141401c0cf1444ec83799afa98fb",
+      "positives": [
+        "sigma:c598cc0c-9e70-4852-b9eb-8921af79f598:0"
+      ],
+      "rule_id": "c598cc0c-9e70-4852-b9eb-8921af79f598"
+    },
+    {
+      "change": 45,
+      "commit": "2cb7375c6b1d8035bf773ef29d065793b645eb37",
+      "positives": [
+        "sigma:0e8cfe08-02c9-4815-a2f8-0d157b7ed33e:0",
+        "sigma:94771a71-ba41-4b6e-a757-b531372eaab6:0"
+      ],
+      "rule_id": "94771a71-ba41-4b6e-a757-b531372eaab6"
+    },
+    {
+      "change": 61,
+      "commit": "0c2b76e7d9b5f472232c0584bf7937103c80b635",
+      "positives": [
+        "sigma:c79da740-5030-45ec-a2e0-479e824a562c:0"
+      ],
+      "rule_id": "c79da740-5030-45ec-a2e0-479e824a562c"
+    },
+    {
+      "change": 95,
+      "commit": "7a81b073e06c26db2eec1de60a3a1289f110a248",
+      "positives": [
+        "sigma:762bb580-79b4-40f4-8b9e-9349ce1710f4:0"
+      ],
+      "rule_id": "7d6d30b8-5b91-4b90-a891-46cccaf29598"
+    },
+    {
+      "change": 363,
+      "commit": "1299b21561856e439677749aaded515514247dd8",
+      "positives": [
+        "sigma:5b80a791-ad9b-4b75-bcc1-ad4e1e89c200:0"
+      ],
+      "rule_id": "2ddef153-167b-4e89-86b6-757a9e65dcac"
+    },
+    {
+      "change": 450,
+      "commit": "1378cf6d751ef10ceda4916b624a90fce8ad376e",
+      "positives": [
+        "sigma:15434e33-5027-4914-88d5-3d4145ec25a9:0",
+        "sigma:3e3ceccd-6c06-48b8-b5ff-ab1d25db8c1d:0",
+        "sigma:847d5ff3-8a31-4737-a970-aeae8fe21765:0",
+        "sigma:b53317a0-8acf-4fd1-8de8-a5401e776b96:0"
+      ],
+      "rule_id": "15434e33-5027-4914-88d5-3d4145ec25a9"
+    },
+    {
+      "change": 491,
+      "commit": "4f59a13d46b9a9a0d6465034bbd8586c0bda2f8f",
+      "positives": [
+        "sigma:9d7ca793-f6bd-471c-8d0f-11e68b2f0d2f:0"
+      ],
+      "rule_id": "9d7ca793-f6bd-471c-8d0f-11e68b2f0d2f"
+    },
+    {
+      "change": 492,
+      "commit": "4f59a13d46b9a9a0d6465034bbd8586c0bda2f8f",
+      "positives": [
+        "sigma:dfd2fcb7-8bd5-4daa-b132-5adb61d6ad45:0"
+      ],
+      "rule_id": "dfd2fcb7-8bd5-4daa-b132-5adb61d6ad45"
+    },
+    {
+      "change": 494,
+      "commit": "4f59a13d46b9a9a0d6465034bbd8586c0bda2f8f",
+      "positives": [
+        "sigma:0b7163dc-7eee-4960-af17-c0cd517f92da:0",
+        "sigma:68bcd73b-37ef-49cb-95fc-edc809730be6:0",
+        "sigma:c0514f28-fdae-42df-b886-06e2b2bc5b37:0"
+      ],
+      "rule_id": "76f55eaa-d27f-4213-9d45-7b0e4b60bbae"
+    },
+    {
+      "change": 496,
+      "commit": "4f59a13d46b9a9a0d6465034bbd8586c0bda2f8f",
+      "positives": [
+        "sigma:0b7163dc-7eee-4960-af17-c0cd517f92da:0",
+        "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0",
+        "sigma:49d9671b-0a0a-4c09-8280-d215bfd30662:0",
+        "sigma:51cbac1e-eee3-4a90-b1b7-358efb81fa0a:0",
+        "sigma:526be59f-a573-4eea-b5f7-f0973207634d:0",
+        "sigma:7773b877-5abb-4a3e-b9c9-fd0369b59b00:0",
+        "sigma:c0514f28-fdae-42df-b886-06e2b2bc5b37:0",
+        "sigma:c453ab7a-1f5c-4716-a3b4-dea8135fb43a:0"
+      ],
+      "rule_id": "b53317a0-8acf-4fd1-8de8-a5401e776b96"
+    },
+    {
+      "change": 761,
+      "commit": "0d86ec83b52769e5b480681f8cf465919308f0c0",
+      "positives": [
+        "sigma:8f3ab69a-aa22-4943-aa58-e0a52fdf6818:0"
+      ],
+      "rule_id": "737e618a-a410-49b5-bec3-9e55ff7fbc15"
+    },
+    {
+      "change": 791,
+      "commit": "f55f4ca2d683addbdf7324141d0018f363041ce4",
+      "positives": [
+        "sigma:9ec9fb1b-e059-4489-9642-f270c207923d:0"
+      ],
+      "rule_id": "b7e2a8d4-74bb-4b78-adc9-3f92af2d4829"
+    },
+    {
+      "change": 917,
+      "commit": "f51547fe9606717c175688cfc58b4cf459283665",
+      "positives": [
+        "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0"
+      ],
+      "rule_id": "5cdb711b-5740-4fb2-ba88-f7945027afac"
+    },
+    {
+      "change": 933,
+      "commit": "c38bfe86da42f6aeefefa9b93917afaedc06b69f",
+      "positives": [
+        "sigma:54773c5f-f1cc-4703-9126-2f797d96a69d:0",
+        "sigma:d2125259-ddea-4c1c-9c22-977eb5b29cf0:0"
+      ],
+      "rule_id": "dd6b39d9-d9be-4a3b-8fe0-fe3c6a5c1795"
+    },
+    {
+      "change": 949,
+      "commit": "43f952269151941c55022861f788992be53550e3",
+      "positives": [
+        "sigma:5cb299fc-5fb1-4d07-b989-0644c68b6043:0"
+      ],
+      "rule_id": "e218595b-bbe7-4ee5-8a96-f32a24ad3468"
+    },
+    {
+      "change": 1064,
+      "commit": "875233ca43b077f4d32c21d44ebe2d287e2a2c33",
+      "positives": [
+        "sigma:5cb299fc-5fb1-4d07-b989-0644c68b6043:0",
+        "sigma:9cc85849-3b02-4cb5-b371-3a1ff54f2218:0"
+      ],
+      "rule_id": "e218595b-bbe7-4ee5-8a96-f32a24ad3468"
+    },
+    {
+      "change": 1068,
+      "commit": "d9836d9fe48e062533720c712e874594699fea37",
+      "positives": [
+        "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
+        "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:0",
+        "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:1",
+        "sigma:beaa66d6-aa1b-4e3c-80f5-e0145369bfaf:0"
+      ],
+      "rule_id": "36475a7d-0f6d-4dce-9b01-6aeb473bbaf1"
+    },
+    {
+      "change": 1198,
+      "commit": "329b5aa0eb6563a097387fb6ae0eec565cba3447",
+      "positives": [
+        "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
+      ],
+      "rule_id": "87e3c4e8-a6a8-4ad9-bb4f-46e7ff99a180"
+    },
+    {
+      "change": 1205,
+      "commit": "fb71c1bb6791997924cb7f8ce53b6a04c0d26b31",
+      "positives": [
+        "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
+      ],
+      "rule_id": "a77c1610-fc73-4019-8e29-0f51efc04a51"
+    },
+    {
+      "change": 1217,
+      "commit": "b0b9d32dfacd6012194cec68a611c4cd7f8cf0ad",
+      "positives": [
+        "sigma:221b251a-357a-49a9-920a-271802777cc0:0",
+        "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
+        "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
+      ],
+      "rule_id": "4e2ed651-1906-4a59-a78a-18220fca1b22"
+    },
+    {
+      "change": 1228,
+      "commit": "5f37a1e25f7cc49381751e30f876cfb11bb95c4d",
+      "positives": [
+        "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
+      ],
+      "rule_id": "fb843269-508c-4b76-8b8d-88679db22ce7"
+    },
+    {
+      "change": 1311,
+      "commit": "1114a25a2c29841069b439609fe38b236a360563",
+      "positives": [
+        "sigma:526be59f-a573-4eea-b5f7-f0973207634d:0"
+      ],
+      "rule_id": "526be59f-a573-4eea-b5f7-f0973207634d"
+    },
+    {
+      "change": 1313,
+      "commit": "0a6f7763aa7dd8099d1f256dfeb0a4a9b9358b83",
+      "positives": [
+        "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
+      ],
+      "rule_id": "a7ee1722-c3c5-aeff-3212-c777e4733217"
+    },
+    {
+      "change": 1391,
+      "commit": "7d437c29694435ca79d92b0b8162c0e043ff89b5",
+      "positives": [
+        "sigma:36480ae1-a1cb-4eaa-a0d6-29801d7e9142:0"
+      ],
+      "rule_id": "36480ae1-a1cb-4eaa-a0d6-29801d7e9142"
+    }
+  ],
+  "verified_rules": 26
+}

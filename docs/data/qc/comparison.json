@@ -1,33 +1,35 @@
 {
   "baseline": "b0",
-  "cases": 170,
+  "cases": 173,
   "locked_test_included": false,
   "note": "Exploratory: a small benchmark of synthetic faults on public telemetry; intervals resample roots.",
-  "roots": 49,
+  "roots": 48,
   "schema_version": 1,
   "systems": {
     "b0": {
-      "abstention_rate": 0.0059,
+      "abstention_rate": 0.0058,
       "by_kind": {
         "healthy": 1.0,
-        "logic": 0.0612,
+        "logic": 0.0625,
         "mapping": 0.0833,
-        "missing_telemetry": 0.9722
+        "missing_telemetry": 0.9722,
+        "natural": 0.2
       },
-      "outcome_match_rate": 0.9882,
-      "success_rate": 0.5294,
+      "outcome_match_rate": 0.9769,
+      "success_rate": 0.5202,
       "wrong_change_rate": 0.0
     },
     "b1": {
-      "abstention_rate": 0.0059,
+      "abstention_rate": 0.0173,
       "by_kind": {
         "healthy": 1.0,
-        "logic": 0.0612,
+        "logic": 0.0625,
         "mapping": 0.0833,
-        "missing_telemetry": 0.9722
+        "missing_telemetry": 0.9722,
+        "natural": 0.2
       },
-      "outcome_match_rate": 0.9882,
-      "success_rate": 0.5294,
+      "outcome_match_rate": 0.9769,
+      "success_rate": 0.5202,
       "vs_baseline": {
         "cases_lost": 0,
         "cases_won": 0,

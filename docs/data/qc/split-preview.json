@@ -1,36 +1,12 @@
 {
-  "eligible_roots": 101,
-  "largest_group": 19,
+  "eligible_roots": 112,
+  "largest_group": 34,
+  "natural_roots_added": 11,
   "reviewed_malicious_events": 0,
   "schema_version": 1,
   "seed": "aegis-bench-v1",
   "splits": {
     "development": [
-      {
-        "rules": [
-          {
-            "id": "455b9d50-15a1-4b99-853f-8d37655a4c1b",
-            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_enumeration.yml",
-            "positive_event_ids": [
-              "sigma:455b9d50-15a1-4b99-853f-8d37655a4c1b:0"
-            ]
-          },
-          {
-            "id": "514e7e3e-b3b4-4a67-af60-be20f139198b",
-            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_execution.yml",
-            "positive_event_ids": [
-              "sigma:514e7e3e-b3b4-4a67-af60-be20f139198b:0"
-            ]
-          },
-          {
-            "id": "9a132afa-654e-11eb-ae93-0242ac130002",
-            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_susp_usage.yml",
-            "positive_event_ids": [
-              "sigma:9a132afa-654e-11eb-ae93-0242ac130002:0"
-            ]
-          }
-        ]
-      },
       {
         "rules": [
           {
@@ -106,6 +82,24 @@
       {
         "rules": [
           {
+            "id": "737e618a-a410-49b5-bec3-9e55ff7fbc15",
+            "path": "rules/windows/process_creation/proc_creation_win_calc_uncommon_exec.yml",
+            "positive_event_ids": [
+              "sigma:8f3ab69a-aa22-4943-aa58-e0a52fdf6818:0"
+            ]
+          },
+          {
+            "id": "8f3ab69a-aa22-4943-aa58-e0a52fdf6818",
+            "path": "rules/windows/process_creation/proc_creation_win_user_shell_folders_registry_modification.yml",
+            "positive_event_ids": [
+              "sigma:8f3ab69a-aa22-4943-aa58-e0a52fdf6818:0"
+            ]
+          }
+        ]
+      },
+      {
+        "rules": [
+          {
             "id": "da92713f-ca2d-4fab-8320-098013d3f43a",
             "path": "rules/windows/process_creation/proc_creation_win_systemsettingsadminflows_defender_disable.yml",
             "positive_event_ids": [
@@ -113,53 +107,20 @@
             ]
           }
         ]
+      },
+      {
+        "rules": [
+          {
+            "id": "277a4393-446c-449a-b0ed-7fdc7795244c",
+            "path": "rules/windows/process_creation/proc_creation_win_renamed_ftp.yml",
+            "positive_event_ids": [
+              "sigma:277a4393-446c-449a-b0ed-7fdc7795244c:0"
+            ]
+          }
+        ]
       }
     ],
     "reserve": [
-      {
-        "rules": [
-          {
-            "id": "c7942406-33dd-4377-a564-0f62db0593a3",
-            "path": "rules/windows/process_creation/proc_creation_win_chcp_codepage_switch.yml",
-            "positive_event_ids": [
-              "sigma:c7942406-33dd-4377-a564-0f62db0593a3:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "7638e5fe-600c-4289-a968-f49dd537ec7d",
-            "path": "rules/windows/process_creation/proc_creation_win_hktl_netexec.yml",
-            "positive_event_ids": [
-              "sigma:7638e5fe-600c-4289-a968-f49dd537ec7d:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "df55196f-f105-44d3-a675-e9dfb6cc2f2b",
-            "path": "rules/windows/process_creation/proc_creation_win_renamed_adfind.yml",
-            "positive_event_ids": [
-              "sigma:df55196f-f105-44d3-a675-e9dfb6cc2f2b:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "afa71271-6a97-4e47-810f-83120fb1a4ce",
-            "path": "rules/windows/process_creation/proc_creation_win_node_new_agent_skills_installed.yml",
-            "positive_event_ids": [
-              "sigma:afa71271-6a97-4e47-810f-83120fb1a4ce:0"
-            ]
-          }
-        ]
-      },
       {
         "rules": [
           {
@@ -173,7 +134,10 @@
             "id": "15434e33-5027-4914-88d5-3d4145ec25a9",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_recon_product.yml",
             "positive_event_ids": [
-              "sigma:15434e33-5027-4914-88d5-3d4145ec25a9:0"
+              "sigma:15434e33-5027-4914-88d5-3d4145ec25a9:0",
+              "sigma:3e3ceccd-6c06-48b8-b5ff-ab1d25db8c1d:0",
+              "sigma:847d5ff3-8a31-4737-a970-aeae8fe21765:0",
+              "sigma:b53317a0-8acf-4fd1-8de8-a5401e776b96:0"
             ]
           },
           {
@@ -191,10 +155,27 @@
             ]
           },
           {
+            "id": "36475a7d-0f6d-4dce-9b01-6aeb473bbaf1",
+            "path": "rules/windows/process_creation/proc_creation_win_lolbin_syncappvpublishingserver_vbs_execute_psh.yml",
+            "positive_event_ids": [
+              "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
+              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:0",
+              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:1",
+              "sigma:beaa66d6-aa1b-4e3c-80f5-e0145369bfaf:0"
+            ]
+          },
+          {
             "id": "3c89a1e8-0fba-449e-8f1b-8409d6267ec8",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_susp_process_creation.yml",
             "positive_event_ids": [
               "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0"
+            ]
+          },
+          {
+            "id": "3d3aa6cd-6272-44d6-8afc-7e88dfef7061",
+            "path": "rules/windows/process_creation/proc_creation_win_cmd_assoc_execution.yml",
+            "positive_event_ids": [
+              "sigma:3d3aa6cd-6272-44d6-8afc-7e88dfef7061:0"
             ]
           },
           {
@@ -205,10 +186,33 @@
             ]
           },
           {
+            "id": "41ca393d-538c-408a-ac27-cf1e038be80c",
+            "path": "rules/windows/process_creation/proc_creation_win_cmd_rmdir_execution.yml",
+            "positive_event_ids": [
+              "sigma:41ca393d-538c-408a-ac27-cf1e038be80c:0"
+            ]
+          },
+          {
             "id": "49d9671b-0a0a-4c09-8280-d215bfd30662",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_terminate_application.yml",
             "positive_event_ids": [
               "sigma:49d9671b-0a0a-4c09-8280-d215bfd30662:0"
+            ]
+          },
+          {
+            "id": "4e2ed651-1906-4a59-a78a-18220fca1b22",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_nircmd.yml",
+            "positive_event_ids": [
+              "sigma:221b251a-357a-49a9-920a-271802777cc0:0",
+              "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
+              "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
+            ]
+          },
+          {
+            "id": "50a0aa3d-ab16-4594-a8aa-5145a6e6792b",
+            "path": "rules/windows/process_creation/proc_creation_win_python_base64_encoded_execution.yml",
+            "positive_event_ids": [
+              "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0"
             ]
           },
           {
@@ -226,6 +230,20 @@
             ]
           },
           {
+            "id": "5cdb711b-5740-4fb2-ba88-f7945027afac",
+            "path": "rules/windows/process_creation/proc_creation_win_rundll32_unc_path.yml",
+            "positive_event_ids": [
+              "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0"
+            ]
+          },
+          {
+            "id": "6385697e-9f1b-40bd-8817-f4a91f40508e",
+            "path": "rules/windows/process_creation/proc_creation_win_powershell_base64_invoke.yml",
+            "positive_event_ids": [
+              "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
+            ]
+          },
+          {
             "id": "68bcd73b-37ef-49cb-95fc-edc809730be6",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_recon_unquoted_service_search.yml",
             "positive_event_ids": [
@@ -233,10 +251,28 @@
             ]
           },
           {
+            "id": "7124aebe-4cd7-4ccb-8df0-6d6b93c96795",
+            "path": "rules/windows/process_creation/proc_creation_win_dtrace_kernel_dump.yml",
+            "positive_event_ids": [
+              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:0",
+              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:1"
+            ]
+          },
+          {
             "id": "76f55eaa-d27f-4213-9d45-7b0e4b60bbae",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_recon_service.yml",
             "positive_event_ids": [
-              "sigma:76f55eaa-d27f-4213-9d45-7b0e4b60bbae:0"
+              "sigma:0b7163dc-7eee-4960-af17-c0cd517f92da:0",
+              "sigma:68bcd73b-37ef-49cb-95fc-edc809730be6:0",
+              "sigma:76f55eaa-d27f-4213-9d45-7b0e4b60bbae:0",
+              "sigma:c0514f28-fdae-42df-b886-06e2b2bc5b37:0"
+            ]
+          },
+          {
+            "id": "87e3c4e8-a6a8-4ad9-bb4f-46e7ff99a180",
+            "path": "rules/windows/process_creation/proc_creation_win_powershell_set_policies_to_unsecure_level.yml",
+            "positive_event_ids": [
+              "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
             ]
           },
           {
@@ -254,10 +290,32 @@
             ]
           },
           {
+            "id": "a77c1610-fc73-4019-8e29-0f51efc04a51",
+            "path": "rules/windows/process_creation/proc_creation_win_cmd_dosfuscation.yml",
+            "positive_event_ids": [
+              "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
+            ]
+          },
+          {
+            "id": "a7ee1722-c3c5-aeff-3212-c777e4733217",
+            "path": "rules/windows/process_creation/proc_creation_win_powershell_disable_defender_av_security_monitoring.yml",
+            "positive_event_ids": [
+              "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
+            ]
+          },
+          {
             "id": "b53317a0-8acf-4fd1-8de8-a5401e776b96",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_uninstall_application.yml",
             "positive_event_ids": [
-              "sigma:b53317a0-8acf-4fd1-8de8-a5401e776b96:0"
+              "sigma:0b7163dc-7eee-4960-af17-c0cd517f92da:0",
+              "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0",
+              "sigma:49d9671b-0a0a-4c09-8280-d215bfd30662:0",
+              "sigma:51cbac1e-eee3-4a90-b1b7-358efb81fa0a:0",
+              "sigma:526be59f-a573-4eea-b5f7-f0973207634d:0",
+              "sigma:7773b877-5abb-4a3e-b9c9-fd0369b59b00:0",
+              "sigma:b53317a0-8acf-4fd1-8de8-a5401e776b96:0",
+              "sigma:c0514f28-fdae-42df-b886-06e2b2bc5b37:0",
+              "sigma:c453ab7a-1f5c-4716-a3b4-dea8135fb43a:0"
             ]
           },
           {
@@ -282,6 +340,13 @@
             ]
           },
           {
+            "id": "d2b749ee-4225-417e-b20e-a8d2193cbb84",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_advancedrun.yml",
+            "positive_event_ids": [
+              "sigma:d2b749ee-4225-417e-b20e-a8d2193cbb84:0"
+            ]
+          },
+          {
             "id": "dfd2fcb7-8bd5-4daa-b132-5adb61d6ad45",
             "path": "rules/windows/process_creation/proc_creation_win_wmic_recon_hotfix.yml",
             "positive_event_ids": [
@@ -293,6 +358,27 @@
             "path": "rules/windows/process_creation/proc_creation_win_wmic_recon_product_class.yml",
             "positive_event_ids": [
               "sigma:e568650b-5dcd-4658-8f34-ded0b1e13992:0"
+            ]
+          },
+          {
+            "id": "e9b61244-893f-427c-b287-3e708f321c6b",
+            "path": "rules/windows/process_creation/proc_creation_win_cmd_mklink_osk_cmd.yml",
+            "positive_event_ids": [
+              "sigma:e9b61244-893f-427c-b287-3e708f321c6b:0"
+            ]
+          },
+          {
+            "id": "fa00b701-44c6-4679-994d-5a18afa8a707",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_advancedrun_priv_user.yml",
+            "positive_event_ids": [
+              "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
+            ]
+          },
+          {
+            "id": "fb843269-508c-4b76-8b8d-88679db22ce7",
+            "path": "rules/windows/process_creation/proc_creation_win_powershell_encode.yml",
+            "positive_event_ids": [
+              "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
             ]
           }
         ]
@@ -356,6 +442,14 @@
             "positive_event_ids": [
               "sigma:bef37fa2-f205-4a7b-b484-0759bfd5f86f:0"
             ]
+          },
+          {
+            "id": "dd6b39d9-d9be-4a3b-8fe0-fe3c6a5c1795",
+            "path": "rules/windows/process_creation/proc_creation_win_susp_ntfs_short_name_use_cli.yml",
+            "positive_event_ids": [
+              "sigma:54773c5f-f1cc-4703-9126-2f797d96a69d:0",
+              "sigma:d2125259-ddea-4c1c-9c22-977eb5b29cf0:0"
+            ]
           }
         ]
       },
@@ -376,7 +470,8 @@
             "id": "2ddef153-167b-4e89-86b6-757a9e65dcac",
             "path": "rules/windows/process_creation/proc_creation_win_bitsadmin_download_susp_targetfolder.yml",
             "positive_event_ids": [
-              "sigma:2ddef153-167b-4e89-86b6-757a9e65dcac:0"
+              "sigma:2ddef153-167b-4e89-86b6-757a9e65dcac:0",
+              "sigma:5b80a791-ad9b-4b75-bcc1-ad4e1e89c200:0"
             ]
           },
           {
@@ -390,6 +485,8 @@
             "id": "8518ed3d-f7c9-4601-a26c-f361a4256a0c",
             "path": "rules/windows/process_creation/proc_creation_win_bitsadmin_download_file_sharing_domains.yml",
             "positive_event_ids": [
+              "sigma:2ddef153-167b-4e89-86b6-757a9e65dcac:0",
+              "sigma:5b80a791-ad9b-4b75-bcc1-ad4e1e89c200:0",
               "sigma:8518ed3d-f7c9-4601-a26c-f361a4256a0c:0"
             ]
           },
@@ -433,7 +530,8 @@
             "id": "56454143-524f-49fb-b1c6-3fb8b1ad41fb",
             "path": "rules/windows/process_creation/proc_creation_win_curl_download_susp_file_sharing_domains.yml",
             "positive_event_ids": [
-              "sigma:56454143-524f-49fb-b1c6-3fb8b1ad41fb:0"
+              "sigma:56454143-524f-49fb-b1c6-3fb8b1ad41fb:0",
+              "sigma:e218595b-bbe7-4ee5-8a96-f32a24ad3468:0"
             ]
           },
           {
@@ -447,6 +545,8 @@
             "id": "e218595b-bbe7-4ee5-8a96-f32a24ad3468",
             "path": "rules/windows/process_creation/proc_creation_win_curl_susp_download.yml",
             "positive_event_ids": [
+              "sigma:5cb299fc-5fb1-4d07-b989-0644c68b6043:0",
+              "sigma:9cc85849-3b02-4cb5-b371-3a1ff54f2218:0",
               "sigma:e218595b-bbe7-4ee5-8a96-f32a24ad3468:0"
             ]
           }
@@ -472,31 +572,6 @@
             "path": "rules/windows/process_creation/proc_creation_win_dism_remove.yml",
             "positive_event_ids": [
               "sigma:43e32da2-fdd0-4156-90de-50dfd62636f9:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "3d3aa6cd-6272-44d6-8afc-7e88dfef7061",
-            "path": "rules/windows/process_creation/proc_creation_win_cmd_assoc_execution.yml",
-            "positive_event_ids": [
-              "sigma:3d3aa6cd-6272-44d6-8afc-7e88dfef7061:0"
-            ]
-          },
-          {
-            "id": "41ca393d-538c-408a-ac27-cf1e038be80c",
-            "path": "rules/windows/process_creation/proc_creation_win_cmd_rmdir_execution.yml",
-            "positive_event_ids": [
-              "sigma:41ca393d-538c-408a-ac27-cf1e038be80c:0"
-            ]
-          },
-          {
-            "id": "e9b61244-893f-427c-b287-3e708f321c6b",
-            "path": "rules/windows/process_creation/proc_creation_win_cmd_mklink_osk_cmd.yml",
-            "positive_event_ids": [
-              "sigma:e9b61244-893f-427c-b287-3e708f321c6b:0"
             ]
           }
         ]
@@ -531,6 +606,13 @@
             "positive_event_ids": [
               "sigma:762bb580-79b4-40f4-8b9e-9349ce1710f4:0"
             ]
+          },
+          {
+            "id": "7d6d30b8-5b91-4b90-a891-46cccaf29598",
+            "path": "rules/windows/process_creation/proc_creation_win_ssh_proxy_execution.yml",
+            "positive_event_ids": [
+              "sigma:762bb580-79b4-40f4-8b9e-9349ce1710f4:0"
+            ]
           }
         ]
       },
@@ -559,17 +641,6 @@
       {
         "rules": [
           {
-            "id": "50a0aa3d-ab16-4594-a8aa-5145a6e6792b",
-            "path": "rules/windows/process_creation/proc_creation_win_python_base64_encoded_execution.yml",
-            "positive_event_ids": [
-              "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
             "id": "502b42de-4306-40b4-9596-6f590c81f073",
             "path": "rules/windows/process_creation/proc_creation_win_susp_local_system_owner_account_discovery.yml",
             "positive_event_ids": [
@@ -577,20 +648,34 @@
             ]
           }
         ]
-      }
-    ],
-    "train": [
+      },
       {
         "rules": [
           {
-            "id": "277a4393-446c-449a-b0ed-7fdc7795244c",
-            "path": "rules/windows/process_creation/proc_creation_win_renamed_ftp.yml",
+            "id": "455b9d50-15a1-4b99-853f-8d37655a4c1b",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_enumeration.yml",
             "positive_event_ids": [
-              "sigma:277a4393-446c-449a-b0ed-7fdc7795244c:0"
+              "sigma:455b9d50-15a1-4b99-853f-8d37655a4c1b:0"
+            ]
+          },
+          {
+            "id": "514e7e3e-b3b4-4a67-af60-be20f139198b",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_execution.yml",
+            "positive_event_ids": [
+              "sigma:514e7e3e-b3b4-4a67-af60-be20f139198b:0"
+            ]
+          },
+          {
+            "id": "9a132afa-654e-11eb-ae93-0242ac130002",
+            "path": "rules/windows/process_creation/proc_creation_win_pua_adfind_susp_usage.yml",
+            "positive_event_ids": [
+              "sigma:9a132afa-654e-11eb-ae93-0242ac130002:0"
             ]
           }
         ]
-      },
+      }
+    ],
+    "train": [
       {
         "rules": [
           {
@@ -632,6 +717,7 @@
             "id": "94771a71-ba41-4b6e-a757-b531372eaab6",
             "path": "rules/windows/process_creation/proc_creation_win_browsers_inline_file_download.yml",
             "positive_event_ids": [
+              "sigma:0e8cfe08-02c9-4815-a2f8-0d157b7ed33e:0",
               "sigma:94771a71-ba41-4b6e-a757-b531372eaab6:0"
             ]
           }
@@ -698,29 +784,6 @@
       {
         "rules": [
           {
-            "id": "7124aebe-4cd7-4ccb-8df0-6d6b93c96795",
-            "path": "rules/windows/process_creation/proc_creation_win_dtrace_kernel_dump.yml",
-            "positive_event_ids": [
-              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:0",
-              "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:1"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "8f3ab69a-aa22-4943-aa58-e0a52fdf6818",
-            "path": "rules/windows/process_creation/proc_creation_win_user_shell_folders_registry_modification.yml",
-            "positive_event_ids": [
-              "sigma:8f3ab69a-aa22-4943-aa58-e0a52fdf6818:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
             "id": "7dbbcac2-57a0-45ac-b306-ff30a8bd2981",
             "path": "rules/windows/process_creation/proc_creation_win_amsi_registry_tampering.yml",
             "positive_event_ids": [
@@ -775,6 +838,20 @@
             ]
           },
           {
+            "id": "9ec9fb1b-e059-4489-9642-f270c207923d",
+            "path": "rules/windows/process_creation/proc_creation_win_registry_special_accounts_hide_user.yml",
+            "positive_event_ids": [
+              "sigma:9ec9fb1b-e059-4489-9642-f270c207923d:0"
+            ]
+          },
+          {
+            "id": "b7e2a8d4-74bb-4b78-adc9-3f92af2d4829",
+            "path": "rules/windows/process_creation/proc_creation_win_reg_susp_paths.yml",
+            "positive_event_ids": [
+              "sigma:9ec9fb1b-e059-4489-9642-f270c207923d:0"
+            ]
+          },
+          {
             "id": "c43a5405-e8e1-4221-9ac9-dbe3fa14e886",
             "path": "rules/windows/process_creation/proc_creation_win_reg_system_language_discovery.yml",
             "positive_event_ids": [
@@ -793,17 +870,6 @@
             "path": "rules/windows/process_creation/proc_creation_win_reg_add_run_key.yml",
             "positive_event_ids": [
               "sigma:de587dce-915e-4218-aac4-835ca6af6f70:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
-            "id": "9ec9fb1b-e059-4489-9642-f270c207923d",
-            "path": "rules/windows/process_creation/proc_creation_win_registry_special_accounts_hide_user.yml",
-            "positive_event_ids": [
-              "sigma:9ec9fb1b-e059-4489-9642-f270c207923d:0"
             ]
           }
         ]
@@ -855,24 +921,6 @@
       {
         "rules": [
           {
-            "id": "d2b749ee-4225-417e-b20e-a8d2193cbb84",
-            "path": "rules/windows/process_creation/proc_creation_win_pua_advancedrun.yml",
-            "positive_event_ids": [
-              "sigma:d2b749ee-4225-417e-b20e-a8d2193cbb84:0"
-            ]
-          },
-          {
-            "id": "fa00b701-44c6-4679-994d-5a18afa8a707",
-            "path": "rules/windows/process_creation/proc_creation_win_pua_advancedrun_priv_user.yml",
-            "positive_event_ids": [
-              "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
             "id": "056c7317-9a09-4bd4-9067-d051312752ea",
             "path": "rules/windows/process_creation/proc_creation_win_conhost_headless_powershell.yml",
             "positive_event_ids": [
@@ -907,17 +955,6 @@
       {
         "rules": [
           {
-            "id": "6385697e-9f1b-40bd-8817-f4a91f40508e",
-            "path": "rules/windows/process_creation/proc_creation_win_powershell_base64_invoke.yml",
-            "positive_event_ids": [
-              "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
-            ]
-          }
-        ]
-      },
-      {
-        "rules": [
-          {
             "id": "be58d2e2-06c8-4f58-b666-b99f6dc3b6cd",
             "path": "rules/windows/process_creation/proc_creation_win_svchost_masqueraded_execution.yml",
             "positive_event_ids": [
@@ -943,28 +980,72 @@
             ]
           }
         ]
+      },
+      {
+        "rules": [
+          {
+            "id": "c7942406-33dd-4377-a564-0f62db0593a3",
+            "path": "rules/windows/process_creation/proc_creation_win_chcp_codepage_switch.yml",
+            "positive_event_ids": [
+              "sigma:c7942406-33dd-4377-a564-0f62db0593a3:0"
+            ]
+          }
+        ]
+      },
+      {
+        "rules": [
+          {
+            "id": "7638e5fe-600c-4289-a968-f49dd537ec7d",
+            "path": "rules/windows/process_creation/proc_creation_win_hktl_netexec.yml",
+            "positive_event_ids": [
+              "sigma:7638e5fe-600c-4289-a968-f49dd537ec7d:0"
+            ]
+          }
+        ]
+      },
+      {
+        "rules": [
+          {
+            "id": "df55196f-f105-44d3-a675-e9dfb6cc2f2b",
+            "path": "rules/windows/process_creation/proc_creation_win_renamed_adfind.yml",
+            "positive_event_ids": [
+              "sigma:df55196f-f105-44d3-a675-e9dfb6cc2f2b:0"
+            ]
+          }
+        ]
+      },
+      {
+        "rules": [
+          {
+            "id": "afa71271-6a97-4e47-810f-83120fb1a4ce",
+            "path": "rules/windows/process_creation/proc_creation_win_node_new_agent_skills_installed.yml",
+            "positive_event_ids": [
+              "sigma:afa71271-6a97-4e47-810f-83120fb1a4ce:0"
+            ]
+          }
+        ]
       }
     ]
   },
   "summary": {
     "development": {
-      "groups": 6,
+      "groups": 7,
       "roots": 12,
       "roots_with_2plus_positives": 0
     },
     "reserve": {
-      "groups": 14,
-      "roots": 40,
-      "roots_with_2plus_positives": 0
+      "groups": 10,
+      "roots": 52,
+      "roots_with_2plus_positives": 11
     },
     "test": {
-      "groups": 10,
+      "groups": 9,
       "roots": 12,
       "roots_with_2plus_positives": 0
     },
     "train": {
-      "groups": 25,
-      "roots": 37,
+      "groups": 23,
+      "roots": 36,
       "roots_with_2plus_positives": 3
     }
   }
