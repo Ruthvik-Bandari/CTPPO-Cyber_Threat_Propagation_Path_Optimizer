@@ -66,6 +66,7 @@ def compare(
     for name, by_case in sorted(rows.items()):
         entry: dict[str, Any] = {
             "success_rate": round(sum(r["success"] for r in by_case.values()) / len(by_case), 4),
+            "outcome_match_rate": round(sum(r.get("outcome_match", False) for r in by_case.values()) / len(by_case), 4),
             "wrong_change_rate": round(sum(r["wrong_change"] for r in by_case.values()) / len(by_case), 4),
             "abstention_rate": round(sum(r["abstained"] for r in by_case.values()) / len(by_case), 4),
             "by_kind": {
@@ -96,8 +97,8 @@ def markdown(result: dict[str, Any]) -> str:
         + (" (locked test included)" if result["locked_test_included"] else " (train + development)")
         + f"; baseline {result['baseline']}. {result['note']}",
         "",
-        "| System | Success | Wrong change | Abstained | Δ success vs baseline (95% CI) | Won / lost |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| System | Validated success | Outcome match (incl. provisional) | Wrong change | Abstained | Δ success vs baseline (95% CI) | Won / lost |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for name, s in result["systems"].items():
         vs = s.get("vs_baseline")
@@ -108,6 +109,6 @@ def markdown(result: dict[str, Any]) -> str:
         )
         won = f"{vs['cases_won']} / {vs['cases_lost']}" if vs else "—"
         lines.append(
-            f"| {name} | {s['success_rate']:.3f} | {s['wrong_change_rate']:.3f} | {s['abstention_rate']:.3f} | {delta} | {won} |"
+            f"| {name} | {s['success_rate']:.3f} | {s['outcome_match_rate']:.3f} | {s['wrong_change_rate']:.3f} | {s['abstention_rate']:.3f} | {delta} | {won} |"
         )
     return "\n".join(lines) + "\n"

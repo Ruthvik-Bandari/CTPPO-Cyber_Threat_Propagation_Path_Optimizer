@@ -10,6 +10,8 @@ expected outcome:
 - ``wrong_change``: the system changed something it should not have. That is any ``repaired``
   outcome on a healthy or missing-telemetry case, or a repair with the wrong patch kind.
 - ``abstained``: the system returned no repair. Abstentions and failures stay in the denominator.
+- ``outcome_match`` (secondary): the expected outcome, counting provisional repairs, which were
+  repaired but had no validation suite. It is reported beside, never instead of, ``success``.
 
 Confidence intervals are percentile bootstraps that resample roots, not cases, because the
 variants of one root are correlated. The locked test split is evaluated only on request
@@ -126,6 +128,9 @@ def score(manifest: dict[str, Any], report: dict[str, Any] | None, error: str | 
         "patch_kind": patch_kind,
         "has_validation": bool(manifest.get("validation")),
         "success": success,
+        # Secondary: the outcome is the expected one, counting provisional repairs (no validation suite).
+        "outcome_match": outcome == want
+        and (want != "repaired" or "patch_kind" not in expected or patch_kind == expected["patch_kind"]),
         "wrong_change": wrong,
         "abstained": outcome == "abstained",
         "error": error,
@@ -179,6 +184,7 @@ def summarize(rows: Iterable[dict[str, Any]], seed: int = 0) -> dict[str, Any]:
             "roots": len({r["root_id"] for r in subset}),
             "success_rate": _rate(subset, "success"),
             "success_ci95": bootstrap(subset, "success", seed),
+            "outcome_match_rate": _rate(subset, "outcome_match"),
             "wrong_change_rate": _rate(subset, "wrong_change"),
             "abstention_rate": _rate(subset, "abstained"),
             "provisional_repairs": sum(r["provisional"] for r in subset),

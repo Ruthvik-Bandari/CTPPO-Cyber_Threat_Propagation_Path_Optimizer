@@ -96,3 +96,11 @@ def test_split_mismatch_is_refused(tmp_path):
         (case / name).write_text("")
     with pytest.raises(ValueError, match="folder says 'train'"):
         run_cases(tmp_path, lambda inputs, es: {}, None)  # type: ignore[arg-type]
+
+
+def test_outcome_match_counts_provisional_repairs_but_success_does_not():
+    report = {"outcome": "repaired", "provisional": True, "artifact": {"kind": "mapping"}}
+    row = score(_manifest("mapping", MAPPING, validation=False), report)
+    assert (row["success"], row["outcome_match"]) == (False, True)
+    wrong_kind = {"outcome": "repaired", "provisional": True, "artifact": {"kind": "rule"}}
+    assert score(_manifest("mapping", MAPPING), wrong_kind)["outcome_match"] is False

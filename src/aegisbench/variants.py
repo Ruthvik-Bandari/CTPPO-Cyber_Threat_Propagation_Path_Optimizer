@@ -10,9 +10,9 @@ up to three faults are injected into the healthy reference, each with fault prov
 
 Events are rewritten into an ECS layout, and the healthy mapping points every v1 field at its ECS
 name. Every variant is verified on the pinned engine before it is kept: the healthy rule with the
-healthy mapping must detect every positive, and the impaired case must behave differently, by
-missing a positive or matching more events. Variants that fail verification are discarded, with
-their reason counted.
+healthy mapping must detect every positive, and the impaired case must miss at least one positive. Unlabeled
+background events cannot count as false alarms, so a fault that only adds matches is not a fair
+test. Variants that fail verification are discarded, with their reason counted.
 
 Case folders contain raw event values. They are written privately on the cluster
 (directory 0700, files 0600) and never committed. The aggregate report has counts only.
@@ -186,7 +186,9 @@ def verify(
             continue
         # A lost or renamed field must cost detections; behaving differently only by matching
         # more (a field used just in a filter) is not the fault the expected outcome describes.
-        if variant.kind in ("mapping", "missing_telemetry") and malicious <= got:
+        # Every fault must cost a real detection. Extra matches on unlabeled background events cannot be
+        # scored as false alarms, so a fault that only adds matches would be undetectable by design.
+        if malicious <= got:
             discarded[f"{variant.kind}:positives_still_detected"] += 1
             continue
         kept[variant.kind] = variant
