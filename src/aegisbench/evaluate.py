@@ -11,7 +11,9 @@ expected outcome:
   outcome on a healthy or missing-telemetry case, or a repair with the wrong patch kind.
 - ``abstained``: the system returned no repair. Abstentions and failures stay in the denominator.
 - ``outcome_match`` (secondary): the expected outcome, counting provisional repairs, which were
-  repaired but had no validation suite. It is reported beside, never instead of, ``success``.
+  repaired but had no validation suite. A repair that matched more benign development events than
+  the original does not count, because it weakened the rule. It is reported beside, never instead
+  of, ``success``.
 
 Confidence intervals are percentile bootstraps that resample roots, not cases, because the
 variants of one root are correlated. The locked test split is evaluated only on request
@@ -104,11 +106,22 @@ def load_case(case_dir: Path) -> tuple[dict[str, Any], Inputs]:
     )
 
 
+def _adds_false_alarms(report: dict[str, Any]) -> bool:
+    """True when the selected repair matched more benign development events than the original."""
+    original = ((report.get("original") or {}).get("development") or {}).get("counts") or {}
+    chosen = next(
+        (c for c in report.get("candidates") or [] if c["candidate"]["proposal_id"] == report.get("selected")), None
+    )
+    counts = ((chosen or {}).get("development") or {}).get("counts") or {}
+    return bool(original and counts) and counts.get("fp", 0) > original.get("fp", 0)
+
+
 def score(manifest: dict[str, Any], report: dict[str, Any] | None, error: str | None = None) -> dict[str, Any]:
     expected = manifest["expected"]
     outcome = report["outcome"] if report else "error"
     provisional = bool(report and report.get("provisional"))
     patch_kind = (report or {}).get("artifact", {}).get("kind") if outcome == "repaired" else None
+    adds_false_alarms = outcome == "repaired" and report is not None and _adds_false_alarms(report)
     want = expected["outcome"]
     if want == "repaired":
         right_kind = "patch_kind" not in expected or patch_kind == expected["patch_kind"]
@@ -128,9 +141,12 @@ def score(manifest: dict[str, Any], report: dict[str, Any] | None, error: str | 
         "patch_kind": patch_kind,
         "has_validation": bool(manifest.get("validation")),
         "success": success,
-        # Secondary: the outcome is the expected one, counting provisional repairs (no validation suite).
+        # Secondary: the expected outcome, counting provisional repairs (no validation suite), unless the
+        # repair bought its coverage with new false alarms on the development events (a weakened rule).
         "outcome_match": outcome == want
-        and (want != "repaired" or "patch_kind" not in expected or patch_kind == expected["patch_kind"]),
+        and (want != "repaired" or "patch_kind" not in expected or patch_kind == expected["patch_kind"])
+        and not adds_false_alarms,
+        "adds_false_alarms": adds_false_alarms,
         "wrong_change": wrong,
         "abstained": outcome == "abstained",
         "error": error,

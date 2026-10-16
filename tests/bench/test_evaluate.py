@@ -104,3 +104,20 @@ def test_outcome_match_counts_provisional_repairs_but_success_does_not():
     assert (row["success"], row["outcome_match"]) == (False, True)
     wrong_kind = {"outcome": "repaired", "provisional": True, "artifact": {"kind": "rule"}}
     assert score(_manifest("mapping", MAPPING), wrong_kind)["outcome_match"] is False
+
+
+def test_weakening_repairs_do_not_count_as_outcome_matches():
+    def report(fp):
+        return {
+            "outcome": "repaired",
+            "provisional": True,
+            "artifact": {"kind": "rule"},
+            "selected": "c1",
+            "original": {"development": {"counts": {"tp": 0, "fp": 0}}},
+            "candidates": [{"candidate": {"proposal_id": "c1"}, "development": {"counts": {"tp": 1, "fp": fp}}}],
+        }
+
+    logic = {"outcome": "repaired", "family": "logic"}
+    assert score(_manifest("logic", logic), report(0))["outcome_match"] is True
+    row = score(_manifest("logic", logic), report(2))
+    assert (row["outcome_match"], row["adds_false_alarms"]) == (False, True)
