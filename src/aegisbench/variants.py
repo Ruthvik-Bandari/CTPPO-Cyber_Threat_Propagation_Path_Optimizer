@@ -64,6 +64,7 @@ HEALTHY = FieldMapping("bench-ecs", dict(ECS))
 # Field preference for mapping / telemetry faults: the fields detections lean on most.
 FAULT_FIELDS = ("CommandLine", "Image", "ParentImage", "OriginalFileName", "ParentCommandLine", "User")
 NEGATIVES_PER_ROOT = 12
+MAX_ATTEMPTS_PER_KIND = 64  # large expanded conditions can yield hundreds of one-edit mutations
 
 
 @dataclass(frozen=True)
@@ -161,36 +162,45 @@ def _matched(es: Elasticsearch, index: str, rule: Rule, mapping: FieldMapping) -
 def verify(
     es: Elasticsearch, rule: Rule, events: list[Event], variants: Iterable[Variant]
 ) -> tuple[list[Variant], Counter[str]]:
-    """Keep at most one effective variant per kind; count why the others were discarded."""
+    """Keep at most one effective variant per kind; count why the others were discarded.
+
+    Variants that keep the base events (mapping and logic faults) replay on one shared index; only
+    variants that change the events (missing telemetry) need an index of their own."""
     discarded: Counter[str] = Counter()
     kept: dict[str, Variant] = {}
     malicious = {e.event_id for e in events if e.label == "malicious"}
-    with es.replay_index(events) as index:
-        healthy = _matched(es, index, rule, HEALTHY)
-    if not malicious <= healthy:
-        discarded["healthy_reference_misses_positive"] += 1
-        return [], discarded
-    for variant in variants:
-        if variant.kind in kept:
-            continue
-        if variant.kind == "healthy":
-            kept["healthy"] = variant  # the reference itself; verified above
-            continue
-        try:
-            with es.replay_index(list(variant.events)) as index:
-                got = _matched(es, index, variant.rule, variant.mapping)
-        except Rejected as exc:
-            discarded[f"engine:{exc.reason}"] += 1
-            continue
-        if got == healthy:
-            discarded[f"{variant.kind}:no_behavior_change"] += 1
-            continue
-        # Every fault must cost a real detection, so the expected outcome (a repair that restores
-        # coverage, or insufficient evidence) is the one the fault actually calls for.
-        if malicious <= got:
-            discarded[f"{variant.kind}:positives_still_detected"] += 1
-            continue
-        kept[variant.kind] = variant
+    base = tuple(events)
+    with es.replay_index(events) as base_index:
+        healthy = _matched(es, base_index, rule, HEALTHY)
+        if not malicious <= healthy:
+            discarded["healthy_reference_misses_positive"] += 1
+            return [], discarded
+        attempts: Counter[str] = Counter()
+        for variant in variants:
+            if variant.kind in kept or attempts[variant.kind] >= MAX_ATTEMPTS_PER_KIND:
+                continue
+            attempts[variant.kind] += 1
+            if variant.kind == "healthy":
+                kept["healthy"] = variant  # the reference itself; verified above
+                continue
+            try:
+                if variant.events == base:
+                    got = _matched(es, base_index, variant.rule, variant.mapping)
+                else:
+                    with es.replay_index(list(variant.events)) as index:
+                        got = _matched(es, index, variant.rule, variant.mapping)
+            except Rejected as exc:
+                discarded[f"engine:{exc.reason}"] += 1
+                continue
+            if got == healthy:
+                discarded[f"{variant.kind}:no_behavior_change"] += 1
+                continue
+            # Every fault must cost a real detection, so the expected outcome (a repair that restores
+            # coverage, or insufficient evidence) is the one the fault actually calls for.
+            if malicious <= got:
+                discarded[f"{variant.kind}:positives_still_detected"] += 1
+                continue
+            kept[variant.kind] = variant
     return list(kept.values()), discarded
 
 
