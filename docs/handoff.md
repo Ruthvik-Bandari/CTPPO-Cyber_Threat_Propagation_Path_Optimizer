@@ -59,7 +59,14 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-15). The 
 
 ## Next action
 
-1. **Owner:** label the 175 OTRF candidate events in `/scratch/$USER/aegis-sec/data/review/labels.csv` on the cluster, following `docs/data/review.md`. Copy the file to persistent storage after each session. Then run `sbatch hpc/review_split.sbatch`.
-2. After review: freeze the split (`python -m aegisbench split --freeze`), then rerun `sbatch hpc/variants.sbatch`. The first run, on the preview, gave 153 verified cases from 61 roots. 144 of them have no validation suite (single-positive roots); decide whether those roots get documented synthetic second variants.
-3. B1 and B2 on `gpu-short` V100, then M1 on A100 after the measured gap (plan sections 12 to 14).
-4. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.
+1. **Owner:** label the 175 OTRF candidates (`docs/data/review.md`). That is what unlocks validated success: 81 of 88 repairs are provisional today. It also lets more of the 1,156 unobservable natural fixes be verified.
+2. Rerun the chain on the cluster: `natural.sbatch`, then `review_split.sbatch`, then freeze the split, then `variants.sbatch`, then `evaluate.sbatch b0` and `b1`.
+3. B2: verify the scratch GPU environment inside a job, since the login node kills torch imports. Then run `hpc/b2.sbatch`. M1 (`sft.sbatch`, then `m1.sbatch --max-steps 5`, then a full run) only if B2 shows a gap on natural cases.
+4. Locked test evaluation once (`--locked`), then the model and dataset cards.
+5. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.
+
+Latest results are in `docs/data/qc/README.md`:
+
+- B0 = B1 = 0.520 validated success.
+- Outcome match is 0.977.
+- On natural cases, success is 0.20. B0 weakened 2 rules; B1 abstained instead.
