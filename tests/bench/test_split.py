@@ -30,8 +30,8 @@ def test_groups_merge_families_and_shared_events():
     paths = {
         r: f"{SIGMA_RULES}/proc_creation_win_{t}_x.yml" for r, t in (("r1", "a"), ("r2", "b"), ("r3", "c"), ("r4", "b"))
     }
-    # r1+r3 share an event; r2+r4 share the family "b".
-    assert groups(positives, paths) == [["r1", "r3"], ["r2", "r4"]]
+    # Only families group (r2+r4 share "b"); a shared event (r1, r3) is resolved per split instead.
+    assert groups(positives, paths) == [["r1"], ["r2", "r4"], ["r3"]]
 
 
 def test_assign_keeps_groups_whole_and_is_deterministic():
@@ -80,10 +80,22 @@ def test_build_refuses_roots_without_rule_files(tmp_path):
         build(sigma, report, set(), "seed")
 
 
-def test_natural_roots_join_and_group_by_shared_events(tmp_path):
+def test_natural_roots_join_the_split(tmp_path):
     sigma = _sigma(tmp_path / "sigma", 3)
     report = {"per_rule": {"r0": {"matched_event_ids": ["sigma:r0:0"]}}}
-    manifest = build(sigma, report, set(), "seed", extra={"r1": ["sigma:r0:0"], "r2": ["sigma:x:0"]})
+    manifest = build(sigma, report, set(), "seed", extra={"r1": ["sigma:r0:0", "otrf:x:1"], "r2": ["sigma:x:0"]})
     assert manifest["eligible_roots"] == 3 and manifest["natural_roots_added"] == 2
-    groups = [sorted(r["id"] for r in g["rules"]) for gs in manifest["splits"].values() for g in gs]
-    assert ["r0", "r1"] in groups  # r1's fix detects r0's recording, so they never split apart
+
+
+def test_no_positive_event_is_shared_across_splits():
+    from aegisbench.split import exclusive_events
+
+    positives = {"t1": ["e1", "e2"], "d1": ["e1"], "tr1": ["e2", "e3"], "tr2": ["e1"]}
+    splits = {"test": [["t1"]], "development": [["d1"]], "train": [["tr1"], ["tr2"]], "reserve": []}
+    out, dropped, moved = exclusive_events(splits, positives)
+    assert positives == {"t1": ["e1", "e2"], "d1": [], "tr1": ["e3"], "tr2": []}
+    assert out["test"] == [["t1"]] and out["train"] == [["tr1"]] and out["development"] == []
+    assert sorted(r for g in out["reserve"] for r in g) == ["d1", "tr2"]
+    assert (dropped, moved) == (3, 2)
+    used = {split: {e for g in gs for r in g for e in positives[r]} for split, gs in out.items() if split != "reserve"}
+    assert not (used["test"] & used["train"]) and not (used["test"] & used["development"])

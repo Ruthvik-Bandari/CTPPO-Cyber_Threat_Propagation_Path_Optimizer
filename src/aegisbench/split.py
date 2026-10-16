@@ -6,7 +6,8 @@ each other are grouped and always land in the same split:
 
 - the same rule family (the tool named after ``proc_creation_win_`` in the file name; after a
   category prefix such as ``susp_`` or ``hktl_``, the next token too);
-- any shared positive event (two rules that fire on the same event).
+- no positive event appears in two splits: a shared event stays with the highest-priority split
+  (test, then development, then train) and is dropped from the roots elsewhere.
 
 Groups are ordered by a seeded hash and assigned whole: test first, then development, then
 train, until each target is met. Leftover groups stay in reserve. Splits are fixed before any
@@ -73,6 +74,9 @@ def roots(report: dict[str, Any], malicious: set[str]) -> dict[str, list[str]]:
 
 
 def groups(positives: dict[str, list[str]], paths: dict[str, str]) -> list[list[str]]:
+    """Group roots by rule family. Shared events are not merged here: one attack event can match
+    dozens of rules, and merging on events chains most roots into one group. Event-level leakage is
+    resolved after assignment instead (``exclusive_events``)."""
     parent = {r: r for r in positives}
 
     def find(r: str) -> str:
@@ -86,7 +90,7 @@ def groups(positives: dict[str, list[str]], paths: dict[str, str]) -> list[list[
 
     first_by_key: dict[str, str] = {}
     for rule_id in sorted(positives):
-        keys = [f"family:{family(paths.get(rule_id, rule_id))}"] + [f"event:{e}" for e in positives[rule_id]]
+        keys = [f"family:{family(paths.get(rule_id, rule_id))}"]
         for key in keys:
             if key in first_by_key:
                 union(rule_id, first_by_key[key])
@@ -96,6 +100,41 @@ def groups(positives: dict[str, list[str]], paths: dict[str, str]) -> list[list[
     for rule_id in sorted(positives):
         members[find(rule_id)].append(rule_id)
     return sorted(members.values())
+
+
+PRIORITY = ("test", "development", "train")
+
+
+def exclusive_events(
+    splits: dict[str, list[list[str]]], positives: dict[str, list[str]]
+) -> tuple[dict[str, list[list[str]]], int, int]:
+    """Give every positive event to exactly one split (test, then development, then train), dropping
+    it from roots in the other splits. A root left with no positives moves to reserve. Returns
+    the new splits, the positives dropped, and the roots moved."""
+    owner: dict[str, str] = {}
+    for name in PRIORITY:
+        for group in splits[name]:
+            for root in group:
+                for event in positives[root]:
+                    owner.setdefault(event, name)
+    dropped = moved = 0
+    out: dict[str, list[list[str]]] = {name: [] for name in splits}
+    out["reserve"] = [list(g) for g in splits.get("reserve", [])]
+    for name in PRIORITY:
+        for group in splits[name]:
+            kept = []
+            for root in group:
+                own = [e for e in positives[root] if owner[e] == name]
+                dropped += len(positives[root]) - len(own)
+                positives[root] = own
+                if own:
+                    kept.append(root)
+                else:
+                    moved += 1
+                    out["reserve"].append([root])
+            if kept:
+                out[name].append(kept)
+    return out, dropped, moved
 
 
 def assign(grouped: list[list[str]], seed: str) -> dict[str, list[list[str]]]:
@@ -128,7 +167,7 @@ def build(
     missing = sorted(set(positives) - set(paths))
     if missing:
         raise SplitError(f"{len(missing)} root rules have no file in the Sigma checkout")
-    splits = assign(groups(positives, paths), seed)
+    splits, dropped, moved = exclusive_events(assign(groups(positives, paths), seed), positives)
     summary = {
         name: {
             "groups": len(gs),
@@ -145,6 +184,8 @@ def build(
         "eligible_roots": len(positives),
         "natural_roots_added": len(set(extra or {}) - set(roots(report, malicious))),
         "largest_group": largest,
+        "positives_dropped_for_leakage": dropped,
+        "roots_moved_to_reserve": moved,
         "summary": summary,
         "splits": {
             name: [{"rules": [{"id": r, "path": paths[r], "positive_event_ids": positives[r]} for r in g]} for g in gs]
