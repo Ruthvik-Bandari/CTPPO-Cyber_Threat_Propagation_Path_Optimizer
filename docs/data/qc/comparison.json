@@ -1,35 +1,35 @@
 {
   "baseline": "b0",
-  "cases": 173,
+  "cases": 175,
   "locked_test_included": false,
   "note": "Exploratory: a small benchmark of synthetic faults on public telemetry; intervals resample roots.",
-  "roots": 48,
+  "roots": 51,
   "schema_version": 1,
   "systems": {
     "b0": {
-      "abstention_rate": 0.0058,
+      "abstention_rate": 0.0114,
       "by_kind": {
         "healthy": 1.0,
-        "logic": 0.0625,
-        "mapping": 0.0833,
-        "missing_telemetry": 0.9722,
-        "natural": 0.2
+        "logic": 0.1875,
+        "mapping": 0.2059,
+        "missing_telemetry": 0.9706,
+        "natural": 0.0909
       },
-      "outcome_match_rate": 0.9769,
-      "success_rate": 0.5202,
+      "outcome_match_rate": 0.9486,
+      "success_rate": 0.56,
       "wrong_change_rate": 0.0
     },
     "b1": {
-      "abstention_rate": 0.0173,
+      "abstention_rate": 0.0514,
       "by_kind": {
         "healthy": 1.0,
-        "logic": 0.0625,
-        "mapping": 0.0833,
-        "missing_telemetry": 0.9722,
-        "natural": 0.2
+        "logic": 0.1875,
+        "mapping": 0.2059,
+        "missing_telemetry": 0.9706,
+        "natural": 0.0909
       },
-      "outcome_match_rate": 0.9769,
-      "success_rate": 0.5202,
+      "outcome_match_rate": 0.9429,
+      "success_rate": 0.56,
       "vs_baseline": {
         "cases_lost": 0,
         "cases_won": 0,
@@ -38,6 +38,28 @@
           0.0
         ],
         "mean_success_difference": 0.0
+      },
+      "wrong_change_rate": 0.0
+    },
+    "b2": {
+      "abstention_rate": 0.2343,
+      "by_kind": {
+        "healthy": 1.0,
+        "logic": 0.0208,
+        "mapping": 0.2059,
+        "missing_telemetry": 0.9706,
+        "natural": 0.0
+      },
+      "outcome_match_rate": 0.76,
+      "success_rate": 0.5086,
+      "vs_baseline": {
+        "cases_lost": 9,
+        "cases_won": 0,
+        "ci95": [
+          -0.0838,
+          -0.023
+        ],
+        "mean_success_difference": -0.0514
       },
       "wrong_change_rate": 0.0
     }

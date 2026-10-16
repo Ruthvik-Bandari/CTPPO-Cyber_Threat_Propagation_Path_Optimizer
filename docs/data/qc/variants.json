@@ -1,26 +1,27 @@
 {
-  "cases": 210,
+  "cases": 216,
   "cases_by_kind": {
-    "healthy": 60,
-    "logic": 60,
-    "mapping": 45,
-    "missing_telemetry": 45
+    "healthy": 61,
+    "logic": 61,
+    "mapping": 47,
+    "missing_telemetry": 47
   },
   "cases_by_split": {
     "development": 40,
-    "test": 42,
-    "train": 128
+    "test": 52,
+    "train": 124
   },
-  "cases_without_validation_suite": 198,
+  "cases_without_validation_suite": 168,
   "discarded": {
-    "logic:no_behavior_change": 25,
-    "logic:positives_still_detected": 13,
-    "mapping:no_behavior_change": 15,
-    "missing_telemetry:no_behavior_change": 15
+    "healthy_reference_misses_positive": 4,
+    "logic:no_behavior_change": 22,
+    "logic:positives_still_detected": 14,
+    "mapping:no_behavior_change": 14,
+    "missing_telemetry:no_behavior_change": 14
   },
   "from_frozen_split": false,
   "manifest": "split-preview.json",
-  "roots_without_variants": 0,
+  "roots_without_variants": 4,
   "schema_version": 1,
   "seed": "aegis-bench-v1"
 }

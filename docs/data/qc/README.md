@@ -251,3 +251,40 @@ B2's outcome match by fault:
 Across 89 model calls, B2 proposed 263 candidates; 250 were valid and 13 malformed proposals were dropped. B2 never weakened a rule: no repair added false alarms.
 
 **Reading.** An untrained 7B model is safe but weaker than the deterministic baseline on logic and natural faults. That remaining gap is the plan's precondition (section 12) for trying M1 LoRA fine-tuning on the train-split repairs.
+
+## Rebuilt benchmark with labels (2026-10-16, preview split)
+
+Labeling added 159 malicious OTRF positives (296 pool events in all).
+
+- **Natural verification:** 42 fixes in 40 rules, up from 27.
+- **Split preview:** 187 eligible roots, grouped by rule family, with every positive event exclusive to one split. That dropped 5 shared positives and moved 2 roots to reserve.
+  - test: 14 roots (5 with two or more positives);
+  - development: 12 (3);
+  - train: 39 (7).
+- **Cases:** 216 synthetic plus 13 natural. Cases without a validation suite fell from 198 to 168.
+
+Paired results on 175 train and development cases:
+
+| System | Validated success | Outcome match | Wrong change | Abstained | Weakened rules | Δ vs B0 (95% CI) |
+| --- | --- | --- | --- | --- | --- | --- |
+| B0 | 0.560 | 0.949 | 0 | 0.011 | 6 | — |
+| B1 | 0.560 | 0.943 | 0 | 0.051 | 0 | +0.000 |
+| B2 | 0.509 | 0.760 | 0 | 0.234 | 0 | −0.051 (−0.084 to −0.023), 0 won and 9 lost |
+
+| Kind (cases) | B0 success / match | B1 success / match | B2 success / match |
+| --- | --- | --- | --- |
+| healthy (48) | 1.00 / 1.00 | 1.00 / 1.00 | 1.00 / 1.00 |
+| logic (48) | 0.19 / 1.00 | 0.19 / 1.00 | 0.02 / 0.38 |
+| mapping (34) | 0.21 / 0.97 | 0.21 / 0.97 | 0.21 / 0.97 |
+| missing telemetry (34) | 0.97 / 0.97 | 0.97 / 0.97 | 0.97 / 0.97 |
+| natural (11) | 0.09 / 0.36 | 0.09 / 0.27 | 0.00 / 0.09 |
+
+On the 34 cases with a validation suite, validated success is B0 0.97 and B2 0.71.
+
+**Reading.**
+
+1. **B2 is significantly worse than B0**, with an interval that excludes zero. The unmodified model is weakest on logic and natural faults.
+2. **B0 and B1 tie on success, but they are not equally safe.** B0 reached its score by weakening 6 rules, so that the repaired rule also matched benign development events. B1 never weakened a rule.
+3. **Natural faults remain the hard frontier.** No system exceeds 0.09 validated success on them, which leaves room for M1.
+
+All labels behind these results are AI-assisted (`ai_assisted`: 175), and the 27-event human check is pending.

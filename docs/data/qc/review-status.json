@@ -1,12 +1,17 @@
 {
+  "ai_assisted": 175,
   "candidate_events": 175,
-  "labels": {},
+  "labels": {
+    "benign": 3,
+    "malicious": 159,
+    "unknown": 13
+  },
   "problems": [],
-  "reviewed": 0,
+  "reviewed": 175,
   "roots": {
-    "with_1plus_verified_positive": 101,
-    "with_2plus_verified_positives": 3
+    "with_1plus_verified_positive": 175,
+    "with_2plus_verified_positives": 42
   },
   "schema_version": 1,
-  "unreviewed": 175
+  "unreviewed": 0
 }

@@ -1,13 +1,29 @@
 {
-  "pool_events": 137,
+  "pool_events": 296,
   "schema_version": 1,
   "verdicts": {
     "engine:conversion_failed": 4,
-    "fix_detects_no_positive": 1156,
-    "not_a_coverage_fix": 216,
-    "verified": 27
+    "fix_detects_no_positive": 979,
+    "not_a_coverage_fix": 378,
+    "verified": 42
   },
   "verified": [
+    {
+      "change": 23,
+      "commit": "7cf06feeea1d2436dc62a3819c61208a81bb3abb",
+      "positives": [
+        "otrf:defense_evasion/host/psh_mshta_html_application_execution:439"
+      ],
+      "rule_id": "1228c958-e64e-4e71-92ad-7d429f4138ba"
+    },
+    {
+      "change": 24,
+      "commit": "7cf06feeea1d2436dc62a3819c61208a81bb3abb",
+      "positives": [
+        "otrf:defense_evasion/host/psh_mshta_html_application_execution:439"
+      ],
+      "rule_id": "cea72823-df4d-4567-950c-0b579eaf0846"
+    },
     {
       "change": 28,
       "commit": "d4d12bdd13deb0c799dc9a7f603132b53e577397",
@@ -70,9 +86,18 @@
       "change": 363,
       "commit": "1299b21561856e439677749aaded515514247dd8",
       "positives": [
+        "otrf:defense_evasion/host/cmd_bitsadmin_download_psh_script:117",
         "sigma:5b80a791-ad9b-4b75-bcc1-ad4e1e89c200:0"
       ],
       "rule_id": "2ddef153-167b-4e89-86b6-757a9e65dcac"
+    },
+    {
+      "change": 368,
+      "commit": "547b8ffa714be800b3e55f8d03fb777ca3042036",
+      "positives": [
+        "otrf:defense_evasion/host/empire_launcher_sct_regsvr32:223"
+      ],
+      "rule_id": "6f0947a4-1c5e-4e0d-8ac7-53159b8f23ca"
     },
     {
       "change": 450,
@@ -84,6 +109,18 @@
         "sigma:b53317a0-8acf-4fd1-8de8-a5401e776b96:0"
       ],
       "rule_id": "15434e33-5027-4914-88d5-3d4145ec25a9"
+    },
+    {
+      "change": 466,
+      "commit": "137dcbcc501e69d3a1f3fbd43a0ebca2e9246591",
+      "positives": [
+        "otrf:lateral_movement/host/empire_psexec_dcerpc_tcp_svcctl:2900",
+        "otrf:lateral_movement/host/empire_smbexec_dcerpc_smb_svcctl:5742",
+        "otrf:persistence/host/empire_wmi_local_event_subscriptions_elevated_user:79473",
+        "otrf:persistence/host/proxylogon_ssrf_rce_poc:4136",
+        "otrf:persistence/host/proxylogon_ssrf_rce_poc:4139"
+      ],
+      "rule_id": "79ce34ca-af29-4d0e-b832-fc1b377020db"
     },
     {
       "change": 491,
@@ -115,6 +152,8 @@
       "change": 496,
       "commit": "4f59a13d46b9a9a0d6465034bbd8586c0bda2f8f",
       "positives": [
+        "otrf:defense_evasion/host/empire_wmic_add_user_backdoor:164",
+        "otrf:lateral_movement/host/empire_wmic_add_user_backdoor:164",
         "sigma:0b7163dc-7eee-4960-af17-c0cd517f92da:0",
         "sigma:3c89a1e8-0fba-449e-8f1b-8409d6267ec8:0",
         "sigma:49d9671b-0a0a-4c09-8280-d215bfd30662:0",
@@ -125,6 +164,32 @@
         "sigma:c453ab7a-1f5c-4716-a3b4-dea8135fb43a:0"
       ],
       "rule_id": "b53317a0-8acf-4fd1-8de8-a5401e776b96"
+    },
+    {
+      "change": 534,
+      "commit": "a7a4bce9b809b544cb2e28ab34fb439d0d7037df",
+      "positives": [
+        "otrf:credential_access/host/cmd_dumping_ntds_dit_file_volume_shadow_copy:15504",
+        "otrf:credential_access/host/cmd_psexec_lsa_secrets_dump:202",
+        "otrf:credential_access/host/empire_shell_reg_dump_sam:226"
+      ],
+      "rule_id": "fd877b94-9bb5-4191-bb25-d79cbd93c167"
+    },
+    {
+      "change": 579,
+      "commit": "29c2d6e8e4e11fd87c9e145b2770cc019c8beecc",
+      "positives": [
+        "otrf:lateral_movement/host/mimikatz_CVE-2020-1472_Unauthenticated_NetrServerAuthenticate2:89"
+      ],
+      "rule_id": "4f154fb6-27d1-4813-a759-78b93e0b9c48"
+    },
+    {
+      "change": 621,
+      "commit": "143a413f4f4aa53668af9723142fe1cd5a20bac2",
+      "positives": [
+        "otrf:credential_access/host/cmd_psexec_lsa_secrets_dump:129"
+      ],
+      "rule_id": "0ba1da6d-b6ce-4366-828c-18826c9de23e"
     },
     {
       "change": 761,
@@ -141,6 +206,15 @@
         "sigma:9ec9fb1b-e059-4489-9642-f270c207923d:0"
       ],
       "rule_id": "b7e2a8d4-74bb-4b78-adc9-3f92af2d4829"
+    },
+    {
+      "change": 805,
+      "commit": "be1f1a45052f7eaace5003387a31856c0e3c92c2",
+      "positives": [
+        "otrf:credential_access/host/cmd_psexec_lsa_secrets_dump:202",
+        "otrf:credential_access/host/empire_shell_reg_dump_sam:226"
+      ],
+      "rule_id": "970007b7-ce32-49d0-a4a4-fbef016950bd"
     },
     {
       "change": 917,
@@ -180,12 +254,40 @@
       "change": 1068,
       "commit": "d9836d9fe48e062533720c712e874594699fea37",
       "positives": [
+        "otrf:defense_evasion/host/cmd_mshta_javascript_getobject_sct:201",
+        "otrf:lateral_movement/host/covenant_psremoting_grunt:720",
+        "otrf:other/aptsimulator_cobaltstrike:2088",
+        "otrf:privilege_escalation/host/empire_uac_shellapi_fodhelper:1185",
         "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
         "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:0",
         "sigma:7124aebe-4cd7-4ccb-8df0-6d6b93c96795:1",
         "sigma:beaa66d6-aa1b-4e3c-80f5-e0145369bfaf:0"
       ],
       "rule_id": "36475a7d-0f6d-4dce-9b01-6aeb473bbaf1"
+    },
+    {
+      "change": 1105,
+      "commit": "32169dbc33d057830e6b36682f6318c3511920e0",
+      "positives": [
+        "otrf:privilege_escalation/host/cmd_service_mod_fax:142"
+      ],
+      "rule_id": "d522eca2-2973-4391-a3e0-ef0374321dae"
+    },
+    {
+      "change": 1123,
+      "commit": "ae2ddae5aaacf6676c446714cb0dcd74b85e7aef",
+      "positives": [
+        "otrf:defense_evasion/host/psh_mavinject_dll_notepad:358"
+      ],
+      "rule_id": "4f73421b-5a0b-4bbf-a892-5a7fb99bea66"
+    },
+    {
+      "change": 1181,
+      "commit": "535e6ce0cc9c101fdf60977850801e42b6a9e0a8",
+      "positives": [
+        "otrf:persistence/host/empire_schtasks_creation_standard_user:178"
+      ],
+      "rule_id": "f2c64357-b1d2-41b7-849f-34d2682c0fad"
     },
     {
       "change": 1198,
@@ -199,6 +301,10 @@
       "change": 1205,
       "commit": "fb71c1bb6791997924cb7f8ce53b6a04c0d26b31",
       "positives": [
+        "otrf:defense_evasion/host/cmd_mshta_vbscript_execute_psh:274",
+        "otrf:persistence/host/empire_schtasks_creation_execution_elevated_user:100",
+        "otrf:persistence/host/empire_schtasks_creation_standard_user:178",
+        "otrf:privilege_escalation/host/cmd_service_mod_fax:115",
         "sigma:fa00b701-44c6-4679-994d-5a18afa8a707:0"
       ],
       "rule_id": "a77c1610-fc73-4019-8e29-0f51efc04a51"
@@ -207,6 +313,10 @@
       "change": 1217,
       "commit": "b0b9d32dfacd6012194cec68a611c4cd7f8cf0ad",
       "positives": [
+        "otrf:credential_access/host/cmd_psexec_lsa_secrets_dump:67",
+        "otrf:defense_evasion/host/cmd_mshta_javascript_getobject_sct:201",
+        "otrf:defense_evasion/host/cmd_mshta_vbscript_execute_psh:274",
+        "otrf:persistence/host/empire_schtasks_creation_execution_elevated_user:100",
         "sigma:221b251a-357a-49a9-920a-271802777cc0:0",
         "sigma:50a0aa3d-ab16-4594-a8aa-5145a6e6792b:0",
         "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
@@ -217,9 +327,39 @@
       "change": 1228,
       "commit": "5f37a1e25f7cc49381751e30f876cfb11bb95c4d",
       "positives": [
+        "otrf:credential_access/host/empire_ninjacopy_dumping_ntds_dit_file:1477",
+        "otrf:defense_evasion/host/empire_launcher_sct_regsvr32:223",
+        "otrf:execution/host/empire_launcher_vbs:258",
+        "otrf:lateral_movement/host/empire_dcom_shellwindows_stager:30815",
+        "otrf:lateral_movement/host/empire_msbuild_dcerpc_wmi_smb:1863",
+        "otrf:lateral_movement/host/empire_psexec_dcerpc_tcp_svcctl:1072",
+        "otrf:lateral_movement/host/empire_psremoting_stager:843",
+        "otrf:lateral_movement/host/empire_smbexec_dcerpc_smb_svcctl:1028",
+        "otrf:lateral_movement/host/empire_wmi_dcerpc_wmi_IWbemServices_ExecMethod:368",
+        "otrf:persistence/host/empire_wmi_local_event_subscriptions_elevated_user:77312",
+        "otrf:privilege_escalation/host/empire_uac_shellapi_fodhelper:1185",
+        "otrf:privilege_escalation/host/empire_uac_shellapi_fodhelper:1811",
         "sigma:6385697e-9f1b-40bd-8817-f4a91f40508e:0"
       ],
       "rule_id": "fb843269-508c-4b76-8b8d-88679db22ce7"
+    },
+    {
+      "change": 1255,
+      "commit": "2ae2c35a7fd72718339c01028037d134aadd79d9",
+      "positives": [
+        "otrf:defense_evasion/host/cmd_mshta_javascript_getobject_sct:201",
+        "otrf:defense_evasion/host/cmd_mshta_vbscript_execute_psh:274",
+        "otrf:defense_evasion/host/psh_mshta_html_application_execution:439"
+      ],
+      "rule_id": "e32f92d1-523e-49c3-9374-bdb13b46a3ba"
+    },
+    {
+      "change": 1304,
+      "commit": "206adbb2b60015422678c956b9d05ae5bb1d39af",
+      "positives": [
+        "otrf:credential_access/host/psh_lsass_memory_dump_comsvcs:106"
+      ],
+      "rule_id": "646ea171-dded-4578-8a4d-65e9822892e3"
     },
     {
       "change": 1311,
@@ -238,6 +378,22 @@
       "rule_id": "a7ee1722-c3c5-aeff-3212-c777e4733217"
     },
     {
+      "change": 1321,
+      "commit": "a29ac79a3f40b10bcbd759baaf4bafc043fb9a74",
+      "positives": [
+        "otrf:credential_access/host/psh_lsass_memory_dump_comsvcs:106"
+      ],
+      "rule_id": "646ea171-dded-4578-8a4d-65e9822892e3"
+    },
+    {
+      "change": 1346,
+      "commit": "1896a45572c70f944f39ef10896af719c762d5e2",
+      "positives": [
+        "otrf:credential_access/host/cmd_dumping_ntds_dit_file_ntdsutil:6296"
+      ],
+      "rule_id": "2afafd61-6aae-4df4-baed-139fa1f4c345"
+    },
+    {
       "change": 1391,
       "commit": "7d437c29694435ca79d92b0b8162c0e043ff89b5",
       "positives": [
@@ -246,5 +402,5 @@
       "rule_id": "36480ae1-a1cb-4eaa-a0d6-29801d7e9142"
     }
   ],
-  "verified_rules": 26
+  "verified_rules": 40
 }
