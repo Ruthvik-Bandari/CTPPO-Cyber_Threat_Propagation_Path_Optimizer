@@ -229,3 +229,25 @@ The 175 candidates were split into four chunks. Two independent AI reviewers lab
   - benign: 3 (`ai-consensus`);
   - unknown: 13 (3 `ai-consensus`, 10 `ai-adjudicated`).
 - **Still to do before the split is frozen:** the human check. The owner re-labels the 10 adjudicated events and a seeded 10% sample of the consensus labels (17 events). The 27 event ids are in `review/human-check.txt` on the cluster. A human label always replaces an AI one, and results built on these labels report `ai_assisted` separately.
+
+## B2: unmodified open model (Slurm job 11142209, V100, 37 min)
+
+Qwen2.5-Coder-7B-Instruct (pinned revision, fp16, greedy decoding) was run on the same 173 cases as B0 and B1, before the relabeling. The snapshot is in `pre-relabel/`.
+
+| System | Validated success | Outcome match | Wrong change | Abstained | Δ vs B0 (95% CI) |
+| --- | --- | --- | --- | --- | --- |
+| B0 | 0.520 | 0.977 | 0 | 0.006 | — |
+| B1 | 0.520 | 0.977 | 0 | 0.017 | +0.000 |
+| B2 | 0.503 | 0.832 | 0 | 0.162 | −0.017 (−0.039 to +0.000), 0 won and 3 lost |
+
+B2's outcome match by fault:
+
+- mapping: 0.97, the same as B0, because the prompt carries the diagnosis's observed alternative fields;
+- logic: 0.52 (25 repaired, 23 abstained);
+- natural: 0.20 (4 of 5 abstained);
+- healthy: 1.00;
+- missing telemetry: 0.97.
+
+Across 89 model calls, B2 proposed 263 candidates; 250 were valid and 13 malformed proposals were dropped. B2 never weakened a rule: no repair added false alarms.
+
+**Reading.** An untrained 7B model is safe but weaker than the deterministic baseline on logic and natural faults. That remaining gap is the plan's precondition (section 12) for trying M1 LoRA fine-tuning on the train-split repairs.
