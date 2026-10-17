@@ -1,0 +1,55 @@
+{
+  "base_model": "Qwen/Qwen2.5-Coder-7B-Instruct@c03e6d358207e414f1eca0bb1891e29f1db0e242",
+  "config": {
+    "checkpoint_every": 0,
+    "epochs": 3,
+    "grad_accumulation": 8,
+    "learning_rate": 0.0002,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "lora_r": 16,
+    "max_steps": 5,
+    "max_tokens": 4096,
+    "micro_batch": 1,
+    "seed": 1,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "warmup_ratio": 0.05,
+    "weight_decay": 0.0
+  },
+  "data_sha256": {
+    "development": "2743d73fc29765f7a33f6da29fdecc0fb67cd8091a0a7465cb64c7c783af76f1",
+    "train": "31e0b9f76031e20209003204a20523e7a14d44e586bf13783c8d37fde758bce8"
+  },
+  "dev_examples": 43,
+  "effective_batch": 8,
+  "elapsed_seconds": 31.8,
+  "gpu": "NVIDIA A100-SXM4-80GB",
+  "history": [
+    {
+      "dev_loss": 0.05597,
+      "epoch": 1,
+      "step": 5
+    }
+  ],
+  "optimizer": {
+    "lr": 0.0002,
+    "name": "AdamW",
+    "schedule": "cosine",
+    "weight_decay": 0.0
+  },
+  "optimizer_steps": 5,
+  "peak_gpu_memory_gb": 18.87,
+  "precision": "bf16",
+  "schema_version": 1,
+  "tokens_per_second": 1676.0,
+  "train_examples": 126,
+  "truncated_examples": 0
+}

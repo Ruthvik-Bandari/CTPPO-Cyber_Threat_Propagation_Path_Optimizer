@@ -288,3 +288,53 @@ On the 34 cases with a validation suite, validated success is B0 0.97 and B2 0.7
 3. **Natural faults remain the hard frontier.** No system exceeds 0.09 validated success on them, which leaves room for M1.
 
 All labels behind these results are AI-assisted (`ai_assisted`: 175), and the 27-event human check is pending.
+
+## M1: LoRA fine-tuning (Slurm jobs 11145586, 11145591 and 11145596)
+
+The SFT data comes from the train and development cases only, never test.
+
+- **Examples:** 126 train and 43 development. Six natural fixes that cannot be written as candidate operations within the contract were skipped (5 train, 1 development).
+- **Smoke run on an A100-80GB:**
+  - peak memory 18.9 GB, at 1,676 tokens per second;
+  - no example truncated at the 4,096-token limit.
+- **Training on an A100:**
+  - LoRA with r 16 and alpha 32 on all attention and MLP projections, bf16;
+  - learning rate 2e-4 with a cosine schedule, effective batch 8, 3 epochs, 48 optimizer steps, seed 1;
+  - 4.5 minutes, at about 2,100 tokens per second;
+  - development loss 0.034, then 0.019, then 0.020 by epoch.
+
+  Peak memory also fits a 32 GB V100, the smallest-GPU option for further seeds.
+- **Evaluation on a V100:** the base model plus the adapter, otherwise identical to B2.
+
+Paired on 175 train and development cases:
+
+| System | Validated success | Outcome match | Wrong change | Abstained | Weakened rules | Δ vs B0 (95% CI) |
+| --- | --- | --- | --- | --- | --- | --- |
+| B0 | 0.560 | 0.949 | 0 | 0.011 | 6 | — |
+| B1 | 0.560 | 0.943 | 0 | 0.051 | 0 | +0.000 |
+| B2 | 0.509 | 0.760 | 0 | 0.234 | 0 | −0.051 (−0.084 to −0.023) |
+| **M1** | **0.549** | **0.920** | 0 | 0.074 | **0** | −0.011 (−0.028 to +0.000) |
+
+**M1 vs B2:** +0.040 (95% CI +0.017 to +0.072). M1 won 7 cases and lost none. Across 93 model calls, no proposal was malformed (B2 had 13).
+
+| Kind (cases) | B0 | B2 | M1 |
+| --- | --- | --- | --- |
+| logic (48), success / match | 0.19 / 1.00 | 0.02 / 0.38 | 0.17 / 0.94 |
+| natural (11), success / match | 0.09 / 0.36 | 0.00 / 0.09 | 0.00 / 0.18 |
+
+On the 34 cases with a validation suite, validated success is B0 0.97, M1 0.91 and B2 0.71.
+
+**Reading.**
+
+- **Fine-tuning helps.** M1 is significantly better than the unmodified model (B2): logic outcome match rose from 0.38 to 0.94, abstention fell from 23% to 7%, and malformed output went to zero.
+- **M1 is not better than the deterministic baseline.** Its interval against B0 touches zero from below. It matches B0 within noise while never weakening a rule, which B0 did 6 times.
+- **Natural faults remain unsolved by every system.** The best validated success is 0.09.
+
+Per plan section 13, the stronger validated baseline ships unless adaptation credibly improves on it. On this evidence, M1 does not justify replacing B0 or B1. B1 matches B0's success with zero weakened rules, which makes it the safest choice.
+
+Caveats:
+
+- This is one seed.
+- All labels are AI-assisted, and the human check is pending.
+- The split is a preview, not frozen.
+- The locked test split has not been run.
