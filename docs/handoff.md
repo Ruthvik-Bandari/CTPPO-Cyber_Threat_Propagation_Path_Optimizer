@@ -59,14 +59,20 @@ The tip of `main`, pushed to `origin/main` after every change (2026-10-15). The 
 
 ## Next action
 
-1. **Owner:** label the 175 OTRF candidates (`docs/data/review.md`). That is what unlocks validated success: 81 of 88 repairs are provisional today. It also lets more of the 1,156 unobservable natural fixes be verified.
-2. Rerun the chain on the cluster: `natural.sbatch`, then `review_split.sbatch`, then freeze the split, then `variants.sbatch`, then `evaluate.sbatch b0` and `b1`.
-3. B2: verify the scratch GPU environment inside a job, since the login node kills torch imports. Then run `hpc/b2.sbatch`. M1 (`sft.sbatch`, then `m1.sbatch --max-steps 5`, then a full run) only if B2 shows a gap on natural cases.
-4. Locked test evaluation once (`--locked`), then the model and dataset cards.
-5. Owner items in `docs/data/compliance.md`: `/work` storage, and IRB review for practitioner trials.
+State on 2026-10-17: the full pipeline has run on corrected code (review fixes 48b5b06 and 2869a39).
 
-Latest results are in `docs/data/qc/README.md`:
+- Held-out development results:
+  - B0 = B1 = 0.591;
+  - M1 (3 seeds) = 0.568;
+  - B2 = 0.523;
+  - B1 and M1 never weaken a rule, while B0 and B2 weakened 3 each.
+- Recommended baseline: B1. M1 does not ship.
+- Tables: `docs/data/qc/README.md`, under "Corrected results".
 
-- B0 = B1 = 0.520 validated success.
-- Outcome match is 0.977.
-- On natural cases, success is 0.20. B0 weakened 2 rules; B1 abstained instead.
+Next:
+
+1. **Owner:** human check of the 27 events in `/scratch/$USER/aegis-sec/data/review/human-check.txt`, using `review-next` and `review-label`. Run it on the login node; `review-status` must run inside a job (the login node kills it).
+2. Freeze the split: `python -m aegisbench split --freeze` in a job. Then rerun `variants.sbatch` (it writes the natural cases too), `evaluate` for b0, b1 and b2, `sft`, and M1 seeds 1 to 3 with `m1_eval`.
+3. Locked test evaluation, once: `evaluate.sbatch <sys> --locked`, then `compare --locked`. Then finalize the dataset and model cards.
+4. Optional: enlarge the split beyond 12/12/36 using the reserve (122 roots).
+5. Owner: `/work` storage, IRB question, PyPI publishing decision.
