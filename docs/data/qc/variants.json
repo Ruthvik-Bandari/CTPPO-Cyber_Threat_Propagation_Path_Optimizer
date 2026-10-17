@@ -14,10 +14,12 @@
   "cases_without_validation_suite": 168,
   "discarded": {
     "healthy_reference_misses_positive": 4,
-    "logic:no_behavior_change": 22,
-    "logic:positives_still_detected": 14,
-    "mapping:no_behavior_change": 14,
-    "missing_telemetry:no_behavior_change": 14
+    "logic:no_behavior_change": 23,
+    "logic:positives_still_detected": 13,
+    "mapping:no_behavior_change": 13,
+    "mapping:positives_still_detected": 1,
+    "missing_telemetry:no_behavior_change": 13,
+    "missing_telemetry:positives_still_detected": 1
   },
   "from_frozen_split": false,
   "manifest": "split-preview.json",

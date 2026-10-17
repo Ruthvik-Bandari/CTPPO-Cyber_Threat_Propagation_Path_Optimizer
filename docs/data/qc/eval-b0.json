@@ -2007,17 +2007,17 @@
       "wrong_change": false
     },
     {
-      "abstained": true,
+      "abstained": false,
       "adds_false_alarms": false,
       "case_id": "e32f92d1-523e-49c3-9374-bdb13b46a3ba-natural-2ae2c35a7f",
       "error": null,
       "expected": "repaired",
-      "has_validation": true,
+      "has_validation": false,
       "kind": "natural",
-      "outcome": "abstained",
-      "outcome_match": false,
-      "patch_kind": null,
-      "provisional": false,
+      "outcome": "repaired",
+      "outcome_match": true,
+      "patch_kind": "rule",
+      "provisional": true,
       "root_id": "e32f92d1-523e-49c3-9374-bdb13b46a3ba",
       "split": "train",
       "success": false,
@@ -2976,6 +2976,7 @@
       "wrong_change": false
     }
   ],
+  "label": "b0",
   "locked_test_included": false,
   "schema_version": 1,
   "summary": {
@@ -3051,15 +3052,14 @@
         "wrong_change_rate": 0.0
       },
       "natural": {
-        "abstention_rate": 0.09090909090909091,
+        "abstention_rate": 0.0,
         "cases": 11,
         "errors": 0,
-        "outcome_match_rate": 0.36363636363636365,
+        "outcome_match_rate": 0.45454545454545453,
         "outcomes": {
-          "abstained": 1,
-          "repaired": 10
+          "repaired": 11
         },
-        "provisional_repairs": 9,
+        "provisional_repairs": 10,
         "roots": 10,
         "success_ci95": [
           0.0,
@@ -3090,17 +3090,17 @@
         "wrong_change_rate": 0.0
       },
       "train": {
-        "abstention_rate": 0.015267175572519083,
+        "abstention_rate": 0.007633587786259542,
         "cases": 131,
         "errors": 0,
-        "outcome_match_rate": 0.9541984732824428,
+        "outcome_match_rate": 0.9618320610687023,
         "outcomes": {
-          "abstained": 2,
+          "abstained": 1,
           "insufficient_evidence": 25,
-          "repaired": 67,
+          "repaired": 68,
           "unchanged": 37
         },
-        "provisional_repairs": 56,
+        "provisional_repairs": 57,
         "roots": 39,
         "success_ci95": [
           0.4853,
@@ -3111,17 +3111,17 @@
       }
     },
     "overall": {
-      "abstention_rate": 0.011428571428571429,
+      "abstention_rate": 0.005714285714285714,
       "cases": 175,
       "errors": 0,
-      "outcome_match_rate": 0.9485714285714286,
+      "outcome_match_rate": 0.9542857142857143,
       "outcomes": {
-        "abstained": 2,
+        "abstained": 1,
         "insufficient_evidence": 34,
-        "repaired": 91,
+        "repaired": 92,
         "unchanged": 48
       },
-      "provisional_repairs": 74,
+      "provisional_repairs": 75,
       "roots": 51,
       "success_ci95": [
         0.4971,
@@ -3131,23 +3131,22 @@
       "wrong_change_rate": 0.0
     },
     "with_validation_suite": {
-      "abstention_rate": 0.029411764705882353,
-      "cases": 34,
+      "abstention_rate": 0.0,
+      "cases": 33,
       "errors": 0,
-      "outcome_match_rate": 0.9705882352941176,
+      "outcome_match_rate": 1.0,
       "outcomes": {
-        "abstained": 1,
         "insufficient_evidence": 7,
         "repaired": 17,
         "unchanged": 9
       },
       "provisional_repairs": 0,
-      "roots": 10,
+      "roots": 9,
       "success_ci95": [
-        0.8846,
+        1.0,
         1.0
       ],
-      "success_rate": 0.9705882352941176,
+      "success_rate": 1.0,
       "wrong_change_rate": 0.0
     }
   },

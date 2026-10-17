@@ -26,25 +26,25 @@
   },
   "data_sha256": {
     "development": "2743d73fc29765f7a33f6da29fdecc0fb67cd8091a0a7465cb64c7c783af76f1",
-    "train": "31e0b9f76031e20209003204a20523e7a14d44e586bf13783c8d37fde758bce8"
+    "train": "67516dab1f88c32e20d87327c3e804e38d4a2e3a8e540475223c6fc0c78bb9a6"
   },
   "dev_examples": 43,
   "effective_batch": 8,
-  "elapsed_seconds": 233.8,
+  "elapsed_seconds": 234.3,
   "gpu": "NVIDIA A100-SXM4-80GB",
   "history": [
     {
-      "dev_loss": 0.03369,
+      "dev_loss": 0.03801,
       "epoch": 1,
       "step": 16
     },
     {
-      "dev_loss": 0.01891,
+      "dev_loss": 0.01879,
       "epoch": 2,
       "step": 32
     },
     {
-      "dev_loss": 0.01955,
+      "dev_loss": 0.01976,
       "epoch": 3,
       "step": 48
     }
@@ -59,7 +59,7 @@
   "peak_gpu_memory_gb": 18.87,
   "precision": "bf16",
   "schema_version": 1,
-  "tokens_per_second": 2108.5,
+  "tokens_per_second": 2104.3,
   "train_examples": 126,
   "truncated_examples": 0
 }

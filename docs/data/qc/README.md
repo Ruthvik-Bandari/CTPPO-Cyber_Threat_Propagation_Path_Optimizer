@@ -355,3 +355,45 @@ Other fixes in the same review:
 - `classify` handles repeated fields.
 
 All of it is fixed in commits 48b5b06 and 2869a39, with regression tests. The full pipeline was re-run: natural verification, split, variants, B0, B1, B2, SFT and M1 seeds 1 to 3. Comparisons are now on held-out cases only: development, or test when locked. The corrected results are in the next section, and they replace every table above.
+
+### Corrected results (held-out development only)
+
+These are Slurm jobs 11158116 to 11158128. The comparison covers the development split only: 44 cases from 12 roots. The test split remains locked.
+
+| System | Validated success | Outcome match | Wrong change | Abstained | Weakened rules | Δ vs B0 (95% CI) |
+| --- | --- | --- | --- | --- | --- | --- |
+| B0, deterministic | 0.591 | 0.932 | 0 | 0.000 | 3 | — |
+| B1, retrieval | 0.591 | 0.932 | 0 | 0.068 | 0 | +0.000 |
+| B2, unmodified Qwen2.5-Coder-7B | 0.523 | 0.659 | 0 | 0.273 | 3 | −0.068 (−0.139 to +0.000) |
+| M1 seed 1 | 0.568 | 0.886 | 0 | 0.114 | 0 | −0.023 (−0.073 to +0.000) |
+| M1 seed 2 | 0.568 | 0.864 | 0 | 0.136 | 0 | −0.023 (−0.073 to +0.000) |
+| M1 seed 3 | 0.568 | 0.886 | 0 | 0.114 | 0 | −0.023 (−0.073 to +0.000) |
+
+**M1 vs B2:** +0.045 (95% CI +0.000 to +0.111) for each seed, with 2 cases won and 0 lost.
+
+**M1 development loss by epoch:**
+
+| Seed | Epoch 1 | Epoch 2 | Epoch 3 |
+| --- | --- | --- | --- |
+| 1 | 0.038 | 0.019 | 0.020 |
+| 2 | 0.035 | 0.022 | 0.020 |
+| 3 | 0.023 | 0.019 | 0.019 |
+
+All three seeds trained on 126 contract-verified examples, about 4.5 minutes each on an A100.
+
+**By fault kind (development):**
+
+| Kind (cases) | B0 success / match | B2 success / match | M1 success / match (seeds 1, 2, 3) |
+| --- | --- | --- | --- |
+| healthy (11) | 1.00 / 1.00 | 1.00 / 1.00 | 1.00 / 1.00 |
+| logic (11) | 0.27 / 1.00 | 0.00 / 0.00 | 0.18 / 0.82, 0.73, 0.82 |
+| mapping (9) | 0.33 / 1.00 | 0.33 / 1.00 | 0.33 / 1.00 |
+| missing telemetry (9) | 1.00 / 1.00 | 1.00 / 1.00 | 1.00 / 1.00 |
+| natural (4) | 0.00 / 0.25 | 0.00 / 0.00 | 0.00 / 0.25 |
+
+**Conclusions** (exploratory, n = 44 development cases):
+
+1. **No learned system beats the deterministic baseline.** B1 ties B0, and M1 and B2 are within noise below it. Under plan section 13, the stronger baseline ships.
+2. **Fine-tuning moves the model in the right direction, and does so consistently.** Logic outcome match rose from 0.00 (B2) to between 0.73 and 0.82 (M1), and all three seeds reach the same validated success. On this small held-out set, the difference against B2 is not significant.
+3. **Safety separates the systems more than success does.** B0 and B2 each weakened 3 rules to reach their scores. B1 and M1 never weakened a rule. That makes **B1 the recommended research baseline**: B0's success with zero weakening.
+4. **Natural faults are unsolved:** 0 validated success for every system. This is the open problem, and a larger frozen split and test evaluation are needed before any claim.

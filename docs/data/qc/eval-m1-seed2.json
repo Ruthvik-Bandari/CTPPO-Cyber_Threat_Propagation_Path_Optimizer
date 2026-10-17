@@ -1208,17 +1208,17 @@
       "wrong_change": false
     },
     {
-      "abstained": false,
+      "abstained": true,
       "adds_false_alarms": false,
       "case_id": "737e618a-a410-49b5-bec3-9e55ff7fbc15-logic",
       "error": null,
       "expected": "repaired",
       "has_validation": false,
       "kind": "logic",
-      "outcome": "repaired",
-      "outcome_match": true,
-      "patch_kind": "rule",
-      "provisional": true,
+      "outcome": "abstained",
+      "outcome_match": false,
+      "patch_kind": null,
+      "provisional": false,
       "root_id": "737e618a-a410-49b5-bec3-9e55ff7fbc15",
       "split": "train",
       "success": false,
@@ -1259,17 +1259,17 @@
       "wrong_change": false
     },
     {
-      "abstained": false,
+      "abstained": true,
       "adds_false_alarms": false,
       "case_id": "737e618a-a410-49b5-bec3-9e55ff7fbc15-natural-0d86ec83b5",
       "error": null,
       "expected": "repaired",
       "has_validation": false,
       "kind": "natural",
-      "outcome": "repaired",
-      "outcome_match": true,
-      "patch_kind": "rule",
-      "provisional": true,
+      "outcome": "abstained",
+      "outcome_match": false,
+      "patch_kind": null,
+      "provisional": false,
       "root_id": "737e618a-a410-49b5-bec3-9e55ff7fbc15",
       "split": "train",
       "success": false,
@@ -2012,7 +2012,7 @@
       "case_id": "e32f92d1-523e-49c3-9374-bdb13b46a3ba-natural-2ae2c35a7f",
       "error": null,
       "expected": "repaired",
-      "has_validation": true,
+      "has_validation": false,
       "kind": "natural",
       "outcome": "abstained",
       "outcome_match": false,
@@ -2976,6 +2976,7 @@
       "wrong_change": false
     }
   ],
+  "label": "m1-seed2",
   "locked_test_included": false,
   "schema_version": 1,
   "summary": {
@@ -2998,15 +2999,15 @@
         "wrong_change_rate": 0.0
       },
       "logic": {
-        "abstention_rate": 0.0625,
+        "abstention_rate": 0.08333333333333333,
         "cases": 48,
         "errors": 0,
-        "outcome_match_rate": 0.9375,
+        "outcome_match_rate": 0.9166666666666666,
         "outcomes": {
-          "abstained": 3,
-          "repaired": 45
+          "abstained": 4,
+          "repaired": 44
         },
-        "provisional_repairs": 37,
+        "provisional_repairs": 36,
         "roots": 48,
         "success_ci95": [
           0.0625,
@@ -3052,15 +3053,15 @@
         "wrong_change_rate": 0.0
       },
       "natural": {
-        "abstention_rate": 0.8181818181818182,
+        "abstention_rate": 0.9090909090909091,
         "cases": 11,
         "errors": 0,
-        "outcome_match_rate": 0.18181818181818182,
+        "outcome_match_rate": 0.09090909090909091,
         "outcomes": {
-          "abstained": 9,
-          "repaired": 2
+          "abstained": 10,
+          "repaired": 1
         },
-        "provisional_repairs": 2,
+        "provisional_repairs": 1,
         "roots": 10,
         "success_ci95": [
           0.0,
@@ -3092,17 +3093,17 @@
         "wrong_change_rate": 0.0
       },
       "train": {
-        "abstention_rate": 0.05343511450381679,
+        "abstention_rate": 0.06870229007633588,
         "cases": 131,
         "errors": 0,
-        "outcome_match_rate": 0.9389312977099237,
+        "outcome_match_rate": 0.9236641221374046,
         "outcomes": {
-          "abstained": 7,
+          "abstained": 9,
           "insufficient_evidence": 25,
-          "repaired": 62,
+          "repaired": 60,
           "unchanged": 37
         },
-        "provisional_repairs": 52,
+        "provisional_repairs": 50,
         "roots": 39,
         "success_ci95": [
           0.4846,
@@ -3113,17 +3114,17 @@
       }
     },
     "overall": {
-      "abstention_rate": 0.07428571428571429,
+      "abstention_rate": 0.08571428571428572,
       "cases": 175,
       "errors": 0,
-      "outcome_match_rate": 0.92,
+      "outcome_match_rate": 0.9085714285714286,
       "outcomes": {
-        "abstained": 13,
+        "abstained": 15,
         "insufficient_evidence": 34,
-        "repaired": 80,
+        "repaired": 78,
         "unchanged": 48
       },
-      "provisional_repairs": 65,
+      "provisional_repairs": 63,
       "roots": 51,
       "success_ci95": [
         0.494,
@@ -3133,30 +3134,30 @@
       "wrong_change_rate": 0.0
     },
     "with_validation_suite": {
-      "abstention_rate": 0.08823529411764706,
-      "cases": 34,
+      "abstention_rate": 0.06060606060606061,
+      "cases": 33,
       "errors": 0,
-      "outcome_match_rate": 0.9117647058823529,
+      "outcome_match_rate": 0.9393939393939394,
       "outcomes": {
-        "abstained": 3,
+        "abstained": 2,
         "insufficient_evidence": 7,
         "repaired": 15,
         "unchanged": 9
       },
       "provisional_repairs": 0,
-      "roots": 10,
+      "roots": 9,
       "success_ci95": [
-        0.8148,
+        0.8649,
         1.0
       ],
-      "success_rate": 0.9117647058823529,
+      "success_rate": 0.9393939393939394,
       "wrong_change_rate": 0.0
     }
   },
   "system": "m1",
   "system_stats": {
     "calls": 93,
-    "dropped": 0,
-    "valid": 93
+    "dropped": 2,
+    "valid": 91
   }
 }

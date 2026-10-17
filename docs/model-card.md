@@ -10,7 +10,7 @@
 | Adapter | LoRA on `q,k,v,o,gate,up,down` projections; r 16, alpha 32, dropout 0.05 |
 | Training | Supervised fine-tuning on completions only; AdamW with learning rate 2e-4 and a cosine schedule (5% warmup); effective batch 8; 3 epochs; bf16; context 4,096 with no truncation observed |
 | Hardware | One A100-SXM4-80GB. Peak memory 18.9 GB, about 2,100 tokens per second, 4.5 minutes per seed |
-| Seeds | 1, 2, 3 (see Results) |
+| Seeds | 1, 2, 3; identical validated success, development loss 0.019 to 0.020 |
 | Code | `src/aegisbench/m1.py` (training), `src/aegisbench/sft.py` (data), `src/aegisbench/hf.py` (inference) |
 | Run records | `reports/m1-seed*-training.json`, which hold the configuration, loss history, memory, throughput, base revision and data SHA-256 |
 
@@ -33,23 +33,17 @@ The model has no tools and no network access. It loads with `trust_remote_code=F
 
 ## Results
 
-> **Superseded.** The table below pooled train cases with development cases. B1's memory and M1's training data come from train, so their numbers are inflated. The corrected, development-only results with three M1 seeds replace it (see `docs/data/qc/README.md`, "Correction").
+The comparison is paired on the held-out **development** split: 44 cases from 12 roots. The test split is locked, and the intervals come from a root-resampling bootstrap. Full tables are in [`data/qc/README.md`](data/qc/README.md), under "Corrected results".
 
-
-These are paired results on 175 train and development cases from 51 roots, before the locked test split. The intervals come from a root-resampling bootstrap.
-
-| System | Validated success | Outcome match | Weakened rules | Abstained | Δ vs B0 |
+| System | Validated success | Outcome match | Weakened rules | Abstained | Δ vs B0 (95% CI) |
 | --- | --- | --- | --- | --- | --- |
-| B0, deterministic | 0.560 | 0.949 | 6 | 1% | — |
-| B1, retrieval | 0.560 | 0.943 | 0 | 5% | ±0 |
-| B2, unmodified model | 0.509 | 0.760 | 0 | 23% | −0.051 (−0.084 to −0.023) |
-| M1 seed 1 | 0.549 | 0.920 | 0 | 7% | −0.011 (−0.028 to +0.000) |
+| B0, deterministic | 0.591 | 0.932 | 3 | 0% | — |
+| B1, retrieval | 0.591 | 0.932 | 0 | 7% | ±0 |
+| B2, unmodified model | 0.523 | 0.659 | 3 | 27% | −0.068 (−0.139 to 0) |
+| M1, mean of 3 seeds | 0.568 (identical across seeds) | 0.879 | 0 | 12% | −0.023 (−0.073 to 0) |
 
-<!-- SEEDS: three-seed summary added when seeds 2 and 3 finish -->
-
-- **M1 vs B2:** +0.040 (95% CI +0.017 to +0.072). M1 won 7 cases and lost none, with zero malformed outputs. Fine-tuning clearly teaches the output contract and the logic repairs.
-- **M1 vs B0:** statistically indistinguishable. M1 never weakened a rule, while B0 did so 6 times.
-- **Natural faults (11 cases):** no system is above 0.09 validated success, and M1 scores 0.00.
+- **M1 vs B2:** +0.045 (CI 0 to +0.111) for every seed, with 2 cases won and 0 lost. Logic outcome match rose from 0.00 to between 0.73 and 0.82.
+- **M1 vs B0:** within noise, and below it. **M1 does not ship;** B1 is the recommended baseline, matching B0's success without weakening any rule.
 
 ## Limitations and risks
 

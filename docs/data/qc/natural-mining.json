@@ -1,23 +1,23 @@
 {
   "detection_changes": 1403,
   "edits": {
-    "0": 49,
-    "1": 629,
-    "2": 262,
-    "3": 101,
-    "4": 66,
-    "5": 135,
-    "6": 161
+    "0": 182,
+    "1": 583,
+    "2": 208,
+    "3": 89,
+    "4": 56,
+    "5": 133,
+    "6": 152
   },
   "kinds": {
     "condition": 522,
-    "field": 149,
-    "modifier": 129,
+    "field": 187,
+    "modifier": 93,
     "selection_added": 472,
     "selection_removed": 376,
-    "values_added": 437,
-    "values_changed": 305,
-    "values_removed": 86
+    "values_added": 427,
+    "values_changed": 269,
+    "values_removed": 73
   },
   "pinned_commit": "552f3fee420ef232a8e5790c4fae591847e32347",
   "rules": 568,
@@ -28,5 +28,5 @@
     "refactor_renamed_selections": 63,
     "rule_not_supported_at_pin": 2181
   },
-  "within_contract": 739
+  "within_contract": 622
 }
