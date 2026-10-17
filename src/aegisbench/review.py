@@ -15,10 +15,13 @@ labels file and returns counts only.
 from __future__ import annotations
 
 import csv
+import fcntl
 import io
 import json
 import os
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -240,7 +243,7 @@ def format_candidate(item: dict[str, Any], remaining: int) -> str:
     return "\n".join(lines)
 
 
-def set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: str) -> None:
+def _set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: str) -> None:
     """Record one decision in labels.csv, keeping every other row as it was."""
     label, rationale, reviewer = label.strip().lower(), rationale.strip(), reviewer.strip()
     if problem := label_problem(label, rationale, reviewer):
@@ -260,7 +263,7 @@ def set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: s
 AI_REVIEWER_PREFIX = "ai-"
 
 
-def import_labels(root: Path, rows: list[dict[str, str]]) -> dict[str, int]:
+def _import_labels(root: Path, rows: list[dict[str, Any]]) -> dict[str, int]:
     """Bulk-record ``event_id, label, rationale, reviewer`` rows. Every row is validated first; any
     invalid row aborts the whole import. A label a human already set is never overwritten."""
     _, current = _load_sheet(root)
@@ -269,9 +272,7 @@ def import_labels(root: Path, rows: list[dict[str, str]]) -> dict[str, int]:
     for n, row in enumerate(rows, 1):
         if row.get("event_id") not in by_id:
             problems.append(f"row {n}: unknown event id")
-        elif problem := label_problem(
-            row.get("label", "").strip().lower(), row.get("rationale", "").strip(), row.get("reviewer", "").strip()
-        ):
+        elif problem := label_problem(_text(row, "label").lower(), _text(row, "rationale"), _text(row, "reviewer")):
             problems.append(f"row {n}: {problem}")
     if problems:
         raise ReviewError("; ".join(problems[:10]))
@@ -285,7 +286,7 @@ def import_labels(root: Path, rows: list[dict[str, str]]) -> dict[str, int]:
             counts["kept_existing_human_label"] += 1
             continue
         existing.update(
-            label=row["label"].strip().lower(), rationale=row["rationale"].strip(), reviewer=row["reviewer"].strip()
+            label=_text(row, "label").lower(), rationale=_text(row, "rationale"), reviewer=_text(row, "reviewer")
         )
         counts["imported"] += 1
     buf = io.StringIO()
@@ -304,3 +305,34 @@ def _ai_assisted(path: Path, reviewed: set[str]) -> int:
             for r in csv.DictReader(fh)
             if r.get("event_id") in reviewed and (r.get("reviewer") or "").startswith(AI_REVIEWER_PREFIX)
         )
+
+
+def _text(row: dict[str, Any], key: str) -> str:
+    """A field as stripped text; missing or null values become empty strings."""
+    value = row.get(key)
+    return "" if value is None else str(value).strip()
+
+
+@contextmanager
+def _labels_lock(root: Path) -> Iterator[None]:
+    """Serialize read-modify-write updates of labels.csv between concurrent reviewers."""
+    lock = root / "review" / ".labels.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with lock.open("a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def set_label(root: Path, event_id: str, label: str, rationale: str, reviewer: str) -> None:
+    """Record one decision in labels.csv, keeping every other row as it was."""
+    with _labels_lock(root):
+        _set_label(root, event_id, label, rationale, reviewer)
+
+
+def import_labels(root: Path, rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Bulk-record labels atomically; never overwrites a human label (see ``_import_labels``)."""
+    with _labels_lock(root):
+        return _import_labels(root, rows)

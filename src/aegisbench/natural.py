@@ -81,7 +81,8 @@ class Change:
 
 def _git(git_dir: Path, *args: str, stdin: bytes | None = None) -> bytes:
     return subprocess.run(  # noqa: S603 - fixed argument list, no shell
-        ["git", f"--git-dir={git_dir}", *args],  # noqa: S607 - git from PATH
+        # core.quotePath=false: non-ASCII rule paths come back verbatim instead of quoted.
+        ["git", "-c", "core.quotePath=false", f"--git-dir={git_dir}", *args],  # noqa: S607 - git from PATH
         input=stdin,
         capture_output=True,
         timeout=GIT_TIMEOUT_S,
@@ -134,16 +135,6 @@ def _blobs(git_dir: Path, specs: list[str]) -> list[bytes | None]:
     return out
 
 
-def _predicates(rule: Rule) -> dict[tuple[str, int, str], tuple[str, bool, frozenset[str]]]:
-    """(selection, branch, field) -> (modifier, match_all, values) for a structural diff."""
-    out: dict[tuple[str, int, str], tuple[str, bool, frozenset[str]]] = {}
-    for name, sel in rule.selections.items():
-        for b, branch in enumerate(sel.branches):
-            for p in branch:
-                out[(name, b, p.field)] = (p.modifier, p.match_all, frozenset(p.values))
-    return out
-
-
 def _rename(cond: Cond, names: dict[str, str]) -> Cond:
     match cond:
         case Ref(name):
@@ -180,23 +171,26 @@ def classify(before: Rule, after: Rule) -> tuple[tuple[str, ...], int, bool]:
     if render_condition(before.condition) != render_condition(after.condition):
         kinds.add("condition")
         edits += 0 if (added or removed) else condition_edits(before.condition, after.condition)
-    old, new = _predicates(before), _predicates(after)
     big_values = False
-    for key in old.keys() & new.keys():
-        (m1, a1, v1), (m2, a2, v2) = old[key], new[key]
-        if (m1, a1) != (m2, a2):
-            kinds.add("modifier")
-            edits += 1
-        if v1 != v2:
-            kinds.add("values_added" if v2 > v1 else "values_removed" if v2 < v1 else "values_changed")
-            edits += 1
-            big_values |= len(v2) > 8
-    shared = before.selections.keys() & after.selections.keys()
-    moved = {k[:2] for k in old.keys() ^ new.keys() if k[0] in shared}
-    if moved:
-        kinds.add("field")
-        edits += len(moved)
-    within = bool(kinds) and edits <= 3 and not removed and not big_values
+    reshaped = False
+    for name in before.selections.keys() & after.selections.keys():
+        b_sel, a_sel = before.selections[name], after.selections[name]
+        if [[p.field for p in br] for br in b_sel.branches] != [[q.field for q in br] for br in a_sel.branches]:
+            # Fields or branches changed: compare by position is meaningless and set_predicate cannot
+            # express it, so it is a field change outside the contract.
+            kinds.add("field")
+            reshaped = True
+            continue
+        for p, q in zip(b_sel.predicates, a_sel.predicates, strict=True):
+            if (p.modifier, p.match_all) != (q.modifier, q.match_all):
+                kinds.add("modifier")
+                edits += 1
+            v1, v2 = frozenset(p.values), frozenset(q.values)
+            if v1 != v2:
+                kinds.add("values_added" if v2 > v1 else "values_removed" if v2 < v1 else "values_changed")
+                edits += 1
+                big_values |= len(q.values) > 8
+    within = bool(kinds) and edits <= 3 and not removed and not big_values and not reshaped
     return tuple(sorted(kinds)), edits, within
 
 

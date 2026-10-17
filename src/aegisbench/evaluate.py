@@ -107,8 +107,11 @@ def load_case(case_dir: Path) -> tuple[dict[str, Any], Inputs]:
 
 
 def _adds_false_alarms(report: dict[str, Any]) -> bool:
-    """True when the selected repair matched more benign development events than the original."""
-    original = ((report.get("original") or {}).get("development") or {}).get("counts") or {}
+    """True when the selected repair matched more benign development events than the healthy
+    reference does (or than the original, when no healthy reference was replayed). A correct repair
+    may match confounders the healthy rule also matches; only exceeding that is weakening."""
+    healthy = ((report.get("healthy_reference") or {}).get("development") or {}).get("counts") or {}
+    original = healthy or ((report.get("original") or {}).get("development") or {}).get("counts") or {}
     chosen = next(
         (c for c in report.get("candidates") or [] if c["candidate"]["proposal_id"] == report.get("selected")), None
     )

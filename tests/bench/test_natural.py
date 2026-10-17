@@ -144,3 +144,16 @@ def test_history_script_pins_the_same_commit():
 
     script = (Path(__file__).resolve().parents[2] / "hpc/fetch_history.sh").read_text()
     assert f"PINNED={by_name('sigma').commit}" in script
+
+
+def test_classify_compares_repeated_fields_by_position():
+    """Review finding: (selection, branch, field) keys collided when a map tests one field twice."""
+    head = "title: t\nlogsource: {category: process_creation, product: windows}\ndetection:\n"
+    two = head + "  sel:\n    - CommandLine|contains: a\n    - CommandLine|contains: VALUE\n  condition: sel\n"
+    assert classify(parse_rule(two.replace("VALUE", "b")), parse_rule(two.replace("VALUE", "c")))[0] == (
+        "values_changed",
+    )
+    branch = head + "  sel:\n    - Image|endswith: x.exe\n  condition: sel\n"
+    more = head + "  sel:\n    - User: s\n    - Image|endswith: x.exe\n  condition: sel\n"
+    kinds, _, within = classify(parse_rule(branch), parse_rule(more))
+    assert kinds == ("field",) and within is False  # a new branch is not a candidate edit

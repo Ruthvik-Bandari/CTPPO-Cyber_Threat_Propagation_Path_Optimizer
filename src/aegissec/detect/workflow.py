@@ -167,6 +167,13 @@ class _Run:
         with self.engine.replay_index(dev.events) as dev_index:
             replayer = Replayer(self.engine, dev_index, dev)
             original = replayer.run(rule, mapping)
+            if inputs.healthy_rule_text or inputs.healthy_mapping_text:
+                # Recorded for reviewers: what the known-good rule does on the same development events.
+                healthy_dev = replayer.run(
+                    parse_rule(inputs.healthy_rule_text) if inputs.healthy_rule_text else rule,
+                    parse_mapping(inputs.healthy_mapping_text) if inputs.healthy_mapping_text else mapping,
+                )
+                self.report["healthy_reference"] = {"development": healthy_dev.as_dict()}
             hyps = hypotheses(rule, mapping, schema, dev, original)
             self.report.update(original={"development": original.as_dict()}, hypotheses=[h.as_dict() for h in hyps])
             if original.error:
@@ -211,7 +218,7 @@ class _Run:
                     parse_mapping(self.inputs.healthy_mapping_text) if self.inputs.healthy_mapping_text else mapping
                 )
                 healthy = replayer.run(healthy_rule, healthy_map)
-                self.report["healthy_reference"] = {"validation": healthy.as_dict()}
+                self.report.setdefault("healthy_reference", {})["validation"] = healthy.as_dict()
                 if healthy.error:
                     return self.finish(Outcome.ABSTAINED, f"healthy reference replay failed: {healthy.error}")
                 baseline = healthy.fp

@@ -153,3 +153,13 @@ def test_import_keeps_human_labels_and_rejects_a_bad_batch_atomically(root):
     with pytest.raises(ReviewError, match="row 1"):
         import_labels(root, [{"event_id": E1, "label": "evil", "rationale": "", "reviewer": "ai-x"}])
     assert status(root, _report())["labels"] == {"benign": 1, "malicious": 1}  # nothing half-applied
+
+
+def test_import_tolerates_missing_or_null_fields(root):
+    from aegisbench.review import import_labels
+
+    write_sheet(root, _report())
+    counts = import_labels(root, [{"event_id": E1, "label": "unknown", "reviewer": "ai-x", "rationale": None}])
+    assert counts["imported"] == 1
+    with pytest.raises(ReviewError, match="reviewer is required"):
+        import_labels(root, [{"event_id": E0, "label": "unknown"}])

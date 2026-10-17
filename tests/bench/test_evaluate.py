@@ -141,3 +141,20 @@ def test_a_real_abstention_is_not_an_error():
         _manifest("logic", {"outcome": "repaired"}), {"outcome": "abstained", "reason": "no candidate improved"}
     )
     assert row["error"] is None and row["abstained"]
+
+
+def test_weakening_is_judged_against_the_healthy_reference():
+    """A correct repair may match the confounders the healthy rule matches; only more than that counts."""
+    report = {
+        "outcome": "repaired",
+        "provisional": True,
+        "artifact": {"kind": "rule"},
+        "selected": "c1",
+        "original": {"development": {"counts": {"tp": 0, "fp": 0}}},
+        "healthy_reference": {"development": {"counts": {"tp": 1, "fp": 2}}},
+        "candidates": [{"candidate": {"proposal_id": "c1"}, "development": {"counts": {"tp": 1, "fp": 2}}}],
+    }
+    logic = {"outcome": "repaired", "family": "logic"}
+    assert score(_manifest("logic", logic), report)["adds_false_alarms"] is False
+    report["candidates"][0]["development"]["counts"]["fp"] = 3
+    assert score(_manifest("logic", logic), report)["adds_false_alarms"] is True
