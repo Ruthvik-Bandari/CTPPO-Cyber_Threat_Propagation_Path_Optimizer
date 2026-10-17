@@ -7,7 +7,8 @@
 #SBATCH --mem=64G
 #SBATCH --time=08:00:00
 #SBATCH --output=/scratch/%u/aegis-sec/logs/%x-%j.out
-# M1 LoRA fine-tuning of the B2 base model on an A100 (bf16). Smoke first to measure memory and
+# M1 LoRA fine-tuning of the B2 base model on an A100. bf16 keeps seeds comparable; a V100 would fall
+# back to fp16 without loss scaling, which is unstable for this trainer. Smoke first to measure memory and
 # throughput:  sbatch hpc/m1.sbatch --max-steps 5      Full run:  sbatch hpc/m1.sbatch --train-seed 1
 set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH" UV_OFFLINE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1

@@ -14,4 +14,4 @@ source "$HOME/aegis-sec/hpc/gpu_env.sh"
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export AEGIS_B2_SNAPSHOT="/scratch/$USER/aegis-sec/models/Qwen2.5-Coder-7B-Instruct@c03e6d358207e414f1eca0bb1891e29f1db0e242"
 export AEGIS_M1_ADAPTER="$DATA/models/${1:?adapter name, e.g. m1-seed1}"
-uv run --no-sync python -m aegisbench evaluate --root "$DATA" --es-url "$ES_URL" --system m1 "${@:2}"
+uv run --no-sync python -m aegisbench evaluate --root "$DATA" --es-url "$ES_URL" --system m1 --label "$1" "${@:2}"
