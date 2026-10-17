@@ -241,7 +241,7 @@ def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool, label:
     }
     name = label or system_name
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", name):
-        print(f"evaluate: invalid --label {name!r}", file=sys.stderr)
+        print(f"evaluate: invalid --report-name {name!r}", file=sys.stderr)
         return 2
     result["label"] = name
     _write_json(root / "reports" / f"eval-{name}{suffix}.json", {**result, "cases": rows})
@@ -387,7 +387,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", default=SPLIT_SEED, help="split: assignment seed")
     parser.add_argument("--manifest", type=Path, help="variants: split manifest (default: the frozen one)")
     parser.add_argument("--system", default="b0", help="evaluate: repair system")
-    parser.add_argument("--label", help="evaluate: report name (default: the system), e.g. m1-seed2")
+    parser.add_argument("--report-name", help="evaluate: report name (default: the system), e.g. m1-seed2")
     parser.add_argument("--locked", action="store_true", help="evaluate/compare: include the locked test split")
     parser.add_argument("--max-steps", type=int, default=0, help="train-m1: stop after N steps (smoke run)")
     parser.add_argument("--train-seed", type=int, default=1, help="train-m1: training seed")
@@ -450,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
         "review-import": lambda: _import(root, args.labels),
         "split": lambda: _split(root, args.seed, args.freeze),
         "variants": lambda: _variants(root, args.manifest, args.es_url, args.seed),
-        "evaluate": lambda: _evaluate(root, args.system, args.es_url, locked=args.locked, label=args.label),
+        "evaluate": lambda: _evaluate(root, args.system, args.es_url, locked=args.locked, label=args.report_name),
         "sft": lambda: _sft(root, args.es_url),
         "train-m1": lambda: _train_m1(root, args.max_steps, args.train_seed),
         "compare": lambda: _compare(root, args.systems, args.baseline, locked=args.locked),
