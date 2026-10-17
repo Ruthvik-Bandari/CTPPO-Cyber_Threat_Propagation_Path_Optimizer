@@ -33,6 +33,9 @@ The model has no tools and no network access. It loads with `trust_remote_code=F
 
 ## Results
 
+> **Superseded.** The table below pooled train cases with development cases. B1's memory and M1's training data come from train, so their numbers are inflated. The corrected, development-only results with three M1 seeds replace it (see `docs/data/qc/README.md`, "Correction").
+
+
 These are paired results on 175 train and development cases from 51 roots, before the locked test split. The intervals come from a root-resampling bootstrap.
 
 | System | Validated success | Outcome match | Weakened rules | Abstained | Δ vs B0 |

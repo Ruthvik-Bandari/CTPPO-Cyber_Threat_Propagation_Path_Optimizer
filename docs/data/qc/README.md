@@ -338,3 +338,20 @@ Caveats:
 - All labels are AI-assisted, and the human check is pending.
 - The split is a preview, not frozen.
 - The locked test split has not been run.
+
+## Correction (2026-10-17): earlier comparison tables are superseded
+
+An independent code review found two defects that affect every comparison table above.
+
+1. **The comparisons pooled train cases with development cases.** B1's retrieval memory and M1's training data come from the train split, so both were partly scored on their own data. The B1 and M1 numbers above are therefore optimistic.
+2. **Natural cases could include positives owned by another split.** A fix gained against the global pool could put a test root's attack event into a train case. Background negatives could likewise include other roots' positives.
+
+Other fixes in the same review:
+
+- SFT targets are now verified through the real candidate contract.
+- B1 skips out-of-contract proposals instead of crashing.
+- Engine failures are error rows, not abstentions.
+- Weakening is judged against the healthy reference.
+- `classify` handles repeated fields.
+
+All of it is fixed in commits 48b5b06 and 2869a39, with regression tests. The full pipeline was re-run: natural verification, split, variants, B0, B1, B2, SFT and M1 seeds 1 to 3. Comparisons are now on held-out cases only: development, or test when locked. The corrected results are in the next section, and they replace every table above.
