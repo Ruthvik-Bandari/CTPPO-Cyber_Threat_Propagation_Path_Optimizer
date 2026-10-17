@@ -275,6 +275,7 @@ manifests, and writes aggregate QC reports. Related docs:
 - [docs/data/compliance.md](docs/data/compliance.md): the approvals checklist.
 - [docs/hpc.md](docs/hpc.md): cluster jobs and choosing GPUs by task.
 - [docs/research.md](docs/research.md): the research pipeline end to end (benchmark → B0/B1/B2 → M1 → locked comparison).
+- [docs/data/dataset-card.md](docs/data/dataset-card.md) and [docs/model-card.md](docs/model-card.md): the benchmark and the M1 adapter, with results and limitations.
 
 ## Credits and license
 
