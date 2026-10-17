@@ -60,3 +60,23 @@ def test_memory_reads_train_only_and_b1_repairs_by_analogy(tmp_path):
         assert rows["missing_telemetry"]["outcome"] == "insufficient_evidence"
     finally:
         es.close()
+
+
+def test_out_of_contract_proposals_are_skipped_not_fatal():
+    from aegisbench.b1 import Repair, generator
+    from aegissec.detect.diagnose import Family, Hypothesis
+    from aegissec.detect.fixtures import Dataset
+    from aegissec.detect.mapping import FieldMapping
+    from aegissec.detect.rule import parse_rule
+
+    values = ", ".join(f"'v{i}.exe'" for i in range(9))
+    rule = parse_rule(
+        "title: t\nlogsource: {category: process_creation, product: windows}\n"
+        f"detection:\n  sel: {{Image: [{values}]}}\n  condition: sel\n"
+    )
+    memory = [Repair(("field:Image", "family:logic"), "rule", "modifier:equals->endswith")]
+    hyps = [Hypothesis(Family.LOGIC, ("malicious_missed_fields_present",))]
+    propose = generator(memory)
+    assert all(
+        len(c.patch) == 1 for c in propose(rule, FieldMapping("m", {}), Dataset("d", (), "0" * 64), hyps, frozenset())
+    )

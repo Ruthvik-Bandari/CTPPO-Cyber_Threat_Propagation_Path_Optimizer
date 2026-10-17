@@ -116,7 +116,28 @@ def _adds_false_alarms(report: dict[str, Any]) -> bool:
     return bool(original and counts) and counts.get("fp", 0) > original.get("fp", 0)
 
 
+# Workflow exits that mean the engine, not the system, failed. They are errors, so an outage never
+# silently lowers one system's numbers in a paired comparison.
+_ENGINE_FAILURE_PREFIXES = (
+    "original replay failed",
+    "original validation replay failed",
+    "healthy reference replay failed",
+)
+
+
+def _engine_failure(report: dict[str, Any] | None) -> str | None:
+    if report is None:
+        return None
+    if report.get("outcome") == "engine_unavailable":
+        return f"engine_unavailable: {report.get('reason')}"
+    reason = str(report.get("reason") or "")
+    return reason[:200] if reason.startswith(_ENGINE_FAILURE_PREFIXES) else None
+
+
 def score(manifest: dict[str, Any], report: dict[str, Any] | None, error: str | None = None) -> dict[str, Any]:
+    error = error or _engine_failure(report)
+    if error is not None:
+        report = None
     expected = manifest["expected"]
     outcome = report["outcome"] if report else "error"
     provisional = bool(report and report.get("provisional"))

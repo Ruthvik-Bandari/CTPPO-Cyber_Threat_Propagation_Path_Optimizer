@@ -21,9 +21,13 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Literal
+
+from pydantic import ValidationError
 
 from aegissec.detect.candidate import Candidate, MappingPatch, PredicateSpec, SetCondition, SetPredicate
 from aegissec.detect.diagnose import Family, Hypothesis
@@ -146,13 +150,18 @@ def generator(memory: list[Repair], top_k: int = TOP_K) -> Generator:
                     kind, sig = key.split("|", 1)
                     src, _, target = sig.partition("->")
                     if kind == "mapping" and src == field and target in observed and target != mapping.target(field):
-                        fix = MappingPatch(sigma_field=field, from_field=mapping.target(field), to_field=target)
-                        out.append((weight, _cand(rule, "mapping", fix, len(out))))
+                        _add(
+                            out,
+                            weight,
+                            rule,
+                            "mapping",
+                            partial(MappingPatch, sigma_field=field, from_field=mapping.target(field), to_field=target),
+                        )
         if any(h.family is Family.LOGIC for h in hyps):
             for cond in condition_mutations(rule.condition):
                 weight = votes.get(f"rule|{edit_signature(rule.condition, cond)}", 0.0)
                 if weight:
-                    out.append((weight, _cand(rule, "rule", SetCondition(condition=render_condition(cond)), len(out))))
+                    _add(out, weight, rule, "rule", partial(SetCondition, condition=render_condition(cond)))
             for name, sel in rule.selections.items():
                 for p in sel.predicates:
                     if p.modifier != "equals" or sum(q.field == p.field for q in sel.predicates) != 1:
@@ -161,13 +170,34 @@ def generator(memory: list[Repair], top_k: int = TOP_K) -> Generator:
                         weight = votes.get(f"rule|modifier:equals->{modifier}", 0.0)
                         if weight:
                             values = tuple("\\" + v for v in p.values) if modifier == "endswith" else p.values
-                            spec = PredicateSpec(field=p.field, modifier=modifier, values=values)
-                            edit = SetPredicate(selection=name, field=p.field, predicate=spec)
-                            out.append((weight, _cand(rule, "rule", edit, len(out))))
+                            _add(
+                                out,
+                                weight,
+                                rule,
+                                "rule",
+                                partial(_set_predicate, name, p.field, modifier, values),
+                            )
         out.sort(key=lambda x: -x[0])
         return [c for _, c in out[:MAX_PROPOSALS]]
 
     return propose
+
+
+def _set_predicate(
+    selection: str, field: str, modifier: Literal["endswith", "contains"], values: tuple[str, ...]
+) -> SetPredicate:
+    return SetPredicate(
+        selection=selection, field=field, predicate=PredicateSpec(field=field, modifier=modifier, values=values)
+    )
+
+
+def _add(out: list[tuple[float, Candidate]], weight: float, rule: Rule, kind: str, make: Callable[[], object]) -> None:
+    """Append a proposal, skipping any the candidate contract rejects (e.g. more than 8 values or an
+    over-long condition) instead of failing the whole case."""
+    try:
+        out.append((weight, _cand(rule, kind, make(), len(out))))
+    except ValidationError:
+        return
 
 
 def _cand(rule: Rule, kind: str, patch: object, n: int) -> Candidate:

@@ -186,3 +186,12 @@ def test_negative_control_weakened_repair_fails_validation(tmp_path):
     assert report["outcome"] == "abstained", report.get("reason")
     assert "benign_matches_above_baseline" in report["reason"]
     assert report["candidates"][0]["candidate"]["proposal_id"] == "weaken"  # it did pass screening
+
+
+def test_background_negatives_never_include_a_known_positive():
+    from aegisbench.variants import background_negatives, known_positives
+
+    manifest = {"splits": {"test": [{"rules": [{"id": "t", "positive_event_ids": ["otrf:a:1"]}]}], "reserve": []}}
+    excluded = known_positives(manifest, {"otrf:b:2"})
+    picked = background_negatives(["otrf:a:1", "otrf:b:2", "otrf:c:3", "otrf:d:4"], {"otrf:d:4"}, excluded, "r", "s")
+    assert picked == ["otrf:c:3"]  # not a test positive, not reviewed-malicious, not matched by the rule

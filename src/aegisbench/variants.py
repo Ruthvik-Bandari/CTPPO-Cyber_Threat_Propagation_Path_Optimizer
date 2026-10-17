@@ -117,6 +117,26 @@ def fixtures(root_id: str, positives: list[PoolEvent], negatives: list[PoolEvent
     return events
 
 
+def known_positives(manifest: dict[str, Any], malicious: set[str]) -> set[str]:
+    """Every event that is a positive anywhere: any root's positives in any split, plus every event a
+    reviewer labeled malicious. Such events are never used as another rule's benign background,
+    or a test root's attack could appear as a negative in a train case."""
+    out = set(malicious)
+    for groups in manifest["splits"].values():
+        for group in groups:
+            for entry in group["rules"]:
+                out.update(entry["positive_event_ids"])
+    return out
+
+
+def background_negatives(
+    otrf_ids: list[str], matched: set[str], excluded: set[str], rule_id: str, seed: str
+) -> list[str]:
+    """A seeded sample of OTRF events the rule does not match and that are nobody's positive."""
+    candidates = (e for e in otrf_ids if e not in matched and e not in excluded)
+    return sorted(candidates, key=lambda e: _rank(seed, rule_id + e))[:NEGATIVES_PER_ROOT]
+
+
 def _logic_rules(rule: Rule) -> Iterator[tuple[Rule, str]]:
     for cond in condition_mutations(rule.condition):
         yield replace(rule, condition=cond), "condition edited by one AST operation"
@@ -265,10 +285,18 @@ def write_case(
 
 
 def build(
-    root: Path, manifest: dict[str, Any], report: dict[str, Any], *, benign: set[str], es: Elasticsearch, seed: str
+    root: Path,
+    manifest: dict[str, Any],
+    report: dict[str, Any],
+    *,
+    benign: set[str],
+    es: Elasticsearch,
+    seed: str,
+    malicious: set[str] | None = None,
 ) -> dict[str, object]:
     pool = {p.event.event_id: p for p in [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]}
     otrf_ids = sorted(k for k, p in pool.items() if p.pool == "otrf")
+    excluded = known_positives(manifest, malicious or set())
     out = root / "benchmark" / "cases"
     kinds: Counter[str] = Counter()
     discarded: Counter[str] = Counter()
@@ -284,10 +312,8 @@ def build(
                 positives = [pool[e] for e in entry["positive_event_ids"]]
                 matched = set(report["per_rule"].get(entry["id"], {}).get("matched_event_ids", []))
                 confounders = [pool[e] for e in sorted(matched & benign)]
-                background = sorted(
-                    (e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, entry["id"] + e)
-                )
-                negatives = confounders + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
+                background = background_negatives(otrf_ids, matched, excluded, entry["id"], seed)
+                negatives = confounders + [pool[e] for e in background]
                 events = fixtures(entry["id"], positives, negatives)
                 kept, why = verify(es, rule, events, candidates_for(rule, events))
                 discarded.update(why)

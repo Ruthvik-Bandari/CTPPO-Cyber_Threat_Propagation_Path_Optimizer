@@ -121,3 +121,23 @@ def test_weakening_repairs_do_not_count_as_outcome_matches():
     assert score(_manifest("logic", logic), report(0))["outcome_match"] is True
     row = score(_manifest("logic", logic), report(2))
     assert (row["outcome_match"], row["adds_false_alarms"]) == (False, True)
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"outcome": "engine_unavailable", "reason": "connection refused"},
+        {"outcome": "abstained", "reason": "original replay failed: engine_error: 500"},
+        {"outcome": "abstained", "reason": "healthy reference replay failed: engine_error: 500"},
+    ],
+)
+def test_engine_failures_are_error_rows_not_system_outcomes(report):
+    row = score(_manifest("logic", {"outcome": "repaired"}), report)
+    assert row["error"] and row["outcome"] == "error" and not row["success"] and not row["abstained"]
+
+
+def test_a_real_abstention_is_not_an_error():
+    row = score(
+        _manifest("logic", {"outcome": "repaired"}), {"outcome": "abstained", "reason": "no candidate improved"}
+    )
+    assert row["error"] is None and row["abstained"]

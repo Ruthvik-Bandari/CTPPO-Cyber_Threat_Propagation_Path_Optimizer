@@ -41,24 +41,35 @@ def _bootstrap_mean(by_root: dict[str, list[int]], seed: int, reps: int) -> list
 
 
 def compare(
-    reports: dict[str, dict[str, Any]], baseline: str, seed: int = 0, reps: int = BOOTSTRAP_REPS
+    reports: dict[str, dict[str, Any]],
+    baseline: str,
+    seed: int = 0,
+    reps: int = BOOTSTRAP_REPS,
+    splits: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
+    """Compare on held-out cases only. B1's memory and M1's training data are the train split, so
+    train cases would score those systems on their own data. The default is ``development``, or
+    ``test`` for a locked evaluation."""
     if baseline not in reports:
         raise CompareError(f"baseline {baseline!r} has no report")
-    rows = {name: {r["case_id"]: r for r in rep["cases"]} for name, rep in reports.items()}
+    locked_flags = {rep.get("locked_test_included", False) for rep in reports.values()}
+    if len(locked_flags) != 1:
+        raise CompareError("mixing locked and open evaluations")
+    scope = splits or (("test",) if True in locked_flags else ("development",))
+    rows = {name: {r["case_id"]: r for r in rep["cases"] if r["split"] in scope} for name, rep in reports.items()}
+    if not rows[baseline]:
+        raise CompareError(f"no {'/'.join(scope)} cases in the baseline report")
     ids = set(rows[baseline])
     for name, by_case in rows.items():
         if set(by_case) != ids:
             raise CompareError(f"{name} was evaluated on different cases than {baseline}; comparisons must be paired")
-    locked = {rep.get("locked_test_included", False) for rep in reports.values()}
-    if len(locked) != 1:
-        raise CompareError("mixing locked and open evaluations")
     out: dict[str, Any] = {
         "schema_version": 1,
         "baseline": baseline,
         "cases": len(ids),
         "roots": len({r["root_id"] for r in rows[baseline].values()}),
-        "locked_test_included": locked.pop(),
+        "locked_test_included": locked_flags.pop(),
+        "splits": list(scope),
         "note": "Exploratory: a small benchmark of synthetic faults on public telemetry; intervals resample roots.",
         "systems": {},
     }
@@ -94,7 +105,7 @@ def compare(
 def markdown(result: dict[str, Any]) -> str:
     lines = [
         f"Paired on {result['cases']} cases from {result['roots']} roots"
-        + (" (locked test included)" if result["locked_test_included"] else " (train + development)")
+        + f" ({' + '.join(result['splits'])} split)"
         + f"; baseline {result['baseline']}. {result['note']}",
         "",
         "| System | Validated success | Outcome match (incl. provisional) | Wrong change | Abstained | Δ success vs baseline (95% CI) | Won / lost |",

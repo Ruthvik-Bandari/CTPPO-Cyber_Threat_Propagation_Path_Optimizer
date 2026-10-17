@@ -49,7 +49,16 @@ from aegissec.detect.rule import And, Cond, Not, Or, Ref, Rule, parse_rule, rend
 
 from .positives import otrf_events, sigma_events
 from .qc import SIGMA_RULES
-from .variants import HEALTHY, NEGATIVES_PER_ROOT, Variant, _matched, _rank, fixtures, to_ecs, write_case
+from .variants import (
+    HEALTHY,
+    Variant,
+    _matched,
+    background_negatives,
+    fixtures,
+    known_positives,
+    to_ecs,
+    write_case,
+)
 
 GIT_TIMEOUT_S = 600
 MAX_RULE_BYTES = 100 * 1024
@@ -304,9 +313,14 @@ def build(
     *,
     benign: set[str],
     seed: str,
+    malicious: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Write a case for every verified pair whose root is in the train, development or test split."""
-    split_of = {r["id"]: s for s, groups in manifest["splits"].items() for g in groups for r in g["rules"]}
+    """Write a case for every verified pair whose root is in the train, development or test split.
+
+    A case only uses positives its root owns in the manifest (positive events are exclusive to one
+    split), and background negatives exclude every known positive."""
+    split_of = {r["id"]: (s, r) for s, groups in manifest["splits"].items() for g in groups for r in g["rules"]}
+    excluded = known_positives(manifest, malicious or set())
     pool = {p.event.event_id: p for p in [*sigma_events(root / "sigma"), *otrf_events(root / "otrf")]}
     otrf_ids = sorted(k for k, p in pool.items() if p.pool == "otrf")
     out = root / "benchmark" / "cases"
@@ -314,16 +328,23 @@ def build(
     kinds: Counter[str] = Counter()
     per_split: Counter[str] = Counter()
     for v in verified["verified"]:
-        change = changes[v["change"]]
-        split = split_of.get(v["rule_id"])
-        if split is None or split == "reserve":
+        change = changes[v["change"]] if v["change"] < len(changes) else {}
+        if change.get("commit") != v["commit"] or change.get("rule_id") != v["rule_id"]:
+            raise ValueError("natural-verified.json does not match changes.jsonl; re-run natural-verify")
+        placed = split_of.get(v["rule_id"])
+        if placed is None or placed[0] == "reserve":
             placement["root_not_in_split"] += 1
+            continue
+        split, entry = placed
+        owned = [e for e in v["positives"] if e in set(entry["positive_event_ids"])]
+        if not owned:
+            placement["positives_owned_by_other_split"] += 1
             continue
         before, after = parse_rule(change["before"]), parse_rule(change["after"])
         matched = set(report["per_rule"].get(v["rule_id"], {}).get("matched_event_ids", []))
-        background = sorted((e for e in otrf_ids if e not in matched), key=lambda e: _rank(seed, v["rule_id"] + e))
-        negatives = [pool[e] for e in sorted(matched & benign)] + [pool[e] for e in background[:NEGATIVES_PER_ROOT]]
-        events = fixtures(v["rule_id"], [pool[e] for e in v["positives"]], negatives)
+        background = background_negatives(otrf_ids, matched, excluded, v["rule_id"], seed)
+        negatives = [pool[e] for e in sorted(matched & benign)] + [pool[e] for e in background]
+        events = fixtures(v["rule_id"], [pool[e] for e in owned], negatives)
         variant = Variant(
             "natural",
             before,

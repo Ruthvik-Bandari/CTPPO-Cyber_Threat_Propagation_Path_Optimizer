@@ -21,7 +21,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from aegissec.detect.candidate import MAX_AST_EDITS
+from pydantic import ValidationError
+
+from aegissec.core.errors import Rejected
+from aegissec.detect.candidate import MAX_AST_EDITS, Candidate, apply
 from aegissec.detect.diagnose import hypotheses
 from aegissec.detect.engine import Elasticsearch
 from aegissec.detect.fixtures import load_dataset, profile
@@ -34,6 +37,30 @@ from .evaluate import load_case
 
 
 def reference_repair(
+    rule: Rule, mapping: FieldMapping, healthy: Rule, healthy_map: FieldMapping
+) -> dict[str, Any] | None:
+    """The reference candidate, kept only when the real candidate contract accepts it and applying it
+    reproduces the healthy reference. A training target the contract would refuse would teach M1
+    to propose repairs that can never pass."""
+    target = _reference_ops(rule, mapping, healthy, healthy_map)
+    if target is None or not target["candidates"]:
+        return target
+    try:
+        cand = Candidate.model_validate(
+            {"proposal_id": "reference", "original_sha256": rule.sha256, **target["candidates"][0]}
+        )
+        new_rule, new_map = apply(rule, mapping, cand)
+    except (Rejected, ValidationError):
+        return None
+    restored = (
+        all(new_map.target(f) == healthy_map.target(f) for f in rule.fields)
+        if cand.patch_kind == "mapping"
+        else new_rule.selections == healthy.selections and new_rule.condition == healthy.condition
+    )
+    return target if restored else None
+
+
+def _reference_ops(
     rule: Rule, mapping: FieldMapping, healthy: Rule, healthy_map: FieldMapping
 ) -> dict[str, Any] | None:
     """The candidate that turns the impaired case back into its healthy reference, or None when the

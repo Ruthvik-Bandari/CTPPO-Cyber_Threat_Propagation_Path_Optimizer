@@ -136,10 +136,14 @@ def _natural_build(root: Path, manifest_path: Path | None, seed: str) -> int:
         manifest = json.loads(path.read_text())
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
         verified = json.loads((root / "reports" / "natural-verified.json").read_text())
-        benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
+        labels = _reviewed(root, report)
+        benign = {e for e, label in labels.items() if label == "benign"}
+        malicious = {e for e, label in labels.items() if label == "malicious"}
         for stale in (root / "benchmark" / "cases").glob("*/*-natural-*"):
             shutil.rmtree(stale)  # regenerate natural cases; synthetic variants are left alone
-        result = build(root, _natural_changes(root), verified, manifest, report, benign=benign, seed=seed)
+        result = build(
+            root, _natural_changes(root), verified, manifest, report, benign=benign, seed=seed, malicious=malicious
+        )
     except (ReviewError, OSError, ValueError) as exc:
         print(f"natural-build: FAILED {exc}", file=sys.stderr)
         return 1
@@ -246,6 +250,10 @@ def _evaluate(root: Path, system_name: str, es_url: str, *, locked: bool, label:
     result["label"] = name
     _write_json(root / "reports" / f"eval-{name}{suffix}.json", {**result, "cases": rows})
     print(f"evaluate: {json.dumps(summary['overall'])}")
+    errors = sum(r["error"] is not None for r in rows)
+    if errors:
+        print(f"evaluate: {errors} case(s) hit engine errors; the report is not a valid comparison", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -265,11 +273,13 @@ def _variants(root: Path, manifest_path: Path | None, es_url: str, seed: str) ->
         es.require_pinned()
         manifest = json.loads(path.read_text())
         report = json.loads((root / "reports" / "replay-positives.json").read_text())
-        benign = {e for e, label in _reviewed(root, report).items() if label == "benign"}
+        labels = _reviewed(root, report)
+        benign = {e for e, label in labels.items() if label == "benign"}
+        malicious = {e for e, label in labels.items() if label == "malicious"}
         for stale in (root / "benchmark" / "cases").glob("*/*"):
             if "-natural-" not in stale.name:
                 shutil.rmtree(stale)  # regenerate synthetic variants; natural cases are left alone
-        result = build(root, manifest, report, benign=benign, es=es, seed=seed)
+        result = build(root, manifest, report, benign=benign, es=es, seed=seed, malicious=malicious)
     except (Rejected, ReviewError, OSError, ValueError) as exc:
         print(f"variants: FAILED {exc}", file=sys.stderr)
         return 1

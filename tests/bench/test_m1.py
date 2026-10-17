@@ -107,3 +107,20 @@ def test_reference_repair_skips_fixes_outside_the_contract():
     op = reference_repair(HEALTHY, MAP, wider, MAP)["candidates"][0]["patch"][0]
     assert op["kind"] == "set_predicate" and len(op["predicate"]["values"]) == 2
     assert op["predicate"]["values"][1].endswith("y.exe")
+
+
+def test_reference_targets_must_pass_the_real_contract():
+    """Review finding: condition + predicate fixes could total more than 3 AST edits."""
+    healthy = parse_rule(
+        HEAD + "  a: {Image|endswith: '\\\\x.exe'}\n  b: {User: s}\n  c: {Company: z}\n  condition: (a or b) and c\n"
+    )
+    broken = parse_rule(
+        HEAD + "  a: {Image: 'x.exe'}\n  b: {User: s}\n  c: {Company: z}\n  condition: (a and b) or c\n"
+    )
+    assert (
+        reference_repair(broken, MAP, healthy, MAP) is None
+    )  # condition 2 + modifier 1 + values 1 = 4 edits: apply() refuses it
+    simple = parse_rule(
+        HEAD + "  a: {Image|endswith: '\\\\x.exe'}\n  b: {User: s}\n  c: {Company: z}\n  condition: (a and b) or c\n"
+    )
+    assert reference_repair(simple, MAP, healthy, MAP)["candidates"][0]["patch"][0]["kind"] == "set_condition"

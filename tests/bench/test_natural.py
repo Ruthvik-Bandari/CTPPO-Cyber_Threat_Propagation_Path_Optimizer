@@ -117,9 +117,18 @@ def test_verify_against_the_global_pool_then_place_by_split(tmp_path, history):
     assert verified["verdicts"] == {"not_a_coverage_fix": 1, "verified": 1}
     assert extra_roots(verified) == {RID: [f"sigma:{other}:0"]}
 
-    manifest = {"splits": {"train": [{"rules": [{"id": RID, "path": "x", "positive_event_ids": []}]}], "reserve": []}}
+    owned = {"id": RID, "path": "x", "positive_event_ids": [f"sigma:{other}:0"]}
+    manifest = {"splits": {"train": [{"rules": [owned]}], "reserve": []}}
     result = build(root, changes, verified, manifest, {"per_rule": {}}, benign=set(), seed="s")
     assert result["placement"] == {"written": 1} and result["cases_by_split"] == {"train": 1}
+    # The same event owned by a test root: the train case must not use it.
+    taken = {"splits": {"train": [{"rules": [{**owned, "positive_event_ids": []}]}], "reserve": []}}
+    assert build(root, changes, verified, taken, {"per_rule": {}}, benign=set(), seed="s")["placement"] == {
+        "positives_owned_by_other_split": 1
+    }
+    stale = {**verified, "verified": [{**verified["verified"][0], "commit": "0" * 40}]}
+    with pytest.raises(ValueError, match="re-run natural-verify"):
+        build(root, changes, stale, manifest, {"per_rule": {}}, benign=set(), seed="s")
     manifest_case, _ = load_case(next((root / "benchmark/cases/train").glob("*-natural-*")))
     assert manifest_case["provenance"] == "natural" and "fix: cover b.exe" in manifest_case["fault"]["detail"]
     reserve = {"splits": {"reserve": manifest["splits"]["train"]}}
